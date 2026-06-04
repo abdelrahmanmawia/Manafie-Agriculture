@@ -1,0 +1,63 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\User;
+use App\Models\Enterprise;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Inertia\Inertia;
+
+class UserController extends Controller
+{
+    public function index(Request $request)
+    {
+        if ($request->user()->role !== 'super_admin') {
+            abort(403);
+        }
+
+        $enterpriseId = $request->query('enterprise_id');
+        $query = User::with('enterprise');
+
+        if ($enterpriseId) {
+            $query->where('enterprise_id', $enterpriseId);
+        }
+
+        return Inertia::render('Admin/Users', [
+            'users' => $query->get(),
+            'enterprises' => Enterprise::all(),
+            'selectedEnterpriseId' => $enterpriseId
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8',
+            'role' => 'required|in:enterprise_admin,data_entry',
+            'enterprise_id' => 'required|exists:enterprises,id',
+        ]);
+
+        User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'password' => Hash::make($validated['password']),
+            'role' => $validated['role'],
+            'enterprise_id' => $validated['enterprise_id'],
+        ]);
+
+        return redirect()->back()->with('success', 'User created successfully.');
+    }
+
+    public function destroy(User $user)
+    {
+        if ($user->role === 'super_admin') {
+            return redirect()->back()->with('error', 'Cannot delete super admin.');
+        }
+        
+        $user->delete();
+        return redirect()->back();
+    }
+}
