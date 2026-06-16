@@ -21,6 +21,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'farm_id',
         'enterprise_id',
         'role',
     ];
@@ -43,6 +44,11 @@ class User extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
     ];
+
+    public function farm()
+    {
+        return $this->belongsTo(Farm::class);
+    }
 
     public function enterprise()
     {

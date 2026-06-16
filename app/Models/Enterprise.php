@@ -9,25 +9,20 @@ class Enterprise extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'contract_type', 'logo', 'settings'];
+    protected $fillable = ['farm_id', 'name', 'contract_type', 'default_brut_rate', 'logo', 'settings'];
 
     protected $casts = [
         'settings' => 'array',
     ];
 
+    public function farm()
+    {
+        return $this->belongsTo(Farm::class);
+    }
+
     public function employees()
     {
         return $this->hasMany(Employee::class);
-    }
-
-    public function operations()
-    {
-        return $this->hasMany(Operation::class);
-    }
-
-    public function blocs()
-    {
-        return $this->hasMany(Bloc::class);
     }
 
     public function quinzaines()

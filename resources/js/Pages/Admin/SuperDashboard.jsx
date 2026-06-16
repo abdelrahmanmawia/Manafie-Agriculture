@@ -1,90 +1,121 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
+import { t } from '@/Helpers/i18n';
 
-export default function SuperDashboard({ auth, enterprises }) {
-    const { data, setData, post, processing, reset } = useForm({
+export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
+    const [showFarmForm, setShowFarmForm] = useState(false);
+    const [showEntForm, setShowEntForm] = useState(false);
+
+    const farmForm = useForm({
         name: '',
-        contract_type: 'avec_contrat',
     });
 
-    const submit = (e) => {
+    const entForm = useForm({
+        farm_id: '',
+        name: '',
+        contract_type: 'avec_contrat',
+        default_brut_rate: 97.44,
+    });
+
+    const submitFarm = (e) => {
         e.preventDefault();
-        post(route('enterprises.store'), {
-            onSuccess: () => reset(),
+        farmForm.post(route('farms.store'), {
+            onSuccess: () => {
+                farmForm.reset();
+                setShowFarmForm(false);
+            },
+        });
+    };
+
+    const submitEnt = (e) => {
+        e.preventDefault();
+        entForm.post(route('enterprises.store'), {
+            onSuccess: () => {
+                entForm.reset();
+                setShowEntForm(false);
+            },
         });
     };
 
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">Super Admin Dashboard - All Fermes</h2>}
+            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight uppercase tracking-widest">Tableau de Bord - Fermes</h2>}
         >
             <Head title="Super Admin Dashboard" />
 
             <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    
-                    {/* CREATE ENTERPRISE */}
-                    <div className="bg-white p-6 shadow sm:rounded-lg border-t-4 border-blue-600">
-                        <h3 className="text-lg font-bold mb-4">Create New Ferme (Enterprise)</h3>
-                        <form onSubmit={submit} className="flex flex-wrap gap-4 items-end">
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">Nom de la Ferme</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Enterprise Name" 
-                                    className="w-full rounded border-gray-300" 
-                                    value={data.name} 
-                                    onChange={e => setData('name', e.target.value)} 
-                                />
+                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-8">
+
+                    {/* CREATE FARM TOGGLE */}
+                    <div className="flex justify-center">
+                        {!showFarmForm ? (
+                            <button
+                                onClick={() => setShowFarmForm(true)}
+                                className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-full font-black uppercase tracking-widest shadow-lg transition-all transform hover:scale-105"
+                            >
+                                + Créer une Nouvelle Ferme
+                            </button>
+                        ) : (
+                            <div className="bg-white p-8 shadow-2xl rounded-2xl border-2 border-green-500 w-full max-w-md">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-black uppercase tracking-tight">Nouvelle Ferme</h3>
+                                    <button onClick={() => setShowFarmForm(false)} className="text-gray-400 hover:text-gray-600 font-bold">X</button>
+                                </div>
+                                <form onSubmit={submitFarm} className="space-y-6">
+                                    <div>
+                                        <label className="block text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Nom de la Ferme</label>
+                                        <input
+                                            type="text"
+                                            className="w-full rounded-xl border-gray-200 text-sm focus:border-green-500 focus:ring-green-500 py-3"
+                                            placeholder="Ex: Ferme Souss"
+                                            value={farmForm.data.name}
+                                            onChange={e => farmForm.setData('name', e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <button 
+                                        type="submit" 
+                                        disabled={farmForm.processing}
+                                        className="w-full bg-green-600 hover:bg-green-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md"
+                                    >
+                                        Enregistrer la Ferme
+                                    </button>
+                                </form>
                             </div>
-                            <div className="min-w-[200px]">
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">Type de Contrat Global</label>
-                                <select 
-                                    className="w-full rounded border-gray-300"
-                                    value={data.contract_type}
-                                    onChange={e => setData('contract_type', e.target.value)}
-                                >
-                                    <option value="avec_contrat">Avec Contrat (CNSS + AMO)</option>
-                                    <option value="sans_contrat">Sans Contrat (Hafila/Direct)</option>
-                                </select>
-                            </div>
-                            <button type="submit" disabled={processing} className="bg-blue-600 text-white px-6 py-2 rounded font-bold h-[42px]">Create Ferme</button>
-                        </form>
+                        )}
                     </div>
 
-                    {/* ENTERPRISE LIST */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {enterprises.map(ent => (
-                            <div key={ent.id} className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border border-gray-200">
-                                <div className="flex justify-between items-start mb-2">
-                                    <h4 className="text-xl font-black text-gray-900">{ent.name}</h4>
-                                    <span className={`px-2 py-1 rounded text-[8px] font-black uppercase ${ent.contract_type === 'avec_contrat' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {ent.contract_type.replace('_', ' ')}
-                                    </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                        {farms.map(farm => (
+                            <div key={farm.id} className="bg-white overflow-hidden shadow-sm sm:rounded-2xl p-8 border border-gray-100 hover:border-green-500 hover:shadow-xl transition-all group">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div>
+                                        <h4 className="text-3xl font-black text-gray-900 leading-tight uppercase group-hover:text-green-600 transition-colors">{farm.name}</h4>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-gray-50 px-3 py-2 rounded-xl text-center border border-gray-100">
+                                        <p className="text-xl font-black text-gray-900 leading-none">{farm.enterprises_count}</p>
+                                        <p className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter">Divisions</p>
+                                    </div>
                                 </div>
-                                <div className="text-sm text-gray-500 space-y-1 mb-4">
-                                    <p>Workers: <span className="font-bold text-gray-800">{ent.employees_count}</span></p>
-                                    <p>Periods: <span className="font-bold text-gray-800">{ent.quinzaines_count}</span></p>
-                                </div>
-                                <div className="flex gap-2">
-                                    <Link 
-                                        href={route('pointage.index', { enterprise_id: ent.id })} 
-                                        className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 rounded font-bold transition-colors"
+                                
+                                <div className="flex flex-col gap-3 mt-8">
+                                    <Link
+                                        href={route('dashboard', { farm_id: farm.id })}
+                                        className="w-full text-center bg-gray-900 text-white hover:bg-black py-4 rounded-xl font-black text-xs transition-all uppercase tracking-widest shadow-sm"
                                     >
-                                        Pointage
+                                        {t('view')} {t('enterprises')}
                                     </Link>
-                                    <Link 
-                                        href={route('settings.index', { enterprise_id: ent.id })} 
-                                        className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded font-bold transition-colors"
+                                    <Link
+                                        href={route('farms.settings', farm.id)}
+                                        className="w-full text-center bg-gray-50 hover:bg-gray-100 text-gray-600 py-3 rounded-xl font-bold text-[10px] transition-all uppercase tracking-widest border border-gray-100"
                                     >
-                                        Settings
-                                    </Link>
-                                    <Link 
-                                        href={route('employees.index', { enterprise_id: ent.id })} 
-                                        className="text-xs bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded font-bold transition-colors"
-                                    >
-                                        Employees
+                                        {t('settings')} {t('fermes')}
                                     </Link>
                                 </div>
                             </div>

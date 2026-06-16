@@ -11,11 +11,12 @@ class PointageRecord extends Model
 
     protected $fillable = [
         'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'date',
-        'hours', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net'
+        'hours', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net'
     ];
 
     protected $casts = [
         'date' => 'date',
+        'is_jf' => 'boolean',
     ];
 
     public function employee()

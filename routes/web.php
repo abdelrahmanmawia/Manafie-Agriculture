@@ -5,6 +5,8 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EnterpriseController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AnalyticsController;
+use App\Http\Controllers\PayrollController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -32,8 +34,17 @@ Route::get('/', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [EnterpriseController::class, 'index'])->name('dashboard');
     
-    // Admin Management
+    // Farm & Enterprise Management
+    Route::post('/farms', [App\Http\Controllers\FarmController::class, 'store'])->name('farms.store');
+    Route::delete('/farms/{farm}', [App\Http\Controllers\FarmController::class, 'destroy'])->name('farms.destroy');
+    Route::get('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'settings'])->name('farms.settings');
+    Route::post('/farms/{farm}/operations', [App\Http\Controllers\FarmController::class, 'addOperation'])->name('farms.operations.store');
+    Route::post('/farms/{farm}/blocs', [App\Http\Controllers\FarmController::class, 'addBloc'])->name('farms.blocs.store');
+    Route::delete('/farms/operations/{operation}', [App\Http\Controllers\FarmController::class, 'deleteOperation'])->name('farms.operations.destroy');
+    Route::delete('/farms/blocs/{bloc}', [App\Http\Controllers\FarmController::class, 'deleteBloc'])->name('farms.blocs.destroy');
+
     Route::post('/enterprises', [EnterpriseController::class, 'store'])->name('enterprises.store');
+    Route::patch('/enterprises/{enterprise}', [EnterpriseController::class, 'update'])->name('enterprises.update');
     
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -54,9 +65,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Pointage
     Route::get('/pointage', [PointageController::class, 'index'])->name('pointage.index');
     Route::get('/pointage/grid/{quinzaine}', [PointageController::class, 'grid'])->name('pointage.grid');
+    Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
     Route::post('/pointage', [PointageController::class, 'store'])->name('pointage.store');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
+
+    Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
+    Route::get('/payroll-history', [PayrollController::class, 'history'])->name('payroll.history');
+    Route::get('/payroll/payslip/{employee}/{quinzaine}', [PayrollController::class, 'downloadPayslip'])->name('payroll.payslip');
+    Route::get('/payroll/general-payslip/{quinzaine}', [PayrollController::class, 'downloadGeneralPayslip'])->name('payroll.general-payslip');
 });
 
 Route::middleware('auth')->group(function () {

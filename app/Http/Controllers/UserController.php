@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\Enterprise;
+use App\Models\Farm;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Inertia\Inertia;
@@ -16,16 +17,22 @@ class UserController extends Controller
             abort(403);
         }
 
+        $farmId = $request->query('farm_id');
         $enterpriseId = $request->query('enterprise_id');
-        $query = User::with('enterprise');
+        
+        $query = User::with(['farm', 'enterprise']);
 
         if ($enterpriseId) {
             $query->where('enterprise_id', $enterpriseId);
+        } elseif ($farmId) {
+            $query->where('farm_id', $farmId);
         }
 
         return Inertia::render('Admin/Users', [
             'users' => $query->get(),
-            'enterprises' => Enterprise::all(),
+            'farms' => \App\Models\Farm::all(),
+            'enterprises' => $farmId ? \App\Models\Enterprise::where('farm_id', $farmId)->get() : \App\Models\Enterprise::all(),
+            'selectedFarmId' => $farmId,
             'selectedEnterpriseId' => $enterpriseId
         ]);
     }
@@ -36,8 +43,9 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:enterprise_admin,data_entry',
-            'enterprise_id' => 'required|exists:enterprises,id',
+            'role' => 'required|in:enterprise_admin,data_entry,farm_manager',
+            'farm_id' => 'required|exists:farms,id',
+            'enterprise_id' => 'nullable|exists:enterprises,id',
         ]);
 
         User::create([
@@ -45,6 +53,7 @@ class UserController extends Controller
             'email' => $validated['email'],
             'password' => Hash::make($validated['password']),
             'role' => $validated['role'],
+            'farm_id' => $validated['farm_id'],
             'enterprise_id' => $validated['enterprise_id'],
         ]);
 

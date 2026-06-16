@@ -10,17 +10,26 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        $enterpriseId = $request->user()->enterprise_id ?? $request->query('enterprise_id');
+        $user = $request->user();
+        $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
         
         $query = Employee::with('enterprise');
 
         if ($enterpriseId) {
             $query->where('enterprise_id', $enterpriseId);
+        } elseif ($user->farm_id && $user->role !== 'super_admin') {
+            $query->whereHas('enterprise', function($q) use ($user) {
+                $q->where('farm_id', $user->farm_id);
+            });
         }
 
         return Inertia::render('Admin/Employees', [
             'employees' => $query->get(),
-            'enterprises' => $request->user()->role === 'super_admin' ? \App\Models\Enterprise::all() : [],
+            'enterprises' => $user->role === 'super_admin' 
+                ? \App\Models\Enterprise::all() 
+                : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id)) 
+                    ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get() 
+                    : []),
             'selectedEnterpriseId' => $enterpriseId
         ]);
     }

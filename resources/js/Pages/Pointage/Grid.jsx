@@ -1,12 +1,26 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { formatNumber } from '@/Helpers/formatNumber';
 
 export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords }) {
     const [selectedCell, setSelectedCell] = useState(null);
-    const [summary, setSummary] = useState([]);
-    
+    const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {} });
+    const [isMobile, setIsMobile] = useState(false);
+    const [currentDate, setCurrentDate] = useState(days[0] || new Date().toISOString().split('T')[0]);
+    const [globalOperation, setGlobalOperation] = useState('');
+    const [globalBloc, setGlobalBloc] = useState('');
+    const [globalHours, setGlobalHours] = useState(0);
+
+    // Check for mobile on mount and resize
+    useEffect(() => {
+        const checkMobile = () => setIsMobile(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
+
     const { data, setData, post, processing, reset, errors } = useForm({
         employee_id: '',
         quinzaine_id: quinzaine.id,
@@ -14,6 +28,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         bloc_id: '',
         date: '',
         hours: 0, // This is H.S
+        is_jf: false,
     });
 
     const openForm = (employeeId, date) => {
@@ -28,12 +43,38 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             bloc_id: record?.bloc_id || '',
             date: date,
             hours: record?.hours || 0,
+            is_jf: record?.is_jf || false,
         });
+    };
+
+    const handleQuickSave = (employeeId, isPresent) => {
+        if (quinzaine.is_closed) return;
+
+        if (!isPresent) {
+            router.post(route('pointage.cell'), {
+                employee_id: employeeId,
+                quinzaine_id: quinzaine.id,
+                date: currentDate,
+                operation_id: '',
+                bloc_id: '',
+            }, { preserveScroll: true });
+            return;
+        }
+
+        router.post(route('pointage.cell'), {
+            employee_id: employeeId,
+            quinzaine_id: quinzaine.id,
+            date: currentDate,
+            operation_id: globalOperation || (existingRecords[employeeId]?.[currentDate]?.[0]?.operation_id || operations[0]?.id),
+            bloc_id: globalBloc || (existingRecords[employeeId]?.[currentDate]?.[0]?.bloc_id || blocs[0]?.id),
+            hours: globalHours || (existingRecords[employeeId]?.[currentDate]?.[0]?.hours || 0),
+            is_jf: existingRecords[employeeId]?.[currentDate]?.[0]?.is_jf || false,
+        }, { preserveScroll: true });
     };
 
     const fetchSummary = async () => {
         const response = await axios.get(route('pointage.summary', quinzaine.id));
-        setSummary(response.data);
+        setSummaryData(response.data);
     };
 
     const submit = (e) => {
@@ -47,166 +88,386 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         });
     };
 
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
     useEffect(() => {
         fetchSummary();
     }, []);
 
+    // 📱 MOBILE VIEW (Field Mode)
+    if (isMobile) {
+        const dailyRecords = {};
+        Object.keys(existingRecords).forEach(empId => {
+            if (existingRecords[empId][currentDate]) {
+                dailyRecords[empId] = existingRecords[empId][currentDate][0];
+            }
+        });
+
+        return (
+            <AuthenticatedLayout
+                user={auth.user}
+                header={
+                    <div className="flex flex-col gap-2">
+                        <div className="flex justify-between items-center">
+                            <h2 className="font-black text-xl text-gray-800 uppercase tracking-tighter">Mode Terrain</h2>
+                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">{quinzaine.enterprise.name}</span>
+                        </div>
+                        <div className="flex gap-2">
+                             <select
+                                value={currentDate}
+                                onChange={(e) => setCurrentDate(e.target.value)}
+                                className="flex-1 rounded-xl border-gray-200 font-bold text-sm shadow-sm focus:ring-blue-500"
+                            >
+                                {days.map(d => (
+                                    <option key={d} value={d}>
+                                        {new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', weekday: 'short' })}
+                                    </option>
+                                ))}
+                            </select>
+                            <button onClick={() => setIsMobile(false)} className="bg-gray-100 p-2 rounded-xl text-gray-500">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                            </button>
+                        </div>
+                    </div>
+                }
+            >
+                <Head title="Mode Terrain" />
+                <div className="py-4 bg-gray-50 min-h-screen pb-32">
+                    <div className="max-w-7xl mx-auto px-4">
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 sticky top-4 z-30">
+                            <div className="grid grid-cols-2 gap-3">
+                                <select value={globalOperation} onChange={(e) => setGlobalOperation(e.target.value)} className="text-xs font-bold rounded-lg border-gray-100 bg-gray-50">
+                                    <option value="">-- Opération --</option>
+                                    {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                                </select>
+                                <select value={globalBloc} onChange={(e) => setGlobalBloc(e.target.value)} className="text-xs font-bold rounded-lg border-gray-100 bg-gray-50">
+                                    <option value="">-- Bloc --</option>
+                                    {blocs.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between">
+                                <label className="text-[10px] font-black text-gray-400 uppercase">H.S:</label>
+                                <input type="number" value={globalHours} onChange={(e) => setGlobalHours(e.target.value)} className="w-16 h-8 text-xs font-bold rounded-lg border-gray-100 bg-gray-50" min="0" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {employees.map(emp => {
+                                const record = dailyRecords[emp.id];
+                                const isPresent = !!record;
+                                return (
+                                    <div key={emp.id} className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${isPresent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100 opacity-60'}`}>
+                                        <div className="flex flex-col">
+                                            <span className="font-black text-gray-900 uppercase leading-none mb-1 text-sm">{emp.full_name}</span>
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? `${record.hours}h HS` : 'Absent'}</span>
+                                        </div>
+                                        <button onClick={() => handleQuickSave(emp.id, !isPresent)} disabled={quinzaine.is_closed} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}>
+                                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={isPresent ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} /></svg>
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+                <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-4 pb-8 z-40 rounded-t-[32px] shadow-lg">
+                    <div className="flex justify-between items-center max-w-7xl mx-auto">
+                        <div className="flex flex-col">
+                            <span className="text-[10px] font-black text-gray-400 uppercase">Présents</span>
+                            <span className="text-2xl font-black text-blue-700">{Object.keys(dailyRecords).length} / {employees.length}</span>
+                        </div>
+                        <button onClick={() => setIsMobile(false)} className="bg-gray-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl">Vue Tableau</button>
+                    </div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
+
+    // 🖥️ DESKTOP VIEW (Original Grid)
     return (
         <AuthenticatedLayout
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">
-                        Pointage Grid: {quinzaine.start_date} - {quinzaine.end_date}
-                    </h2>
-                    {quinzaine.is_closed && (
-                        <span className="bg-red-100 text-red-700 px-4 py-2 rounded-full font-black text-sm border-2 border-red-200 shadow-sm animate-pulse">
-                            LOCKED / CLOSED
+                    <div className="flex flex-col">
+                        <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">
+                            Gestion Pointage : {quinzaine.enterprise?.name}
+                        </h2>
+                        <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{formatDate(quinzaine.start_date)} au {formatDate(quinzaine.end_date)}</span>
+                    </div>
+                    <div className="flex gap-2 items-center">
+                        <a
+                            href={route('pointage.export', quinzaine.id)}
+                            target="_blank"
+                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all mr-2"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                            EXCEL
+                        </a>
+                        <a
+                            href={route('payroll.general-payslip', quinzaine.id)}
+                            target="_blank"
+                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all mr-4"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            PDF GLOBAL
+                        </a>
+                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black border-2 uppercase tracking-tighter ${quinzaine.enterprise?.contract_type === 'avec_contrat' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
+                            {quinzaine.enterprise?.contract_type.replace('_', ' ')}
                         </span>
-                    )}
+                        {quinzaine.is_closed && (
+                            <span className="bg-red-600 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg animate-pulse ml-2">
+                                SESSION CLÔTURÉE
+                            </span>
+                        )}
+                    </div>
                 </div>
             }
         >
             <Head title="Pointage Grid" />
 
             <div className="py-6">
-                <div className="max-w-full mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {/* 1. THE GRID */}
-                    <div className="bg-white overflow-x-auto shadow-sm sm:rounded-lg p-6">
-                        <h3 className="text-lg font-bold mb-4 text-blue-800">1. Daily Pointage Matrix (Click a cell to edit)</h3>
-                        <table className="min-w-full border-collapse border border-gray-300 text-[10px]">
-                            <thead>
-                                <tr>
-                                    <th className="border border-gray-300 p-2 bg-gray-100 sticky left-0 z-10 min-w-[150px]">Employee</th>
-                                    {days.map(day => (
-                                        <th key={day} className="border border-gray-300 p-1 bg-gray-100 min-w-[40px]">
-                                            {day.split('-')[2]}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {employees.map(emp => (
-                                    <tr key={emp.id}>
-                                        <td className="border border-gray-300 p-2 font-bold bg-gray-50 sticky left-0 z-10">
-                                            {emp.full_name}
-                                        </td>
-                                        {days.map(day => {
-                                            const record = existingRecords[emp.id]?.[day]?.[0];
-                                            return (
-                                                <td 
-                                                    key={day} 
-                                                    onClick={() => openForm(emp.id, day)}
-                                                    className={`border border-gray-300 p-1 text-center cursor-pointer hover:bg-blue-50 transition-colors ${record ? 'bg-green-100' : 'bg-white'}`}
-                                                >
-                                                    {record ? (
-                                                        <div className="font-bold">
-                                                            {operations.find(o => o.id === record.operation_id)?.name.substring(0, 3)}
-                                                            <br/>
-                                                            {record.hours > 0 && <span className="text-blue-600">+{record.hours}h</span>}
-                                                        </div>
-                                                    ) : '-'}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                <div className="max-w-full mx-auto sm:px-4 lg:px-8 space-y-10">
 
-                    {/* 2. THE AUTOMATIC SUMMARY */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                        <h3 className="text-lg font-bold mb-4 text-green-800">2. Operations Summary (Updates automatically)</h3>
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Operation</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bloc</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Total H.S</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-center">Workers</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Estimated Cost</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200 text-sm">
-                                {summary.length === 0 ? (
-                                    <tr><td colSpan="5" className="px-6 py-4 text-center text-gray-500 italic">No data yet for this period.</td></tr>
-                                ) : (
-                                    summary.map((item, index) => (
-                                        <tr key={index}>
-                                            <td className="px-6 py-4 font-medium">{item.operation}</td>
-                                            <td className="px-6 py-4">{item.bloc}</td>
-                                            <td className="px-6 py-4 text-center">{item.total_hours}h</td>
-                                            <td className="px-6 py-4 text-center">{item.worker_count}</td>
-                                            <td className="px-6 py-4 text-right font-bold text-green-700">{parseFloat(item.total_net).toFixed(2)} DH</td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                    {/* 1. THE MAIN POINTAGE MATRIX */}
+                    <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-blue-600 overflow-hidden">
+                        <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">1. Pointage du Personnel (Journalier)</h3>
+                            <div className="flex gap-4">
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Présent</div>
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span> Jour Férié</div>
+                            </div>
+                        </div>
+                        <div className="overflow-x-auto p-4">
+                            <table className="min-w-full border-collapse border border-gray-200 text-[10px]">
+                                <thead>
+                                    <tr className="bg-gray-100">
+                                        <th className="border border-gray-300 p-2 sticky left-0 z-20 bg-gray-100 min-w-[180px] shadow-md uppercase tracking-tighter">Personnel</th>
+                                        {days.map(day => (
+                                            <th key={day} className="border border-gray-300 p-1 min-w-[38px] text-gray-600">
+                                                {day.split('-')[2]}
+                                            </th>
+                                        ))}
+                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[160px] z-20 text-blue-800 font-black shadow-md">NET/J</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[100px] z-20 text-blue-800 font-black shadow-md">JOURS</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter">Total Net</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {employees.map(emp => {
+                                        const employeeRecords = existingRecords[emp.id] || {};
+                                        const totalJours = Object.keys(employeeRecords).length;
+                                        const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0);
+                                        const salNetJ = quinzaine.enterprise.contract_type === 'avec_contrat'
+                                            ? (parseFloat(quinzaine.enterprise.default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
+                                            : parseFloat(quinzaine.enterprise.default_brut_rate);
+
+                                        return (
+                                            <tr key={emp.id} className="hover:bg-blue-50 transition-colors group">
+                                                <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-blue-50">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{emp.full_name}</span>
+                                                        <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}</span>
+                                                    </div>
+                                                </td>
+                                                {days.map(day => {
+                                                    const record = employeeRecords[day]?.[0];
+                                                    return (
+                                                        <td
+                                                            key={day}
+                                                            onClick={() => openForm(emp.id, day)}
+                                                            className={`border border-gray-200 p-1 text-center cursor-pointer transition-all ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'}`}
+                                                        >
+                                                            {record ? (
+                                                                <div className="font-black leading-tight">
+                                                                    {record.is_jf && <div className="text-[6px] text-purple-700 uppercase mb-0.5">JF</div>}
+                                                                    <span className="text-gray-700 text-[8px] uppercase">
+                                                                        {operations.find(o => o.id === record.operation_id)?.name.split('(')[1]?.replace(')', '') || '??'}
+                                                                    </span>
+                                                                    <div className="text-[7px] text-gray-400">
+                                                                        {blocs.find(b => b.id === record.bloc_id)?.name}
+                                                                    </div>
+                                                                    {record.hours > 0 && <div className="text-blue-600 text-[8px]">+{record.hours}h</div>}
+                                                                </div>
+                                                            ) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="border border-gray-200 p-2 text-right font-bold text-gray-500 bg-gray-50 sticky right-[160px] z-10 shadow-sm">{formatNumber(salNetJ)}</td>
+                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[100px] z-10 shadow-sm">{totalJours}</td>
+                                                <td className="border border-gray-200 p-2 text-right font-black text-blue-900 bg-blue-100 sticky right-0 z-10 shadow-sm">
+                                                <div className="flex flex-col items-end">
+                                                    <span>{formatNumber(totalNet)}</span>
+                                                    {totalJours > 0 && (
+                                                        <a
+                                                            href={route('payroll.payslip', [emp.id, quinzaine.id])}
+                                                            target="_blank"
+                                                            className="text-[6px] bg-red-600 text-white px-2 py-0.5 rounded font-black hover:bg-red-700 mt-1 uppercase"
+                                                        >
+                                                            Bulletin PDF
+                                                        </a>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                                <tfoot>
+                                    <tr className="bg-yellow-50 font-black">
+                                        <td className="p-3 border border-gray-300 sticky left-0 z-10 bg-yellow-50 text-right uppercase text-[8px] tracking-widest text-orange-900">Total Charges TTC (Par Jour)</td>
+                                        {days.map(day => (
+                                            <td key={day} className="border border-gray-300 p-1 text-center text-orange-800 text-[8px] shadow-inner">
+                                                {summaryData.daily_totals[day] > 0 ? formatNumber(summaryData.daily_totals[day], 1) : '-'}
+                                            </td>
+                                        ))}
+                                        <td colSpan="3" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
+                                            TOTAL QUINZAINE TTC : {formatNumber(Object.values(summaryData.daily_totals).reduce((a,b) => a+b, 0))} DH
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </section>
+
+                    {/* 2. PER-BLOC COST GRIDS */}
+                    <div className="space-y-12">
+                        <div className="flex items-center gap-4">
+                            <div className="h-0.5 bg-gray-200 flex-1"></div>
+                            <h3 className="text-2xl font-black text-gray-400 uppercase tracking-widest italic">2. Détail des Salaires Nets par Bloc</h3>
+                            <div className="h-0.5 bg-gray-200 flex-1"></div>
+                        </div>
+
+                        {summaryData.blocs.map(blocName => (
+                            <section key={blocName} className="bg-white shadow-xl sm:rounded-2xl border-t-8 border-green-500 overflow-hidden">
+                                <div className="p-6 bg-green-50 border-b flex justify-between items-center">
+                                    <div className="flex items-center gap-4">
+                                        <span className="bg-green-600 text-white w-12 h-12 flex items-center justify-center rounded-xl font-black text-xl shadow-lg uppercase">{blocName}</span>
+                                        <div>
+                                            <h4 className="text-xl font-black text-green-900 uppercase leading-none tracking-tighter">Situation des Salaires : Bloc {blocName}</h4>
+                                            <span className="text-[10px] text-green-600 font-bold uppercase tracking-widest">Somme des salaires nets journaliers</span>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="text-[10px] text-gray-400 font-black uppercase block mb-1">Total Net Bloc</span>
+                                        <span className="text-2xl font-black text-green-700 leading-none">
+                                            {formatNumber(Object.values(summaryData.bloc_matrices[blocName] || {}).reduce((acc, opDays) => acc + Object.values(opDays).reduce((dAcc, net) => dAcc + net, 0), 0))}
+                                            <small className="text-xs ml-1 font-bold italic uppercase">DH NET</small>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto p-4">
+                                    <table className="min-w-full border-collapse border border-gray-200 text-[10px]">
+                                        <thead>
+                                            <tr className="bg-gray-100">
+                                                <th className="border border-gray-300 p-2 sticky left-0 z-10 bg-gray-100 min-w-[200px] text-left uppercase font-black text-gray-500">Opération</th>
+                                                {days.map(day => (
+                                                    <th key={day} className="border border-gray-300 p-1 min-w-[38px] text-gray-600">{day.split('-')[2]}</th>
+                                                ))}
+                                                <th className="border border-gray-300 p-2 bg-blue-600 text-white font-black uppercase text-center sticky right-0 z-10">Total Net Op</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {summaryData.operations.map(opName => {
+                                                const dayValues = summaryData.bloc_matrices[blocName]?.[opName] || {};
+                                                const opTotal = Object.values(dayValues).reduce((a,b) => a+b, 0);
+                                                if (opTotal === 0) return null; // Skip empty rows
+
+                                                return (
+                                                    <tr key={opName} className="hover:bg-green-50 transition-colors">
+                                                        <td className="border border-gray-200 p-2 font-black text-gray-700 bg-white sticky left-0 z-10 shadow-sm uppercase">{opName}</td>
+                                                        {days.map(day => (
+                                                            <td key={day} className={`border border-gray-200 p-1 text-center font-bold ${dayValues[day] > 0 ? 'bg-blue-50 text-blue-700' : 'text-gray-200'}`}>
+                                                                {dayValues[day] > 0 ? formatNumber(dayValues[day], 1) : '-'}
+                                                            </td>
+                                                        ))}
+                                                        <td className="border border-gray-200 p-2 text-center font-black text-blue-800 bg-blue-100 sticky right-0 z-10 shadow-sm">
+                                                            {formatNumber(opTotal)}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr className="bg-gray-800 text-white font-black shadow-lg">
+                                                <td className="p-3 border border-gray-700 sticky left-0 z-10 bg-gray-800 uppercase tracking-widest text-[9px]">Salaire Net Total / Jour</td>
+                                                {days.map(day => {
+                                                    let colTotal = 0;
+                                                    summaryData.operations.forEach(op => colTotal += (summaryData.bloc_matrices[blocName]?.[op]?.[day] || 0));
+                                                    return (
+                                                        <td key={day} className="border border-gray-700 p-1 text-center text-blue-400 text-[8px] shadow-inner">
+                                                            {colTotal > 0 ? formatNumber(colTotal, 1) : '-'}
+                                                        </td>
+                                                    );
+                                                })}
+                                                <td className="border border-gray-700 bg-blue-600 text-white p-3 text-center sticky right-0 z-10 uppercase tracking-tighter text-[10px]">
+                                                    NET BLOC
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </section>
+                        ))}
                     </div>
 
                     {/* POPUP FORM */}
                     {selectedCell && (
-                        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
-                            <div className="bg-white p-6 rounded-lg shadow-2xl w-full max-w-md border-t-4 border-blue-600">
-                                <h3 className="text-xl font-bold mb-2">
-                                    Pointage: {employees.find(e => e.id === selectedCell.employeeId).full_name}
-                                </h3>
-                                <p className="text-sm text-gray-500 mb-6 font-medium">Date: {selectedCell.date}</p>
-                                
+                        <div className="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border-t-[12px] border-blue-600 transform transition-all scale-105">
+                                <div className="flex justify-between items-start mb-8">
+                                    <div>
+                                        <h3 className="text-3xl font-black text-gray-900 leading-none mb-2 tracking-tighter uppercase">Pointage</h3>
+                                        <p className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg inline-block uppercase tracking-widest">{employees.find(e => e.id === selectedCell.employeeId).full_name}</p>
+                                        <div className="mt-2 text-xs font-black text-gray-400 uppercase tracking-widest">Date: {selectedCell.date}</div>
+                                    </div>
+                                    <button onClick={() => setSelectedCell(null)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-400 transition-all">
+                                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+
                                 <form onSubmit={submit} className="space-y-6">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Status / Operation</label>
-                                            <select 
-                                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                value={data.operation_id}
-                                                onChange={e => setData('operation_id', e.target.value)}
-                                            >
-                                                <option value="">-- Absent --</option>
-                                                {operations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                                    <div className="space-y-6">
+                                        <div className="relative">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
+                                            <select className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.operation_id} onChange={e => setData('operation_id', e.target.value)}>
+                                                <option value="">🚫 ABSENCE</option>
+                                                {operations.map(o => <option key={o.id} value={o.id}>📌 {o.name.toUpperCase()}</option>)}
                                             </select>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1">Bloc (Location)</label>
-                                            <select 
-                                                className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                value={data.bloc_id}
-                                                onChange={e => setData('bloc_id', e.target.value)}
-                                            >
-                                                <option value="">-- Select Bloc --</option>
-                                                {blocs.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        <div className="relative">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>
+                                            <select className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.bloc_id} onChange={e => setData('bloc_id', e.target.value)}>
+                                                <option value="">-- CHOISIR UN BLOC --</option>
+                                                {blocs.map(b => <option key={b.id} value={b.id}>🏠 {b.name.toUpperCase()}</option>)}
                                             </select>
                                         </div>
-                                        <div className="bg-blue-50 p-4 rounded-lg">
-                                            <label className="block text-sm font-bold text-blue-900 mb-1">H.S (Heures Supplémentaires)</label>
-                                            <p className="text-[10px] text-blue-700 mb-2 italic">Enter 0 if no overtime. 1 day is already counted.</p>
-                                            <input 
-                                                type="number" 
-                                                step="0.5"
-                                                min="0"
-                                                className="block w-full rounded-lg border-blue-200 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                                                value={data.hours}
-                                                onChange={e => setData('hours', e.target.value)}
-                                            />
+
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div className="group">
+                                                <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
+                                                <div className="relative">
+                                                    <input type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                    <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col">
+                                                <label className="text-[10px] font-black uppercase text-purple-500 tracking-[0.2em] mb-2 block ml-1 text-center">Statut Spécial</label>
+                                                <button type="button" onClick={() => setData('is_jf', !data.is_jf)} className={`flex-1 rounded-2xl border-2 font-black text-xs uppercase tracking-widest transition-all ${data.is_jf ? 'bg-purple-600 border-purple-700 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 border-gray-100 text-gray-300 hover:text-gray-400 hover:bg-gray-100'}`}>
+                                                    {data.is_jf ? 'JOUR FÉRIÉ' : 'Standard'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100">
-                                        <button 
-                                            type="button" 
-                                            onClick={() => setSelectedCell(null)}
-                                            className="bg-gray-100 hover:bg-gray-200 px-5 py-2.5 rounded-lg text-sm font-bold text-gray-700 transition-colors"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button 
-                                            type="submit" 
-                                            disabled={processing}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-2.5 rounded-lg font-bold shadow-lg transition-all disabled:opacity-50"
-                                        >
-                                            {processing ? 'Saving...' : 'Save Pointage'}
+                                    <div className="flex flex-col gap-4 pt-6">
+                                        <button type="submit" disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-blue-100 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 tracking-[0.3em] uppercase">
+                                            {processing ? 'Chargement...' : 'Enregistrer'}
                                         </button>
                                     </div>
                                 </form>

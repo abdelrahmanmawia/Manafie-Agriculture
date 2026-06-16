@@ -9,7 +9,7 @@ class Quinzaine extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['enterprise_id', 'start_date', 'end_date', 'is_closed'];
+    protected $fillable = ['enterprise_id', 'label', 'start_date', 'end_date', 'is_closed'];
 
     protected $casts = [
         'start_date' => 'date',
@@ -25,5 +25,10 @@ class Quinzaine extends Model
     public function pointageRecords()
     {
         return $this->hasMany(PointageRecord::class);
+    }
+
+    public function summary()
+    {
+        return $this->hasOne(QuinzaineSummary::class);
     }
 }

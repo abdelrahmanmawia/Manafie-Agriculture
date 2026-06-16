@@ -9,10 +9,10 @@ class Bloc extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['enterprise_id', 'name'];
+    protected $fillable = ['farm_id', 'name'];
 
-    public function enterprise()
+    public function farm()
     {
-        return $this->belongsTo(Enterprise::class);
+        return $this->belongsTo(Farm::class);
     }
 }
