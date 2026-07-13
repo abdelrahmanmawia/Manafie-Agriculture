@@ -9,7 +9,7 @@ class Operation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['farm_id', 'name'];
+    protected $fillable = ['farm_id', 'name', 'abbreviation'];
 
     public function farm()
     {

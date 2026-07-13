@@ -10,8 +10,8 @@ class PayrollService
     const DEDUCTION_RATE = 0.0674; // (1 - 0.0674)
     const HS_HOURLY_RATE = 11.36;  // h_sup * 11.36
     const CHARGE_RATE = 1.2109;    // sal_brut_j * 1.2109
-    const FIXED_CHARGE_1 = 5.37;   // + 5.37
-    const FIXED_CHARGE_2 = 3.07;   // + 3.07
+    const FIXED_CHARGE_1 = 5.62;   // + 5.37
+    const FIXED_CHARGE_2 = 3.22;   // + 3.07
     const TAX_ADJUSTMENT = 1.04;   // (...) * 1.04
     const HS_INVOICE_RATE = 1.04;  // h_sup_unit * 1.04
     const SERVICE_TAX = 1.2;       // (...) * 1.2

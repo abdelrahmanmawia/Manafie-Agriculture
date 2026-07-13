@@ -7,6 +7,8 @@ use App\Models\Enterprise;
 use App\Models\Employee;
 use App\Models\Operation;
 use App\Models\Bloc;
+use App\Models\Sector;
+use App\Models\Parcelle;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -94,18 +96,351 @@ class CsvDataSeeder extends Seeder
         foreach ($operations as $op) {
             if (isset($op['OPERATIONS'])) {
                 Operation::create([
-                    'name' => $op['OPERATIONS'] . ' (' . $op['ABREVIATION'] . ')',
+                    'name' => $op['OPERATIONS'],
+                    'abbreviation' => $op['ABREVIATION'],
                     'farm_id' => $farm->id
                 ]);
             }
         }
 
-        // Create shared Blocs for the Farm
-        foreach (['B1', 'B2', 'B3'] as $blocName) {
-            Bloc::firstOrCreate([
-                'name' => $blocName,
-                'farm_id' => $farm->id,
-            ]);
+        // Create Blocs with hierarchical structure (Bloc -> Sector -> Parcelle)
+        $blocData = [
+            'B1' => [
+                'area_m2' => 786666.67,
+                'area_ha' => 78.67,
+                'sectors' => [
+                    'S1' => [
+                        'area_m2' => 188090.09,
+                        'area_ha' => 18.81,
+                        'total_trees' => 10439,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1254, 'fuerte_trees' => 171, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 25675.68, 'area_ha' => 2.57, 'total_trees' => 1425],
+                            ['name' => 'P2', 'hass_trees' => 1010, 'fuerte_trees' => 114, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20252.25, 'area_ha' => 2.03, 'total_trees' => 1124],
+                            ['name' => 'P3', 'hass_trees' => 987, 'fuerte_trees' => 133, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20180.18, 'area_ha' => 2.02, 'total_trees' => 1120],
+                            ['name' => 'P4', 'hass_trees' => 1034, 'fuerte_trees' => 130, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20972.97, 'area_ha' => 2.10, 'total_trees' => 1164],
+                            ['name' => 'P5', 'hass_trees' => 900, 'fuerte_trees' => 126, 'lambhass_trees' => 53, 'zutano_trees' => 0, 'area_m2' => 19441.44, 'area_ha' => 1.94, 'total_trees' => 1079],
+                            ['name' => 'P6', 'hass_trees' => 948, 'fuerte_trees' => 102, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 18918.92, 'area_ha' => 1.89, 'total_trees' => 1050],
+                            ['name' => 'P7', 'hass_trees' => 958, 'fuerte_trees' => 119, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 19405.41, 'area_ha' => 1.94, 'total_trees' => 1077],
+                            ['name' => 'P8', 'hass_trees' => 828, 'fuerte_trees' => 96, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 16648.65, 'area_ha' => 1.66, 'total_trees' => 924],
+                            ['name' => 'P9', 'hass_trees' => 1303, 'fuerte_trees' => 173, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 26594.59, 'area_ha' => 2.66, 'total_trees' => 1476],
+                        ],
+                    ],
+                    'S2' => [
+                        'area_m2' => 196720.72,
+                        'area_ha' => 19.67,
+                        'total_trees' => 10918,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1265, 'fuerte_trees' => 174, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 25927.93, 'area_ha' => 2.59, 'total_trees' => 1439],
+                            ['name' => 'P2', 'hass_trees' => 1113, 'fuerte_trees' => 147, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22702.70, 'area_ha' => 2.27, 'total_trees' => 1260],
+                            ['name' => 'P3', 'hass_trees' => 1323, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 26108.11, 'area_ha' => 2.61, 'total_trees' => 1449],
+                            ['name' => 'P4', 'hass_trees' => 987, 'fuerte_trees' => 147, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20432.43, 'area_ha' => 2.04, 'total_trees' => 1134],
+                            ['name' => 'P5', 'hass_trees' => 1134, 'fuerte_trees' => 126, 'lambhass_trees' => 64, 'zutano_trees' => 0, 'area_m2' => 23855.86, 'area_ha' => 2.39, 'total_trees' => 1324],
+                            ['name' => 'P6', 'hass_trees' => 1029, 'fuerte_trees' => 168, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21567.57, 'area_ha' => 2.16, 'total_trees' => 1197],
+                            ['name' => 'P7', 'hass_trees' => 1134, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22702.70, 'area_ha' => 2.27, 'total_trees' => 1260],
+                            ['name' => 'P8', 'hass_trees' => 975, 'fuerte_trees' => 189, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20972.97, 'area_ha' => 2.10, 'total_trees' => 1164],
+                            ['name' => 'P9', 'hass_trees' => 619, 'fuerte_trees' => 72, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 12450.45, 'area_ha' => 1.25, 'total_trees' => 691],
+                        ],
+                    ],
+                    'S3' => [
+                        'area_m2' => 214234.23,
+                        'area_ha' => 21.42,
+                        'total_trees' => 11890,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1119, 'fuerte_trees' => 154, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22936.94, 'area_ha' => 2.29, 'total_trees' => 1273],
+                            ['name' => 'P2', 'hass_trees' => 1208, 'fuerte_trees' => 132, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 24144.14, 'area_ha' => 2.41, 'total_trees' => 1340],
+                            ['name' => 'P3', 'hass_trees' => 1365, 'fuerte_trees' => 176, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 27765.77, 'area_ha' => 2.78, 'total_trees' => 1541],
+                            ['name' => 'P4', 'hass_trees' => 1141, 'fuerte_trees' => 132, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22936.94, 'area_ha' => 2.29, 'total_trees' => 1273],
+                            ['name' => 'P5', 'hass_trees' => 1119, 'fuerte_trees' => 154, 'lambhass_trees' => 67, 'zutano_trees' => 0, 'area_m2' => 24144.14, 'area_ha' => 2.41, 'total_trees' => 1340],
+                            ['name' => 'P6', 'hass_trees' => 1208, 'fuerte_trees' => 132, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 24144.14, 'area_ha' => 2.41, 'total_trees' => 1340],
+                            ['name' => 'P7', 'hass_trees' => 1119, 'fuerte_trees' => 154, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22936.94, 'area_ha' => 2.29, 'total_trees' => 1273],
+                            ['name' => 'P8', 'hass_trees' => 1208, 'fuerte_trees' => 132, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 24144.14, 'area_ha' => 2.41, 'total_trees' => 1340],
+                            ['name' => 'P9', 'hass_trees' => 1034, 'fuerte_trees' => 136, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21081.08, 'area_ha' => 2.11, 'total_trees' => 1170],
+                        ],
+                    ],
+                    'S4' => [
+                        'area_m2' => 187621.62,
+                        'area_ha' => 18.76,
+                        'total_trees' => 10413,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1050, 'fuerte_trees' => 146, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21549.55, 'area_ha' => 2.15, 'total_trees' => 1196],
+                            ['name' => 'P2', 'hass_trees' => 1126, 'fuerte_trees' => 114, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22342.34, 'area_ha' => 2.23, 'total_trees' => 1240],
+                            ['name' => 'P3', 'hass_trees' => 1274, 'fuerte_trees' => 152, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 25693.69, 'area_ha' => 2.57, 'total_trees' => 1426],
+                            ['name' => 'P4', 'hass_trees' => 1064, 'fuerte_trees' => 114, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21225.23, 'area_ha' => 2.12, 'total_trees' => 1178],
+                            ['name' => 'P5', 'hass_trees' => 1045, 'fuerte_trees' => 133, 'lambhass_trees' => 62, 'zutano_trees' => 0, 'area_m2' => 22342.34, 'area_ha' => 2.23, 'total_trees' => 1240],
+                            ['name' => 'P6', 'hass_trees' => 1126, 'fuerte_trees' => 114, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22342.34, 'area_ha' => 2.23, 'total_trees' => 1240],
+                            ['name' => 'P7', 'hass_trees' => 1045, 'fuerte_trees' => 133, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21225.23, 'area_ha' => 2.12, 'total_trees' => 1178],
+                            ['name' => 'P8', 'hass_trees' => 1126, 'fuerte_trees' => 114, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22342.34, 'area_ha' => 2.23, 'total_trees' => 1240],
+                            ['name' => 'P9', 'hass_trees' => 416, 'fuerte_trees' => 59, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 8558.56, 'area_ha' => 0.86, 'total_trees' => 475],
+                        ],
+                    ],
+                ],
+            ],
+            'B2' => [
+                'area_m2' => 786841.57,
+                'area_ha' => 78.68,
+                'sectors' => [
+                    'S1' => [
+                        'area_m2' => 135135.14,
+                        'area_ha' => 13.51,
+                        'total_trees' => 7500,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 601, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 12774.77, 'area_ha' => 1.28, 'total_trees' => 709],
+                            ['name' => 'P2', 'hass_trees' => 864, 'fuerte_trees' => 96, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17297.30, 'area_ha' => 1.73, 'total_trees' => 960],
+                            ['name' => 'P3', 'hass_trees' => 848, 'fuerte_trees' => 112, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17297.30, 'area_ha' => 1.73, 'total_trees' => 960],
+                            ['name' => 'P4', 'hass_trees' => 944, 'fuerte_trees' => 112, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 19027.03, 'area_ha' => 1.90, 'total_trees' => 1056],
+                            ['name' => 'P5', 'hass_trees' => 800, 'fuerte_trees' => 112, 'lambhass_trees' => 48, 'zutano_trees' => 0, 'area_m2' => 17297.30, 'area_ha' => 1.73, 'total_trees' => 960],
+                            ['name' => 'P6', 'hass_trees' => 864, 'fuerte_trees' => 96, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17297.30, 'area_ha' => 1.73, 'total_trees' => 960],
+                            ['name' => 'P7', 'hass_trees' => 816, 'fuerte_trees' => 96, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 16432.43, 'area_ha' => 1.64, 'total_trees' => 912],
+                            ['name' => 'P8', 'hass_trees' => 794, 'fuerte_trees' => 189, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17711.71, 'area_ha' => 1.77, 'total_trees' => 983],
+                        ],
+                    ],
+                    'S2' => [
+                        'area_m2' => 142972.97,
+                        'area_ha' => 14.30,
+                        'total_trees' => 7935,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 600, 'fuerte_trees' => 74, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 12144.14, 'area_ha' => 1.21, 'total_trees' => 674],
+                            ['name' => 'P2', 'hass_trees' => 992, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 19819.82, 'area_ha' => 1.98, 'total_trees' => 1100],
+                            ['name' => 'P3', 'hass_trees' => 974, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 19819.82, 'area_ha' => 1.98, 'total_trees' => 1100],
+                            ['name' => 'P4', 'hass_trees' => 1084, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21801.80, 'area_ha' => 2.18, 'total_trees' => 1210],
+                            ['name' => 'P5', 'hass_trees' => 919, 'fuerte_trees' => 126, 'lambhass_trees' => 55, 'zutano_trees' => 0, 'area_m2' => 19819.82, 'area_ha' => 1.98, 'total_trees' => 1100],
+                            ['name' => 'P6', 'hass_trees' => 937, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 18828.83, 'area_ha' => 1.88, 'total_trees' => 1045],
+                            ['name' => 'P7', 'hass_trees' => 882, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17837.84, 'area_ha' => 1.78, 'total_trees' => 990],
+                            ['name' => 'P8', 'hass_trees' => 636, 'fuerte_trees' => 80, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 12900.90, 'area_ha' => 1.29, 'total_trees' => 716],
+                        ],
+                    ],
+                    'S3' => [
+                        'area_m2' => 108720.72,
+                        'area_ha' => 10.87,
+                        'total_trees' => 6034,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1153, 'fuerte_trees' => 150, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23477.48, 'area_ha' => 2.35, 'total_trees' => 1303],
+                            ['name' => 'P2', 'hass_trees' => 975, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 19513.51, 'area_ha' => 1.95, 'total_trees' => 1083],
+                            ['name' => 'P3', 'hass_trees' => 1014, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 20540.54, 'area_ha' => 2.05, 'total_trees' => 1140],
+                            ['name' => 'P4', 'hass_trees' => 1128, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 22594.59, 'area_ha' => 2.26, 'total_trees' => 1254],
+                            ['name' => 'P5', 'hass_trees' => 1071, 'fuerte_trees' => 126, 'lambhass_trees' => 57, 'zutano_trees' => 0, 'area_m2' => 22594.59, 'area_ha' => 2.26, 'total_trees' => 1254],
+                            ['name' => 'P6', 'hass_trees' => 0, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 0, 'area_ha' => 2.35, 'total_trees' => 0],
+                            ['name' => 'P7', 'hass_trees' => 0, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 0, 'area_ha' => 0, 'total_trees' => 0],
+                        ],
+                    ],
+                    'S4' => [
+                        'area_m2' => 129819.82,
+                        'area_ha' => 12.98,
+                        'total_trees' => 7205,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 844, 'fuerte_trees' => 104, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17081.08, 'area_ha' => 1.71, 'total_trees' => 948],
+                            ['name' => 'P2', 'hass_trees' => 1075, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21963.96, 'area_ha' => 2.20, 'total_trees' => 1219],
+                            ['name' => 'P3', 'hass_trees' => 1086, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 21837.84, 'area_ha' => 2.18, 'total_trees' => 1212],
+                            ['name' => 'P4', 'hass_trees' => 1068, 'fuerte_trees' => 144, 'lambhass_trees' => 53, 'zutano_trees' => 0, 'area_m2' => 22792.79, 'area_ha' => 2.28, 'total_trees' => 1265],
+                            ['name' => 'P5', 'hass_trees' => 881, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 18144.14, 'area_ha' => 1.81, 'total_trees' => 1007],
+                            ['name' => 'P6', 'hass_trees' => 899, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 18144.14, 'area_ha' => 1.81, 'total_trees' => 1007],
+                            ['name' => 'P7', 'hass_trees' => 477, 'fuerte_trees' => 70, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 9855.86, 'area_ha' => 0.99, 'total_trees' => 547],
+                        ],
+                    ],
+                    'S5' => [
+                        'area_m2' => 137445.86,
+                        'area_ha' => 13.74,
+                        'total_trees' => 6771,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 262, 'fuerte_trees' => 30, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 5473.19, 'area_ha' => 0.55, 'total_trees' => 292],
+                            ['name' => 'P2', 'hass_trees' => 1058, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23056.34, 'area_ha' => 2.31, 'total_trees' => 1166],
+                            ['name' => 'P3', 'hass_trees' => 1075, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1219],
+                            ['name' => 'P4', 'hass_trees' => 1068, 'fuerte_trees' => 144, 'lambhass_trees' => 54, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1266],
+                            ['name' => 'P5', 'hass_trees' => 1086, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1212],
+                            ['name' => 'P6', 'hass_trees' => 881, 'fuerte_trees' => 126, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1007],
+                            ['name' => 'P7', 'hass_trees' => 528, 'fuerte_trees' => 81, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 16436.33, 'area_ha' => 1.64, 'total_trees' => 609],
+                        ],
+                    ],
+                    'S6' => [
+                        'area_m2' => 132747.06,
+                        'area_ha' => 13.27,
+                        'total_trees' => 7001,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 893, 'fuerte_trees' => 117, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 17147.06, 'area_ha' => 1.71, 'total_trees' => 1010],
+                            ['name' => 'P2', 'hass_trees' => 1116, 'fuerte_trees' => 72, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1188],
+                            ['name' => 'P3', 'hass_trees' => 1152, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1296],
+                            ['name' => 'P4', 'hass_trees' => 1062, 'fuerte_trees' => 126, 'lambhass_trees' => 55, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1243],
+                            ['name' => 'P5', 'hass_trees' => 1152, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1296],
+                            ['name' => 'P6', 'hass_trees' => 855, 'fuerte_trees' => 113, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 968],
+                        ],
+                    ],
+                ],
+            ],
+            'B3' => [
+                'area_m2' => 846775.13,
+                'area_ha' => 84.68,
+                'sectors' => [
+                    'S1' => [
+                        'area_m2' => 99733.51,
+                        'area_ha' => 9.97,
+                        'total_trees' => 5262,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1030, 'fuerte_trees' => 120, 'lambhass_trees' => 2, 'zutano_trees' => 1, 'area_m2' => 13794.87, 'area_ha' => 2.07, 'total_trees' => 1153],
+                            ['name' => 'P2', 'hass_trees' => 630, 'fuerte_trees' => 53, 'lambhass_trees' => 1, 'zutano_trees' => 0, 'area_m2' => 17069.17, 'area_ha' => 1.71, 'total_trees' => 684],
+                            ['name' => 'P3', 'hass_trees' => 687, 'fuerte_trees' => 91, 'lambhass_trees' => 2, 'zutano_trees' => 0, 'area_m2' => 16223.54, 'area_ha' => 1.62, 'total_trees' => 780],
+                            ['name' => 'P4', 'hass_trees' => 732, 'fuerte_trees' => 93, 'lambhass_trees' => 33, 'zutano_trees' => 0, 'area_m2' => 16230.45, 'area_ha' => 1.62, 'total_trees' => 858],
+                            ['name' => 'P5', 'hass_trees' => 726, 'fuerte_trees' => 91, 'lambhass_trees' => 2, 'zutano_trees' => 0, 'area_m2' => 16527.24, 'area_ha' => 1.65, 'total_trees' => 819],
+                            ['name' => 'P6', 'hass_trees' => 850, 'fuerte_trees' => 117, 'lambhass_trees' => 1, 'zutano_trees' => 0, 'area_m2' => 19888.24, 'area_ha' => 1.99, 'total_trees' => 968],
+                        ],
+                    ],
+                    'S2' => [
+                        'area_m2' => 99326.26,
+                        'area_ha' => 9.93,
+                        'total_trees' => 5695,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 1289, 'fuerte_trees' => 0, 'lambhass_trees' => 1, 'zutano_trees' => 144, 'area_m2' => 20310.98, 'area_ha' => 2.03, 'total_trees' => 1434],
+                            ['name' => 'P2', 'hass_trees' => 777, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 84, 'area_m2' => 17090.87, 'area_ha' => 1.71, 'total_trees' => 861],
+                            ['name' => 'P3', 'hass_trees' => 707, 'fuerte_trees' => 35, 'lambhass_trees' => 37, 'zutano_trees' => 0, 'area_m2' => 16230.41, 'area_ha' => 1.62, 'total_trees' => 779],
+                            ['name' => 'P4', 'hass_trees' => 809, 'fuerte_trees' => 0, 'lambhass_trees' => 38, 'zutano_trees' => 96, 'area_m2' => 16230.44, 'area_ha' => 1.62, 'total_trees' => 943],
+                            ['name' => 'P5', 'hass_trees' => 777, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 72, 'area_m2' => 16506.35, 'area_ha' => 1.65, 'total_trees' => 849],
+                            ['name' => 'P6', 'hass_trees' => 754, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 75, 'area_m2' => 12957.21, 'area_ha' => 1.30, 'total_trees' => 829],
+                        ],
+                    ],
+                    'S3' => [
+                        'area_m2' => 122396.93,
+                        'area_ha' => 12.24,
+                        'total_trees' => 6977,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 540, 'fuerte_trees' => 60, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 6797.09, 'area_ha' => 0.68, 'total_trees' => 600],
+                            ['name' => 'P2', 'hass_trees' => 1167, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23119.99, 'area_ha' => 2.31, 'total_trees' => 1311],
+                            ['name' => 'P3', 'hass_trees' => 1166, 'fuerte_trees' => 144, 'lambhass_trees' => 52, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1362],
+                            ['name' => 'P4', 'hass_trees' => 1167, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23119.98, 'area_ha' => 2.31, 'total_trees' => 1311],
+                            ['name' => 'P5', 'hass_trees' => 1167, 'fuerte_trees' => 144, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23119.95, 'area_ha' => 2.31, 'total_trees' => 1311],
+                            ['name' => 'P6', 'hass_trees' => 974, 'fuerte_trees' => 108, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23119.92, 'area_ha' => 2.31, 'total_trees' => 1082],
+                        ],
+                    ],
+                    'S4' => [
+                        'area_m2' => 140713.70,
+                        'area_ha' => 14.07,
+                        'total_trees' => 7505,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 952, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 117, 'area_m2' => 16507.64, 'area_ha' => 1.65, 'total_trees' => 1069],
+                            ['name' => 'P2', 'hass_trees' => 1113, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 119, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1232],
+                            ['name' => 'P3', 'hass_trees' => 1096, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 153, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1249],
+                            ['name' => 'P4', 'hass_trees' => 1152, 'fuerte_trees' => 0, 'lambhass_trees' => 54, 'zutano_trees' => 136, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1342],
+                            ['name' => 'P5', 'hass_trees' => 1208, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 114, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1322],
+                            ['name' => 'P6', 'hass_trees' => 1001, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 114, 'area_m2' => 22673.49, 'area_ha' => 2.27, 'total_trees' => 1115],
+                            ['name' => 'P7', 'hass_trees' => 150, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 26, 'area_m2' => 9052.57, 'area_ha' => 0.91, 'total_trees' => 176],
+                        ],
+                    ],
+                    'S5' => [
+                        'area_m2' => 137445.86,
+                        'area_ha' => 13.74,
+                        'total_trees' => 7559,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 493, 'fuerte_trees' => 62, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 5473.19, 'area_ha' => 0.55, 'total_trees' => 555],
+                            ['name' => 'P2', 'hass_trees' => 1121, 'fuerte_trees' => 133, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23056.34, 'area_ha' => 2.31, 'total_trees' => 1254],
+                            ['name' => 'P3', 'hass_trees' => 1178, 'fuerte_trees' => 133, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1311],
+                            ['name' => 'P4', 'hass_trees' => 1121, 'fuerte_trees' => 133, 'lambhass_trees' => 57, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1311],
+                            ['name' => 'P5', 'hass_trees' => 1167, 'fuerte_trees' => 152, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1319],
+                            ['name' => 'P6', 'hass_trees' => 1128, 'fuerte_trees' => 133, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1261],
+                            ['name' => 'P7', 'hass_trees' => 476, 'fuerte_trees' => 72, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 16436.33, 'area_ha' => 1.64, 'total_trees' => 548],
+                        ],
+                    ],
+                    'S6' => [
+                        'area_m2' => 156055.89,
+                        'area_ha' => 15.61,
+                        'total_trees' => 7686,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 783, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 95, 'area_m2' => 17147.06, 'area_ha' => 1.71, 'total_trees' => 878],
+                            ['name' => 'P2', 'hass_trees' => 1076, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 112, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1188],
+                            ['name' => 'P3', 'hass_trees' => 1130, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 112, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1242],
+                            ['name' => 'P4', 'hass_trees' => 1114, 'fuerte_trees' => 0, 'lambhass_trees' => 54, 'zutano_trees' => 128, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1296],
+                            ['name' => 'P5', 'hass_trees' => 1114, 'fuerte_trees' => 0, 'lambhass_trees' => 0, 'zutano_trees' => 112, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1226],
+                            ['name' => 'P6', 'hass_trees' => 1188, 'fuerte_trees' => 192, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23120.00, 'area_ha' => 2.31, 'total_trees' => 1380],
+                            ['name' => 'P7', 'hass_trees' => 432, 'fuerte_trees' => 44, 'lambhass_trees' => 0, 'zutano_trees' => 0, 'area_m2' => 23308.83, 'area_ha' => 2.33, 'total_trees' => 476],
+                        ],
+                    ],
+                    'S7' => [
+                        'area_m2' => 91102.98,
+                        'area_ha' => 9.11,
+                        'total_trees' => 5273,
+                        'spacing' => '6*3',
+                        'parcelles' => [
+                            ['name' => 'P1', 'hass_trees' => 190, 'fuerte_trees' => 63, 'lambhass_trees' => 0, 'zutano_trees' => 331, 'area_m2' => 12913.42, 'area_ha' => 1.29, 'total_trees' => 584],
+                            ['name' => 'P2', 'hass_trees' => 0, 'fuerte_trees' => 65, 'lambhass_trees' => 0, 'zutano_trees' => 543, 'area_m2' => 12268.46, 'area_ha' => 1.23, 'total_trees' => 608],
+                            ['name' => 'P3', 'hass_trees' => 0, 'fuerte_trees' => 71, 'lambhass_trees' => 0, 'zutano_trees' => 885, 'area_m2' => 15469.14, 'area_ha' => 1.55, 'total_trees' => 956],
+                            ['name' => 'P4', 'hass_trees' => 0, 'fuerte_trees' => 124, 'lambhass_trees' => 0, 'zutano_trees' => 1012, 'area_m2' => 18536.21, 'area_ha' => 1.85, 'total_trees' => 1136],
+                            ['name' => 'P5', 'hass_trees' => 0, 'fuerte_trees' => 104, 'lambhass_trees' => 0, 'zutano_trees' => 1143, 'area_m2' => 21603.28, 'area_ha' => 2.16, 'total_trees' => 1247],
+                            ['name' => 'P6', 'hass_trees' => 145, 'fuerte_trees' => 63, 'lambhass_trees' => 0, 'zutano_trees' => 534, 'area_m2' => 10312.47, 'area_ha' => 1.03, 'total_trees' => 742],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        foreach ($blocData as $blocName => $blocInfo) {
+            // Create Bloc
+            $bloc = Bloc::updateOrCreate(
+                [
+                    'farm_id' => $farm->id,
+                    'name' => $blocName,
+                ],
+                [
+                    'farm_id' => $farm->id,
+                    'name' => $blocName,
+                    'area_m2' => $blocInfo['area_m2'],
+                    'area_ha' => $blocInfo['area_ha'],
+                ]
+            );
+
+            // Create Sectors and Parcelles
+            foreach ($blocInfo['sectors'] as $sectorName => $sectorInfo) {
+                $sector = Sector::updateOrCreate(
+                    [
+                        'bloc_id' => $bloc->id,
+                        'name' => $sectorName,
+                    ],
+                    [
+                        'bloc_id' => $bloc->id,
+                        'name' => $sectorName,
+                        'area_m2' => $sectorInfo['area_m2'],
+                        'area_ha' => $sectorInfo['area_ha'],
+                        'total_trees' => $sectorInfo['total_trees'],
+                        'spacing' => $sectorInfo['spacing'],
+                    ]
+                );
+
+                // Create Parcelles
+                foreach ($sectorInfo['parcelles'] as $parcelleData) {
+                    Parcelle::updateOrCreate(
+                        [
+                            'bloc_id' => $bloc->id,
+                            'sector_id' => $sector->id,
+                            'name' => $parcelleData['name'],
+                        ],
+                        [
+                            'bloc_id' => $bloc->id,
+                            'sector_id' => $sector->id,
+                            'name' => $parcelleData['name'],
+                            'hass_trees' => $parcelleData['hass_trees'],
+                            'fuerte_trees' => $parcelleData['fuerte_trees'],
+                            'lambhass_trees' => $parcelleData['lambhass_trees'],
+                            'zutano_trees' => $parcelleData['zutano_trees'],
+                            'area_m2' => $parcelleData['area_m2'],
+                            'area_ha' => $parcelleData['area_ha'],
+                            'spacing' => $sectorInfo['spacing'],
+                            'total_trees' => $parcelleData['total_trees'],
+                        ]
+                    );
+                }
+            }
         }
 
         foreach ([$persea, $agri, $hafila] as $ent) {

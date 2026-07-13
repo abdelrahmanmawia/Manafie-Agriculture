@@ -286,7 +286,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                 <div className="font-black leading-tight">
                                                                     {record.is_jf && <div className="text-[6px] text-purple-700 uppercase mb-0.5">JF</div>}
                                                                     <span className="text-gray-700 text-[8px] uppercase">
-                                                                        {operations.find(o => o.id === record.operation_id)?.name.split('(')[1]?.replace(')', '') || '??'}
+                                                                        {operations.find(o => o.id === record.operation_id)?.abbreviation ||record.operation_id }
                                                                     </span>
                                                                     <div className="text-[7px] text-gray-400">
                                                                         {blocs.find(b => b.id === record.bloc_id)?.name}
@@ -326,7 +326,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             </td>
                                         ))}
                                         <td colSpan="3" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
-                                            TOTAL QUINZAINE TTC : {formatNumber(Object.values(summaryData.daily_totals).reduce((a,b) => a+b, 0))} DH
+                                            TOTAL NET : {formatNumber(Object.values(summaryData.daily_totals).reduce((a,b) => a+b, 0))} DH
                                         </td>
                                     </tr>
                                 </tfoot>

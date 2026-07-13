@@ -184,11 +184,12 @@ class EnterpriseController extends Controller
 
     public function addOperation(Request $request)
     {
-        $request->validate(['name' => 'required|string|max:255', 'enterprise_id' => 'required']);
+        $request->validate(['name' => 'required|string|max:255', 'abbreviation' => 'nullable|string|max:50', 'enterprise_id' => 'required']);
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
         
         Operation::create([
             'name' => $request->name,
+            'abbreviation' => $request->abbreviation,
             'farm_id' => $enterprise->farm_id
         ]);
         return redirect()->back();

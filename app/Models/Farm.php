@@ -9,7 +9,11 @@ class Farm extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name'];
+    protected $fillable = ['name', 'box_weight_kg'];
+
+    protected $casts = [
+        'box_weight_kg' => 'float',
+    ];
 
     public function enterprises()
     {
@@ -19,6 +23,16 @@ class Farm extends Model
     public function blocs()
     {
         return $this->hasMany(Bloc::class);
+    }
+
+    public function sectors()
+    {
+        return $this->hasManyThrough(Sector::class, Bloc::class);
+    }
+
+    public function parcelles()
+    {
+        return $this->hasManyThrough(Parcelle::class, Bloc::class);
     }
 
     public function operations()

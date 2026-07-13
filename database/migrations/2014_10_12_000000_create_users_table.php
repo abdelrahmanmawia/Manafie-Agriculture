@@ -17,7 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->foreignId('enterprise_id')->nullable()->constrained()->onDelete('set null');
-            $table->enum('role', ['super_admin', 'enterprise_admin', 'data_entry'])->default('enterprise_admin');
+            $table->enum('role', ['super_admin', 'enterprise_admin', 'farm_manager', 'data_entry'])->default('enterprise_admin');
             $table->string('password');
             $table->rememberToken();
             $table->timestamps();

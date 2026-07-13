@@ -7,6 +7,7 @@ use App\Models\Quinzaine;
 use App\Models\Employee;
 use App\Models\Operation;
 use App\Models\Bloc;
+use App\Models\Parcelle;
 use App\Services\PayrollService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PointageExport;
+use App\Exports\DivisionsPointageExport; // Add this import
 
 class PointageController extends Controller
 {
@@ -31,7 +33,16 @@ class PointageController extends Controller
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = $cleanLabel . '.xlsx';
 
-        return Excel::download(new PointageExport($quinzaineId), $fileName);
+        return Excel::download(new PointageExport($quinzaine, $quinzaine->enterprise), $fileName); // Updated to pass Quinzaine and Enterprise objects
+    }
+
+    // New method for exporting all divisions
+    public function exportAllDivisions(Quinzaine $quinzaine)
+    {
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+        $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';
+
+        return Excel::download(new DivisionsPointageExport($quinzaine), $fileName);
     }
 
     public function index(Request $request)
@@ -76,10 +87,10 @@ class PointageController extends Controller
 
         return Inertia::render('Pointage/Index', [
             'quinzaines' => $query->get(),
-            'enterprises' => $user->role === 'super_admin' 
-                ? \App\Models\Enterprise::all() 
-                : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id)) 
-                    ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get() 
+            'enterprises' => $user->role === 'super_admin'
+                ? \App\Models\Enterprise::all()
+                : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
+                    ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
                     : [])
         ]);
     }
@@ -99,7 +110,7 @@ class PointageController extends Controller
         }
 
         $enterpriseId = $quinzaine->enterprise_id;
-        $employees = Employee::where('enterprise_id', $enterpriseId)->get();
+        $employees = Employee::where('enterprise_id', $enterpriseId)->where('is_active', true)->get();
         $operations = Operation::where('farm_id', $quinzaine->enterprise->farm_id)->get();
         $blocs = Bloc::where('farm_id', $quinzaine->enterprise->farm_id)->get();
 

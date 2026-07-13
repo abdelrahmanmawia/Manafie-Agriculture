@@ -18,9 +18,9 @@
         
         .footer { margin-top: 30px; }
         .totals-box { float: right; width: 250px; border: 2px solid #000; padding: 10px; background-color: #f9fafb; }
-        .signature-col { width: 120px; height: 35px; }
-        
-        @page { margin: 1cm; }
+        .signature-col { width: 100px; height: 35px; }
+
+        @page { margin: 0.5cm; size: A4; }
     </style>
 </head>
 <body>
@@ -33,15 +33,15 @@
     <table>
         <thead>
             <tr>
-                <th width="30">N°</th>
-                <th width="60">Matricule</th>
-                <th>Nom & Prénom</th>
-                <th width="70">CIN</th>
-                <th width="40">Jours</th>
-                <th width="40">H.S</th>
-                <th width="40">J.F</th>
-                <th width="80">Net à Payer</th>
-                <th class="signature-col text-center">Signature / Emargement</th>
+                <th style="width: 4%;">N°</th>
+                <th style="width: 8%;">Matricule</th>
+                <th style="width: 25%;">Nom & Prénom</th>
+                <th style="width: 10%;">CIN</th>
+                <th style="width: 6%;">Jours</th>
+                <th style="width: 6%;">H.S</th>
+                <th style="width: 6%;">J.F</th>
+                <th style="width: 25%;">Net à Payer</th>
+                <th class="signature-col text-center" style="width: 10%;">Signature / Emargement</th>
             </tr>
         </thead>
         <tbody>

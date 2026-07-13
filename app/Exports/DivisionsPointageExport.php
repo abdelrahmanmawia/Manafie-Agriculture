@@ -11,11 +11,11 @@ class DivisionsPointageExport implements WithMultipleSheets
 {
     use Exportable;
 
-    protected $quinzaine;
+    protected $referenceQuinzaine;
 
-    public function __construct(Quinzaine $quinzaine)
+    public function __construct(Quinzaine $referenceQuinzaine)
     {
-        $this->quinzaine = $quinzaine;
+        $this->referenceQuinzaine = $referenceQuinzaine;
     }
 
     /**
@@ -25,14 +25,28 @@ class DivisionsPointageExport implements WithMultipleSheets
     {
         $sheets = [];
 
-        // Get all enterprises associated with the farm of the selected quinzaine
-        // Assuming a quinzaine belongs to an enterprise, and an enterprise belongs to a farm.
-        // And we want to export all enterprises within that farm.
-        $farm = $this->quinzaine->enterprise->farm;
+        // Get all enterprises associated with the farm of the selected reference quinzaine
+        $farm = $this->referenceQuinzaine->enterprise->farm;
         $enterprises = Enterprise::where('farm_id', $farm->id)->get();
 
         foreach ($enterprises as $enterprise) {
-            $sheets[] = new PointageExport($this->quinzaine, $enterprise);
+            // Try to find a quinzaine for the current enterprise that matches the period of the reference quinzaine
+            $quinzaineForEnterprise = Quinzaine::where('enterprise_id', $enterprise->id)
+                ->where('start_date', $this->referenceQuinzaine->start_date)
+                ->where('end_date', $this->referenceQuinzaine->end_date)
+                ->first();
+
+            if ($quinzaineForEnterprise) {
+                // If a matching quinzaine is found, use PointageExport
+                $sheets[] = new PointageExport($quinzaineForEnterprise, $enterprise);
+            } else {
+                // If no matching quinzaine is found, use EmptyPointageExport
+                $sheets[] = new EmptyPointageExport(
+                    $enterprise,
+                    $this->referenceQuinzaine->start_date,
+                    $this->referenceQuinzaine->end_date
+                );
+            }
         }
 
         return $sheets;
