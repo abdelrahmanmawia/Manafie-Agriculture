@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\ManualStockEntry;
@@ -25,10 +26,10 @@ class StockReportController extends Controller
 
     public function inventoryValue(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
-        $inventoryValue = StockInventory::whereHas('product', function ($query) use ($farmId) {
-                $query->where('farm_id', $farmId);
+        $inventoryValue = StockInventory::when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             })
             ->with('product')
             ->get()
@@ -45,16 +46,18 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/InventoryValue', [
             'inventoryValue' => $inventoryValue,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
     public function movementHistory(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
         $movements = StockMovement::with('product', 'performedBy', 'bloc', 'sector', 'parcelle', 'vehicle')
-            ->whereHas('product', function ($query) use ($farmId) {
-                $query->where('farm_id', $farmId);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             })
             ->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
@@ -62,14 +65,16 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/MovementHistory', [
             'movementHistory' => $movements,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
     public function consumptionByOperation(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
-        $consumption = ManualStockEntry::where('farm_id', $farmId)
+        $consumption = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('operation_id')
             ->with('product', 'operation', 'bloc', 'sector', 'parcelle')
@@ -91,18 +96,20 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/ConsumptionByOperation', [
             'consumptionByOperation' => $consumption,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
     public function costPerHectare(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
-        $costPerHectareData = ManualStockEntry::where('farm_id', $farmId)
+        $costPerHectareData = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('bloc_id')
             ->whereHas('bloc', function ($query) {
-                $query->whereNotNull('area_hectares')->where('area_hectares', '>', 0);
+                $query->whereNotNull('area_ha')->where('area_ha', '>', 0);
             })
             ->with('product', 'bloc')
             ->get()
@@ -111,7 +118,7 @@ class StockReportController extends Controller
                 $totalCost = $entries->sum(function ($entry) {
                     return ($entry->product->unit_cost ?? 0) * $entry->quantity;
                 });
-                $totalArea = $entries->first()->bloc->area_hectares ?? 0;
+                $totalArea = $entries->first()->bloc->area_ha ?? 0;
 
                 return [
                     'bloc_name' => $blocName,
@@ -123,15 +130,17 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/CostPerHectare', [
             'costPerHectareData' => $costPerHectareData,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
     public function stockTurnover(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
         $periodInDays = $request->input('period', 365); // Default to 1 year
 
-        $products = Product::where('farm_id', $farmId)->get();
+        $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get();
 
         $stockTurnoverData = $products->map(function ($product) use ($periodInDays) {
             $startDate = now()->subDays($periodInDays);
@@ -175,16 +184,18 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/StockTurnover', [
             'stockTurnoverData' => $stockTurnoverData,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
     public function expiryAlerts(Request $request)
     {
-        $farmId = $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
         $expiryAlerts = StockAlert::with('product')
-            ->whereHas('product', function ($query) use ($farmId) {
-                $query->where('farm_id', $farmId);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             })
             ->whereIn('alert_type', ['expired', 'expiring_soon'])
             ->where('is_resolved', false)
@@ -193,6 +204,8 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/ExpiryAlerts', [
             'expiryAlerts' => $expiryAlerts,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 }

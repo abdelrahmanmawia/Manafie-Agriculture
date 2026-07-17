@@ -12,7 +12,6 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\VehicleController;
 use App\Http\Controllers\StockInventoryController;
 use App\Http\Controllers\StockMovementController;
-use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\StockAlertController;
 use App\Http\Controllers\FuelTransactionController;
 use App\Http\Controllers\ManualStockEntryController;
@@ -128,18 +127,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/movements', [StockMovementController::class, 'index'])->name('stock.movements.index');
     Route::post('/stock/movements/in', [StockMovementController::class, 'stockIn'])->name('stock.movements.in');
     Route::post('/stock/movements/out', [StockMovementController::class, 'stockOut'])->name('stock.movements.out');
-    Route::post('/stock/movements/transfer', [StockMovementController::class, 'transfer'])->name('stock.movements.transfer');
     Route::post('/stock/movements/adjustment', [StockMovementController::class, 'adjustment'])->name('stock.movements.adjustment');
-
-    // Stock Management - Purchase Orders
-    Route::get('/stock/purchase-orders', [PurchaseOrderController::class, 'index'])->name('stock.purchase-orders.index');
-    Route::post('/stock/purchase-orders', [PurchaseOrderController::class, 'store'])->name('stock.purchase-orders.store');
-    Route::get('/stock/purchase-orders/{order}', [PurchaseOrderController::class, 'show'])->name('stock.purchase-orders.show');
-    Route::get('/stock/purchase-orders/{order}/edit', [PurchaseOrderController::class, 'edit'])->name('stock.purchase-orders.edit');
-    Route::put('/stock/purchase-orders/{order}', [PurchaseOrderController::class, 'update'])->name('stock.purchase-orders.update');
-    Route::delete('/stock/purchase-orders/{order}', [PurchaseOrderController::class, 'destroy'])->name('stock.purchase-orders.destroy');
-    Route::post('/stock/purchase-orders/{order}/receive', [PurchaseOrderController::class, 'receive'])->name('stock.purchase-orders.receive');
-    Route::post('/stock/purchase-orders/{order}/items', [PurchaseOrderController::class, 'addItem'])->name('stock.purchase-orders.items');
 
     // Stock Management - Stock Alerts
     Route::get('/stock/alerts', [StockAlertController::class, 'index'])->name('stock.alerts.index');

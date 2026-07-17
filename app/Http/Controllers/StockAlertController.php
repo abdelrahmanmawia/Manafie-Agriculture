@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\StockAlert;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -11,9 +12,11 @@ class StockAlertController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = StockAlert::with('product')
-            ->whereHas('product', function ($q) use ($request) {
-                $q->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             });
 
         if ($request->has('is_resolved')) {
@@ -31,6 +34,8 @@ class StockAlertController extends Controller
 
         return Inertia::render('Stock/Alerts/Index', [
             'stockAlerts' => $stockAlerts,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
@@ -47,9 +52,11 @@ class StockAlertController extends Controller
 
     public function unresolvedCount(Request $request): JsonResponse
     {
+        $farmId = $this->scopedFarmId($request);
+
         $count = StockAlert::where('is_resolved', false)
-            ->whereHas('product', function ($q) use ($request) {
-                $q->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             })
             ->count();
 

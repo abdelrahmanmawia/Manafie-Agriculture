@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\Employee;
@@ -21,8 +22,10 @@ class ManualStockEntryController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = ManualStockEntry::with('product', 'employee', 'vehicle', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
-            ->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('entry_type')) {
             $query->where('entry_type', $request->entry_type);
@@ -50,13 +53,13 @@ class ManualStockEntryController extends Controller
 
         $manualStockEntries = $query->orderBy('date', 'desc')->get();
 
-        $products = Product::where('farm_id', $request->user()->farm_id)->get(['id', 'name', 'unit_type', 'unit_cost']);
-        $employees = Employee::where('farm_id', $request->user()->farm_id)->get(['id', 'full_name']);
-        $vehicles = Vehicle::where('farm_id', $request->user()->farm_id)->get(['id', 'name', 'plate_number']);
-        $blocs = Bloc::where('farm_id', $request->user()->farm_id)->get(['id', 'name']);
-        $sectors = Sector::where('farm_id', $request->user()->farm_id)->get(['id', 'name']);
-        $parcelles = Parcelle::where('farm_id', $request->user()->farm_id)->get(['id', 'name']);
-        $operations = Operation::where('farm_id', $request->user()->farm_id)->get(['id', 'name']);
+        $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'unit_type', 'unit_cost']);
+        $employees = Employee::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'full_name']);
+        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number']);
+        $blocs = Bloc::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']);
+        $sectors = Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']);
+        $parcelles = Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']);
+        $operations = Operation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']);
 
 
         return Inertia::render('Stock/ManualStockEntries/Index', [
@@ -68,10 +71,12 @@ class ManualStockEntryController extends Controller
             'sectors' => $sectors,
             'parcelles' => $parcelles,
             'operations' => $operations,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
@@ -88,11 +93,13 @@ class ManualStockEntryController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request) {
+        $farmId = $this->resolveWriteFarmId($request);
+
+        return DB::transaction(function () use ($validated, $request, $farmId) {
             $product = Product::findOrFail($validated['product_id']);
 
             $entry = ManualStockEntry::create([
-                'farm_id' => $request->user()->farm_id,
+                'farm_id' => $farmId,
                 'product_id' => $validated['product_id'],
                 'entry_type' => $validated['entry_type'],
                 'quantity' => $validated['quantity'],
@@ -137,7 +144,7 @@ class ManualStockEntryController extends Controller
             $inventory->quantity_on_hand -= $validated['quantity'];
             $inventory->save();
 
-            return response()->json($entry, 201);
+            return redirect()->back();
         });
     }
 
@@ -156,8 +163,8 @@ class ManualStockEntryController extends Controller
         $employees = Employee::where('farm_id', $entry->farm_id)->get(['id', 'full_name']);
         $vehicles = Vehicle::where('farm_id', $entry->farm_id)->get(['id', 'name', 'plate_number']);
         $blocs = Bloc::where('farm_id', $entry->farm_id)->get(['id', 'name']);
-        $sectors = Sector::where('farm_id', $entry->farm_id)->get(['id', 'name']);
-        $parcelles = Parcelle::where('farm_id', $entry->farm_id)->get(['id', 'name']);
+        $sectors = Sector::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name']);
+        $parcelles = Parcelle::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name']);
         $operations = Operation::where('farm_id', $entry->farm_id)->get(['id', 'name']);
 
         return Inertia::render('Stock/ManualStockEntries/Edit', [
@@ -172,7 +179,7 @@ class ManualStockEntryController extends Controller
         ]);
     }
 
-    public function update(Request $request, ManualStockEntry $entry): JsonResponse
+    public function update(Request $request, ManualStockEntry $entry)
     {
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
@@ -222,11 +229,11 @@ class ManualStockEntryController extends Controller
                 $inventory->save();
             }
 
-            return response()->json($entry);
+            return redirect()->route('stock.manual-entries.show', $entry);
         });
     }
 
-    public function destroy(ManualStockEntry $entry): JsonResponse
+    public function destroy(ManualStockEntry $entry)
     {
         return DB::transaction(function () use ($entry) {
             // Revert stock movement
@@ -243,11 +250,11 @@ class ManualStockEntryController extends Controller
             }
 
             $entry->delete();
-            return response()->json(null, 204);
+            return redirect()->route('stock.manual-entries.index');
         });
     }
 
-    public function verify(Request $request, ManualStockEntry $entry): JsonResponse
+    public function verify(Request $request, ManualStockEntry $entry)
     {
         $entry->update([
             'is_verified' => true,
@@ -255,7 +262,7 @@ class ManualStockEntryController extends Controller
             'verified_at' => now(),
         ]);
 
-        return response()->json($entry);
+        return redirect()->back();
     }
 
     // Quick entry for common scenarios
@@ -281,7 +288,7 @@ class ManualStockEntryController extends Controller
                 ->where('farm_id', $vehicle->farm_id)
                 ->firstOrFail();
 
-            // Create FuelTransaction (this will handle stock movement and inventory update)
+            // Create FuelTransaction record
             $fuelTransaction = FuelTransaction::create([
                 'farm_id' => $vehicle->farm_id,
                 'vehicle_id' => $validated['vehicle_id'],
@@ -298,7 +305,31 @@ class ManualStockEntryController extends Controller
                 'notes' => $validated['notes'] ?? null
             ]);
 
-            // Create ManualStockEntry (for consumption tracking only, no duplicate stock movement)
+            // Create the corresponding stock movement, same as FuelTransactionController::store()
+            StockMovement::create([
+                'product_id' => $fuelProduct->id,
+                'movement_type' => 'out',
+                'quantity' => $validated['quantity_liters'],
+                'unit_cost' => $fuelProduct->unit_cost,
+                'total_cost' => $fuelProduct->unit_cost * $validated['quantity_liters'],
+                'reference_type' => 'fuel_transaction',
+                'reference_id' => $fuelTransaction->id,
+                'performed_by' => $request->user()->id,
+                'date' => $validated['date'],
+                'notes' => "Fuel transaction for vehicle {$vehicle->name}",
+                'vehicle_id' => $validated['vehicle_id'],
+            ]);
+
+            // Deduct the fuel from inventory
+            $inventory = StockInventory::firstOrCreate(
+                ['product_id' => $fuelProduct->id],
+                ['quantity_on_hand' => 0, 'quantity_reserved' => 0]
+            );
+            $inventory->quantity_on_hand -= $validated['quantity_liters'];
+            $inventory->save();
+
+            // Create ManualStockEntry for consumption reporting/context (bloc, pointage record, etc.);
+            // the stock movement above already adjusted inventory, this does not duplicate it.
             $manualEntry = ManualStockEntry::create([
                 'farm_id' => $vehicle->farm_id,
                 'product_id' => $fuelProduct->id,
@@ -333,11 +364,13 @@ class ManualStockEntryController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request) {
+        $farmId = $this->resolveWriteFarmId($request);
+
+        return DB::transaction(function () use ($validated, $request, $farmId) {
             $product = Product::findOrFail($validated['product_id']);
 
             $manualEntry = ManualStockEntry::create([
-                'farm_id' => $request->user()->farm_id,
+                'farm_id' => $farmId,
                 'product_id' => $validated['product_id'],
                 'entry_type' => 'consumption',
                 'quantity' => $validated['quantity'],

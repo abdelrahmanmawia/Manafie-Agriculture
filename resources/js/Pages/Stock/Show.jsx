@@ -105,18 +105,25 @@ export default function Show({ auth, product }) {
                         <div className="p-6">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex-shrink-0 h-16 w-16 bg-blue-100 rounded-xl flex items-center justify-center">
-                                        <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                        </svg>
-                                    </div>
+                                    {product.image_url ? (
+                                        <img
+                                            src={product.image_url}
+                                            alt={product.name}
+                                            className="flex-shrink-0 h-16 w-16 rounded-xl object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex-shrink-0 h-16 w-16 bg-blue-100 rounded-xl flex items-center justify-center">
+                                            <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                            </svg>
+                                        </div>
+                                    )}
                                     <div>
                                         <h3 className="text-2xl font-bold text-gray-900">{product.name}</h3>
                                         <div className="flex items-center gap-3 mt-2">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
                                                 {product.category}
                                             </span>
-                                            <span className="text-sm text-gray-500">{product.reference_code}</span>
                                             {product.is_active ? (
                                                 <span className="flex items-center text-green-600 text-sm">
                                                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,24 +221,12 @@ export default function Show({ auth, product }) {
                             </div>
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500">Code-barres</span>
-                                    <span className="font-medium text-gray-900">{product.barcode || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
                                     <span className="text-gray-500">Type d'Unité</span>
                                     <span className="font-medium text-gray-900">{product.unit_type}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <div className="flex justify-between items-center py-2">
                                     <span className="text-gray-500">Coût Unitaire</span>
                                     <span className="font-medium text-gray-900">{product.unit_cost ? `${product.unit_cost} MAD` : 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500">Fournisseur</span>
-                                    <span className="font-medium text-gray-900">{product.supplier || 'N/A'}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2">
-                                    <span className="text-gray-500">Emplacement</span>
-                                    <span className="font-medium text-gray-900">{product.storage_location || 'N/A'}</span>
                                 </div>
                             </div>
                         </div>
@@ -241,10 +236,6 @@ export default function Show({ auth, product }) {
                                 <h4 className="text-lg font-bold text-gray-800">Informations de Stock</h4>
                             </div>
                             <div className="p-6 space-y-4">
-                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                    <span className="text-gray-500">Stock Maximum</span>
-                                    <span className="font-medium text-gray-900">{product.max_stock_level || 'N/A'}</span>
-                                </div>
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
                                     <span className="text-gray-500">Dernier Réapprovisionnement</span>
                                     <span className="font-medium text-gray-900">{formatDate(product.stock_inventory?.last_restock_date)}</span>
@@ -256,19 +247,6 @@ export default function Show({ auth, product }) {
                             </div>
                         </div>
                     </div>
-
-                    {product.specifications && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Spécifications</h4>
-                            </div>
-                            <div className="p-6">
-                                <pre className="bg-gray-50 p-4 rounded-xl text-sm overflow-x-auto border border-gray-200">
-                                    {JSON.stringify(product.specifications, null, 2)}
-                                </pre>
-                            </div>
-                        </div>
-                    )}
 
                     {/* Stock Movements */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

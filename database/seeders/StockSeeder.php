@@ -7,8 +7,6 @@ use App\Models\Farm;
 use App\Models\Product;
 use App\Models\Vehicle;
 use App\Models\StockInventory;
-use App\Models\PurchaseOrder;
-use App\Models\PurchaseOrderItem;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\StockAlert;
@@ -37,8 +35,6 @@ class StockSeeder extends Seeder
         Product::truncate();
         Vehicle::truncate();
         StockInventory::truncate();
-        PurchaseOrder::truncate();
-        PurchaseOrderItem::truncate();
         FuelTransaction::truncate();
         ManualStockEntry::truncate();
         StockAlert::truncate();
@@ -74,14 +70,14 @@ class StockSeeder extends Seeder
 
             // 1. Products
             $productsData = [
-                ['name' => 'Semences de Tomate', 'reference_code' => 'TOM-SEM-001', 'category' => 'seeds', 'unit_type' => 'units', 'min_stock_level' => 500, 'unit_cost' => 0.15],
-                ['name' => 'Engrais NPK 15-15-15', 'reference_code' => 'ENG-NPK-001', 'category' => 'fertilizers', 'unit_type' => 'kg', 'min_stock_level' => 1000, 'unit_cost' => 12.50],
-                ['name' => 'Insecticide Bio', 'reference_code' => 'INS-BIO-001', 'category' => 'pesticides', 'unit_type' => 'liters', 'min_stock_level' => 50, 'unit_cost' => 85.00],
-                ['name' => 'Petite Pelle', 'reference_code' => 'OUT-PEL-001', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 10, 'unit_cost' => 45.00],
-                ['name' => 'Sacs de 25kg', 'reference_code' => 'EMB-SAC-001', 'category' => 'packaging', 'unit_type' => 'units', 'min_stock_level' => 200, 'unit_cost' => 2.00],
-                ['name' => 'Tracteur John Deere', 'reference_code' => 'EQU-JOH-001', 'category' => 'equipment', 'unit_type' => 'units', 'min_stock_level' => 1, 'unit_cost' => 500000.00],
-                ['name' => 'Gasoil', 'reference_code' => 'CAR-GAS-001', 'category' => 'fuel', 'unit_type' => 'liters', 'min_stock_level' => 500, 'unit_cost' => 13.00],
-                ['name' => 'Huile Moteur', 'reference_code' => 'AUT-HUI-001', 'category' => 'other', 'unit_type' => 'liters', 'min_stock_level' => 20, 'unit_cost' => 60.00],
+                ['name' => 'Semences de Tomate', 'category' => 'seeds', 'unit_type' => 'units', 'min_stock_level' => 500, 'unit_cost' => 0.15],
+                ['name' => 'Engrais NPK 15-15-15', 'category' => 'fertilizers', 'unit_type' => 'kg', 'min_stock_level' => 1000, 'unit_cost' => 12.50],
+                ['name' => 'Insecticide Bio', 'category' => 'pesticides', 'unit_type' => 'liters', 'min_stock_level' => 50, 'unit_cost' => 85.00],
+                ['name' => 'Petite Pelle', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 10, 'unit_cost' => 45.00],
+                ['name' => 'Sacs de 25kg', 'category' => 'packaging', 'unit_type' => 'units', 'min_stock_level' => 200, 'unit_cost' => 2.00],
+                ['name' => 'Tracteur John Deere', 'category' => 'equipment', 'unit_type' => 'units', 'min_stock_level' => 1, 'unit_cost' => 500000.00],
+                ['name' => 'Gasoil', 'category' => 'fuel', 'unit_type' => 'liters', 'min_stock_level' => 500, 'unit_cost' => 13.00],
+                ['name' => 'Huile Moteur', 'category' => 'other', 'unit_type' => 'liters', 'min_stock_level' => 20, 'unit_cost' => 60.00],
             ];
 
             $products = collect();
@@ -118,82 +114,7 @@ class StockSeeder extends Seeder
                 ]);
             }
 
-            // 4. Purchase Orders
-            $supplierNames = ['AgriSupply Co.', 'Fertilizer King', 'Tools R Us'];
-            $poStatuses = ['pending', 'ordered', 'received', 'partial'];
-
-            for ($i = 0; $i < 5; $i++) {
-                $orderDate = Carbon::now()->subDays(rand(1, 90));
-                $expectedDate = (clone $orderDate)->addDays(rand(5, 30));
-                $status = $poStatuses[array_rand($poStatuses)];
-                $receivedBy = $farmUsers->isNotEmpty() ? $farmUsers->random() : null;
-
-                $purchaseOrder = PurchaseOrder::create([
-                    'farm_id' => $farm->id,
-                    'order_number' => 'PO-' . $farm->id . '-' . str_pad($i + 1, 3, '0', STR_PAD_LEFT),
-                    'supplier_name' => $supplierNames[array_rand($supplierNames)],
-                    'order_date' => $orderDate,
-                    'expected_date' => $expectedDate,
-                    'status' => $status,
-                    'total_amount' => 0,
-                    'notes' => 'Sample purchase order ' . ($i + 1),
-                    'received_by' => $status == 'received' || $status == 'partial' ? ($receivedBy ? $receivedBy->id : null) : null,
-                    'received_at' => $status == 'received' || $status == 'partial' ? Carbon::now()->subDays(rand(0, 10)) : null,
-                ]);
-
-                $totalAmount = 0;
-                $numItems = rand(1, 3);
-                $selectedProducts = $products->random($numItems);
-
-                foreach ($selectedProducts as $product) {
-                    $quantityOrdered = rand(10, 500);
-                    $unitPrice = $product->unit_cost * (1 + (rand(-5, 5) / 100)); // +/- 5% variation
-                    $totalPrice = $quantityOrdered * $unitPrice;
-                    $quantityReceived = 0;
-
-                    if ($status == 'received') {
-                        $quantityReceived = $quantityOrdered;
-                    } elseif ($status == 'partial') {
-                        $quantityReceived = rand(1, $quantityOrdered - 1);
-                    }
-
-                    PurchaseOrderItem::create([
-                        'purchase_order_id' => $purchaseOrder->id,
-                        'product_id' => $product->id,
-                        'quantity_ordered' => $quantityOrdered,
-                        'quantity_received' => $quantityReceived,
-                        'unit_price' => $unitPrice,
-                        'total_price' => $totalPrice,
-                        'received_date' => $quantityReceived > 0 ? Carbon::now()->subDays(rand(0, 10)) : null,
-                        'batch_number' => 'BATCH-' . rand(100, 999),
-                    ]);
-                    $totalAmount += $totalPrice;
-
-                    // Simulate stock movement and inventory update for received items
-                    if ($quantityReceived > 0) {
-                        StockMovement::create([
-                            'product_id' => $product->id,
-                            'movement_type' => 'in',
-                            'quantity' => $quantityReceived,
-                            'unit_cost' => $unitPrice,
-                            'total_cost' => $quantityReceived * $unitPrice,
-                            'reference_type' => 'purchase_order',
-                            'reference_id' => $purchaseOrder->id,
-                            'performed_by' => $receivedBy ? $receivedBy->id : null,
-                            'date' => $purchaseOrder->received_at ?? Carbon::now(),
-                            'notes' => "Received from PO {$purchaseOrder->order_number}",
-                        ]);
-
-                        $inventory = StockInventory::firstOrCreate(['product_id' => $product->id]);
-                        $inventory->quantity_on_hand += $quantityReceived;
-                        $inventory->last_restock_date = $purchaseOrder->received_at ?? Carbon::now();
-                        $inventory->save();
-                    }
-                }
-                $purchaseOrder->update(['total_amount' => $totalAmount]);
-            }
-
-            // 5. Fuel Transactions
+            // 4. Fuel Transactions
             $fuelProduct = $products->where('category', 'fuel')->first();
             if ($fuelProduct && $vehicles->isNotEmpty()) {
                 for ($i = 0; $i < 10; $i++) {
@@ -242,7 +163,7 @@ class StockSeeder extends Seeder
                 }
             }
 
-            // 6. Manual Stock Entries (Consumption)
+            // 5. Manual Stock Entries (Consumption)
             for ($i = 0; $i < 15; $i++) {
                 $product = $products->random();
                 $quantity = rand(1, 50);
@@ -298,7 +219,7 @@ class StockSeeder extends Seeder
                 $inventory->save();
             }
 
-            // 7. Stock Alerts
+            // 6. Stock Alerts
             foreach ($products as $product) {
                 $inventory = StockInventory::where('product_id', $product->id)->first();
                 if ($inventory) {

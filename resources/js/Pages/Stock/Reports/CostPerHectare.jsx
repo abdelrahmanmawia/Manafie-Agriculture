@@ -1,7 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import FarmFilter from '@/Components/FarmFilter';
 
-export default function CostPerHectare({ auth, costPerHectareData }) {
+export default function CostPerHectare({ auth, costPerHectareData, farms, selectedFarmId }) {
     const averageCostPerHectare = costPerHectareData.length > 0 
         ? costPerHectareData.reduce((sum, data) => sum + data.cost_per_hectare, 0) / costPerHectareData.length 
         : 0;
@@ -33,6 +34,8 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.reports.cost-per-hectare" />
+
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6">

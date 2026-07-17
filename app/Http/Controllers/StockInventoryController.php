@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\StockInventory;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -12,9 +13,11 @@ class StockInventoryController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = StockInventory::with('product')
-            ->whereHas('product', function ($q) use ($request) {
-                $q->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             });
 
         if ($request->has('product_id')) {
@@ -31,6 +34,8 @@ class StockInventoryController extends Controller
 
         return Inertia::render('Stock/Inventory/Index', [
             'stockInventory' => $inventory,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 

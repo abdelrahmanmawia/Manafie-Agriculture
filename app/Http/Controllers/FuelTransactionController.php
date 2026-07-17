@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\Vehicle;
 use App\Models\Product;
@@ -9,7 +10,6 @@ use App\Models\Employee;
 use App\Models\StockMovement;
 use App\Models\StockInventory;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 
@@ -17,8 +17,10 @@ class FuelTransactionController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = FuelTransaction::with('vehicle', 'product', 'driver', 'performedBy')
-            ->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('vehicle_id')) {
             $query->where('vehicle_id', $request->vehicle_id);
@@ -38,19 +40,21 @@ class FuelTransactionController extends Controller
 
         $fuelTransactions = $query->orderBy('date', 'desc')->get();
 
-        $vehicles = Vehicle::where('farm_id', $request->user()->farm_id)->get(['id', 'name', 'plate_number']);
-        $products = Product::where('farm_id', $request->user()->farm_id)->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
-        $employees = Employee::where('farm_id', $request->user()->farm_id)->get(['id', 'full_name']);
+        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number']);
+        $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
+        $employees = Employee::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'full_name']);
 
         return Inertia::render('Stock/FuelTransactions/Index', [
             'fuelTransactions' => $fuelTransactions,
             'vehicles' => $vehicles,
             'products' => $products,
             'employees' => $employees,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -65,13 +69,15 @@ class FuelTransactionController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request) {
+        $farmId = $this->resolveWriteFarmId($request);
+
+        return DB::transaction(function () use ($validated, $request, $farmId) {
             $product = Product::findOrFail($validated['product_id']);
             $unitPrice = $validated['unit_price_per_liter'] ?? $product->unit_cost;
             $totalCost = $unitPrice * $validated['quantity_liters'];
 
             $fuelTransaction = FuelTransaction::create([
-                'farm_id' => $request->user()->farm_id,
+                'farm_id' => $farmId,
                 'vehicle_id' => $validated['vehicle_id'] ?? null,
                 'product_id' => $validated['product_id'],
                 'transaction_type' => $validated['transaction_type'],
@@ -115,7 +121,7 @@ class FuelTransactionController extends Controller
             $inventory->quantity_on_hand -= $validated['quantity_liters'];
             $inventory->save();
 
-            return response()->json($fuelTransaction, 201);
+            return redirect()->back();
         });
     }
 
@@ -142,7 +148,7 @@ class FuelTransactionController extends Controller
         ]);
     }
 
-    public function update(Request $request, FuelTransaction $transaction): JsonResponse
+    public function update(Request $request, FuelTransaction $transaction)
     {
         $validated = $request->validate([
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -192,11 +198,11 @@ class FuelTransactionController extends Controller
                 $inventory->save();
             }
 
-            return response()->json($transaction);
+            return redirect()->route('stock.fuel-transactions.show', $transaction);
         });
     }
 
-    public function destroy(FuelTransaction $transaction): JsonResponse
+    public function destroy(FuelTransaction $transaction)
     {
         return DB::transaction(function () use ($transaction) {
             // Revert stock movement
@@ -213,7 +219,7 @@ class FuelTransactionController extends Controller
             }
 
             $transaction->delete();
-            return response()->json(null, 204);
+            return redirect()->route('stock.fuel-transactions.index');
         });
     }
 }

@@ -29,7 +29,6 @@ export default function Show({ auth, stockInventory }) {
                                 <p className="text-gray-600"><strong>Produit:</strong> {stockInventory.product.name}</p>
                                 <p className="text-gray-600"><strong>Catégorie:</strong> {stockInventory.product.category}</p>
                                 <p className="text-gray-600"><strong>Unité:</strong> {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Code de Référence:</strong> {stockInventory.product.reference_code}</p>
                                 <p className="text-gray-600"><strong>Coût Unitaire Moyen:</strong> {stockInventory.average_cost ? `${stockInventory.average_cost} MAD` : 'N/A'}</p>
                             </div>
                             <div>

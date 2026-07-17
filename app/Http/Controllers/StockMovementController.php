@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\StockInventory;
@@ -14,9 +15,11 @@ class StockMovementController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = StockMovement::with('product', 'performedBy', 'bloc', 'sector', 'parcelle', 'vehicle')
-            ->whereHas('product', function ($q) use ($request) {
-                $q->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             });
 
         if ($request->has('movement_type')) {
@@ -41,6 +44,8 @@ class StockMovementController extends Controller
 
         return Inertia::render('Stock/Movements/Index', [
             'stockMovements' => $movements,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
@@ -123,45 +128,6 @@ class StockMovementController extends Controller
                 'sector_id' => $validated['sector_id'] ?? null,
                 'parcelle_id' => $validated['parcelle_id'] ?? null,
                 'vehicle_id' => $validated['vehicle_id'] ?? null,
-            ]);
-
-            // Update inventory
-            $inventory = StockInventory::where('product_id', $product->id)->first();
-
-            if ($inventory) {
-                $inventory->quantity_on_hand -= $validated['quantity'];
-                $inventory->save();
-            }
-
-            return response()->json($movement, 201);
-        });
-    }
-
-    public function transfer(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric|min:0',
-            'unit_cost' => 'nullable|numeric|min:0',
-            'date' => 'required|date',
-            'notes' => 'nullable|string',
-            'from_bloc_id' => 'nullable|exists:blocs,id',
-            'to_bloc_id' => 'nullable|exists:blocs,id',
-        ]);
-
-        return DB::transaction(function () use ($validated, $request) {
-            $product = Product::findOrFail($validated['product_id']);
-
-            $movement = StockMovement::create([
-                'product_id' => $product->id,
-                'movement_type' => 'transfer',
-                'quantity' => $validated['quantity'],
-                'unit_cost' => $validated['unit_cost'] ?? $product->unit_cost,
-                'total_cost' => ($validated['unit_cost'] ?? $product->unit_cost) * $validated['quantity'],
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                'notes' => $validated['notes'] ?? "Transfer from Bloc {$validated['from_bloc_id']} to Bloc {$validated['to_bloc_id']}",
-                'bloc_id' => $validated['to_bloc_id'] ?? null,
             ]);
 
             // Update inventory

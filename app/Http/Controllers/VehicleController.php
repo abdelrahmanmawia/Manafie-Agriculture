@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\Vehicle;
 use App\Models\Employee; // Import Employee model
 use Illuminate\Http\Request;
@@ -12,8 +13,10 @@ class VehicleController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = Vehicle::with('defaultDriver')
-            ->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('type')) {
             $query->where('type', $request->type);
@@ -27,13 +30,15 @@ class VehicleController extends Controller
 
         $types = $this->types()->original;
         $fuelTypes = $this->fuelTypes()->original;
-        $employees = Employee::where('farm_id', $request->user()->farm_id)->get(['id', 'full_name']);
+        $employees = Employee::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'full_name']);
 
         return Inertia::render('Stock/Vehicles/Index', [
             'vehicles' => $vehicles,
             'types' => $types,
             'fuelTypes' => $fuelTypes,
             'employees' => $employees,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
@@ -62,7 +67,7 @@ class VehicleController extends Controller
         return response()->json($fuelTypes);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -79,8 +84,8 @@ class VehicleController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $vehicle = Vehicle::create([
-            'farm_id' => $request->user()->farm_id,
+        Vehicle::create([
+            'farm_id' => $this->resolveWriteFarmId($request),
             'name' => $validated['name'],
             'plate_number' => $validated['plate_number'],
             'type' => $validated['type'],
@@ -95,7 +100,7 @@ class VehicleController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        return response()->json($vehicle, 201);
+        return redirect()->back();
     }
 
     public function show(Vehicle $vehicle)
@@ -121,7 +126,7 @@ class VehicleController extends Controller
         ]);
     }
 
-    public function update(Request $request, Vehicle $vehicle): JsonResponse
+    public function update(Request $request, Vehicle $vehicle)
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -140,13 +145,13 @@ class VehicleController extends Controller
 
         $vehicle->update($validated);
 
-        return response()->json($vehicle);
+        return redirect()->route('stock.vehicles.show', $vehicle);
     }
 
-    public function destroy(Vehicle $vehicle): JsonResponse
+    public function destroy(Vehicle $vehicle)
     {
         $vehicle->delete();
 
-        return response()->json(null, 204);
+        return redirect()->route('stock.vehicles.index');
     }
 }

@@ -2,28 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Farm;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia; // Import Inertia
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
+        $farmId = $this->scopedFarmId($request);
+
         $query = Product::with('stockInventory')
-            ->where('farm_id', $request->user()->farm_id);
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('category')) {
             $query->where('category', $request->category);
         }
 
         if ($request->has('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('reference_code', 'like', "%{$search}%");
-            });
+            $query->where('name', 'like', "%{$request->search}%");
         }
 
         if ($request->has('is_active')) {
@@ -40,6 +40,8 @@ class ProductController extends Controller
             'products' => $products,
             'categories' => $categories,
             'unitTypes' => $unitTypes,
+            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
+            'selectedFarmId' => $farmId,
         ]);
     }
 
@@ -74,8 +76,10 @@ class ProductController extends Controller
 
     public function lowStock(Request $request): JsonResponse
     {
+        $farmId = $this->scopedFarmId($request);
+
         $products = Product::with('stockInventory')
-            ->where('farm_id', $request->user()->farm_id)
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('is_active', true)
             ->get()
             ->filter(function ($product) {
@@ -86,40 +90,30 @@ class ProductController extends Controller
         return response()->json($products);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'reference_code' => 'required|string|unique:products,reference_code',
-            'barcode' => 'nullable|string|unique:products,barcode',
             'category' => 'required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,other',
             'unit_type' => 'required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
-            'max_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
-            'supplier' => 'nullable|string|max:255',
-            'storage_location' => 'nullable|string|max:255',
-            'specifications' => 'nullable|array',
             'is_active' => 'boolean',
+            'image' => 'nullable|image|max:5120',
         ]);
 
-        $product = Product::create([
-            'farm_id' => $request->user()->farm_id,
+        Product::create([
+            'farm_id' => $this->resolveWriteFarmId($request),
             'name' => $validated['name'],
-            'reference_code' => $validated['reference_code'],
-            'barcode' => $validated['barcode'] ?? null,
+            'image' => $request->hasFile('image') ? $request->file('image')->store('products', 'public') : null,
             'category' => $validated['category'],
             'unit_type' => $validated['unit_type'],
             'min_stock_level' => $validated['min_stock_level'] ?? 0,
-            'max_stock_level' => $validated['max_stock_level'] ?? null,
             'unit_cost' => $validated['unit_cost'] ?? null,
-            'supplier' => $validated['supplier'] ?? null,
-            'storage_location' => $validated['storage_location'] ?? null,
-            'specifications' => $validated['specifications'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
-        return response()->json($product, 201);
+        return redirect()->back();
     }
 
     public function show(Product $product)
@@ -143,32 +137,34 @@ class ProductController extends Controller
         ]);
     }
 
-    public function update(Request $request, Product $product): JsonResponse
+    public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'reference_code' => 'sometimes|required|string|unique:products,reference_code,' . $product->id,
-            'barcode' => 'nullable|string|unique:products,barcode,' . $product->id,
             'category' => 'sometimes|required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,other',
             'unit_type' => 'sometimes|required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
-            'max_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
-            'supplier' => 'nullable|string|max:255',
-            'storage_location' => 'nullable|string|max:255',
-            'specifications' => 'nullable|array',
             'is_active' => 'boolean',
+            'image' => 'nullable|image|max:5120',
         ]);
+
+        if ($request->hasFile('image')) {
+            if ($product->image) {
+                Storage::disk('public')->delete($product->image);
+            }
+            $validated['image'] = $request->file('image')->store('products', 'public');
+        }
 
         $product->update($validated);
 
-        return response()->json($product);
+        return redirect()->route('stock.products.show', $product);
     }
 
-    public function destroy(Product $product): JsonResponse
+    public function destroy(Product $product)
     {
         $product->delete();
 
-        return response()->json(null, 204);
+        return redirect()->route('stock.products.index');
     }
 }

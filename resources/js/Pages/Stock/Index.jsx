@@ -7,50 +7,43 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import FarmFilter from '@/Components/FarmFilter';
 
-export default function Index({ auth, products, categories, unitTypes }) {
+export default function Index({ auth, products, categories, unitTypes, farms, selectedFarmId }) {
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
+    const [imagePreview, setImagePreview] = useState(null);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         name: '',
-        reference_code: '',
-        barcode: '',
+        image: null,
         category: categories.length > 0 ? categories[0] : '',
         unit_type: unitTypes.length > 0 ? unitTypes[0] : '',
         min_stock_level: 0,
-        max_stock_level: '',
         unit_cost: '',
-        supplier: '',
-        storage_location: '',
-        specifications: '',
+        farm_id: selectedFarmId || (farms?.[0]?.id ?? ''),
     });
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0] ?? null;
+        setData('image', file);
+        setImagePreview(file ? URL.createObjectURL(file) : null);
+    };
 
     const submit = (e) => {
         e.preventDefault();
-        // Parse specifications if provided
-        const submitData = { ...data };
-        if (submitData.specifications) {
-            try {
-                submitData.specifications = JSON.parse(submitData.specifications);
-            } catch (e) {
-                // If invalid JSON, keep as string and let backend handle validation
-            }
-        } else {
-            submitData.specifications = null;
-        }
-        post(route('stock.products.store'), submitData, {
+        post(route('stock.products.store'), {
             onSuccess: () => {
                 reset();
+                setImagePreview(null);
                 setIsCreating(false);
             },
         });
     };
 
     const filteredProducts = products.filter(product => {
-        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             product.reference_code.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = !selectedCategory || product.category === selectedCategory;
         return matchesSearch && matchesCategory;
     });
@@ -72,7 +65,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
     const getStockStatus = (product) => {
         const currentStock = product.stock_inventory?.quantity_on_hand || 0;
         const minStock = product.min_stock_level || 0;
-        
+
         if (currentStock === 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600' };
         if (currentStock <= minStock) return { status: 'Faible', color: 'bg-orange-500', textColor: 'text-orange-600' };
         if (currentStock <= minStock * 1.5) return { status: 'Normal', color: 'bg-yellow-500', textColor: 'text-yellow-600' };
@@ -106,6 +99,8 @@ export default function Index({ auth, products, categories, unitTypes }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.products.index" />
+
                     {/* Filters and Search */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -114,7 +109,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                 <div className="relative">
                                     <input
                                         type="text"
-                                        placeholder="Rechercher par nom ou référence..."
+                                        placeholder="Rechercher par nom..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -196,14 +191,21 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                                 <tr key={product.id} className="hover:bg-gray-50 transition-colors">
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center">
-                                                            <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                                                </svg>
-                                                            </div>
+                                                            {product.image_url ? (
+                                                                <img
+                                                                    src={product.image_url}
+                                                                    alt={product.name}
+                                                                    className="flex-shrink-0 h-10 w-10 rounded-lg object-cover"
+                                                                />
+                                                            ) : (
+                                                                <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                                                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                                                    </svg>
+                                                                </div>
+                                                            )}
                                                             <div className="ml-4">
                                                                 <div className="text-sm font-medium text-gray-900">{product.name}</div>
-                                                                <div className="text-sm text-gray-500">{product.reference_code}</div>
                                                             </div>
                                                         </div>
                                                     </td>
@@ -307,31 +309,39 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                     <InputError message={errors.name} className="mt-2" />
                                 </div>
 
-                                <div>
-                                    <InputLabel htmlFor="reference_code" value="Code de Référence *" />
-                                    <TextInput
-                                        id="reference_code"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.reference_code}
-                                        onChange={(e) => setData('reference_code', e.target.value)}
-                                        required
-                                        placeholder="Ex: FERT-001"
-                                    />
-                                    <InputError message={errors.reference_code} className="mt-2" />
-                                </div>
+                                {auth.user.role === 'super_admin' && (
+                                    <div className="md:col-span-2">
+                                        <InputLabel htmlFor="farm_id" value="Ferme *" />
+                                        <select
+                                            id="farm_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                            value={data.farm_id}
+                                            onChange={(e) => setData('farm_id', e.target.value)}
+                                            required
+                                        >
+                                            {farms.map((farm) => (
+                                                <option key={farm.id} value={farm.id}>{farm.name}</option>
+                                            ))}
+                                        </select>
+                                        <InputError message={errors.farm_id} className="mt-2" />
+                                    </div>
+                                )}
 
-                                <div>
-                                    <InputLabel htmlFor="barcode" value="Code-barres" />
-                                    <TextInput
-                                        id="barcode"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.barcode}
-                                        onChange={(e) => setData('barcode', e.target.value)}
-                                        placeholder="Ex: 1234567890123"
-                                    />
-                                    <InputError message={errors.barcode} className="mt-2" />
+                                <div className="md:col-span-2">
+                                    <InputLabel htmlFor="image" value="Photo du Produit" />
+                                    <div className="mt-1 flex items-center gap-4">
+                                        {imagePreview && (
+                                            <img src={imagePreview} alt="Aperçu" className="h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                                        )}
+                                        <input
+                                            id="image"
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageChange}
+                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                        />
+                                    </div>
+                                    <InputError message={errors.image} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -376,7 +386,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                 </svg>
                                 Informations de Stock
                             </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <InputLabel htmlFor="min_stock_level" value="Stock Minimum" />
                                     <TextInput
@@ -388,19 +398,6 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                         placeholder="Ex: 100"
                                     />
                                     <InputError message={errors.min_stock_level} className="mt-2" />
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="max_stock_level" value="Stock Maximum" />
-                                    <TextInput
-                                        id="max_stock_level"
-                                        type="number"
-                                        className="mt-1 block w-full"
-                                        value={data.max_stock_level}
-                                        onChange={(e) => setData('max_stock_level', e.target.value)}
-                                        placeholder="Ex: 1000"
-                                    />
-                                    <InputError message={errors.max_stock_level} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -416,66 +413,6 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                     />
                                     <InputError message={errors.unit_cost} className="mt-2" />
                                 </div>
-                            </div>
-                        </div>
-
-                        {/* Supplier & Location */}
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                Fournisseur et Emplacement
-                            </h4>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <InputLabel htmlFor="supplier" value="Fournisseur" />
-                                    <TextInput
-                                        id="supplier"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.supplier}
-                                        onChange={(e) => setData('supplier', e.target.value)}
-                                        placeholder="Ex: AgriSupply Maroc"
-                                    />
-                                    <InputError message={errors.supplier} className="mt-2" />
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="storage_location" value="Emplacement de Stockage" />
-                                    <TextInput
-                                        id="storage_location"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.storage_location}
-                                        onChange={(e) => setData('storage_location', e.target.value)}
-                                        placeholder="Ex: Hangar A, Rayon 3"
-                                    />
-                                    <InputError message={errors.storage_location} className="mt-2" />
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Specifications */}
-                        <div className="bg-gray-50 rounded-xl p-4">
-                            <h4 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                                <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                                </svg>
-                                Spécifications (Optionnel)
-                            </h4>
-                            <div>
-                                <InputLabel htmlFor="specifications" value="Spécifications (JSON)" />
-                                <textarea
-                                    id="specifications"
-                                    className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
-                                    value={data.specifications}
-                                    onChange={(e) => setData('specifications', e.target.value)}
-                                    rows="3"
-                                    placeholder='{"composition": "NPK 15-15-15", "poids_net": "50kg"}'
-                                ></textarea>
-                                <InputError message={errors.specifications} className="mt-2" />
                             </div>
                         </div>
 

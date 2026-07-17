@@ -7,8 +7,9 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import FarmFilter from '@/Components/FarmFilter';
 
-export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
+export default function Index({ auth, vehicles, types, fuelTypes, employees, farms, selectedFarmId }) {
     const [isCreating, setIsCreating] = useState(false);
 
     const { data, setData, post, processing, reset, errors } = useForm({
@@ -23,6 +24,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
         default_driver_id: '',
         current_location: '',
         notes: '',
+        farm_id: selectedFarmId || (farms?.[0]?.id ?? ''),
     });
 
     const submit = (e) => {
@@ -56,6 +58,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.vehicles.index" />
+
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
                             <h3 className="text-lg font-bold mb-6 border-b pb-2">Liste des Véhicules</h3>
@@ -145,6 +149,24 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 />
                                 <InputError message={errors.name} className="mt-2" />
                             </div>
+
+                            {auth.user.role === 'super_admin' && (
+                                <div>
+                                    <InputLabel htmlFor="farm_id" value="Ferme *" />
+                                    <select
+                                        id="farm_id"
+                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                        value={data.farm_id}
+                                        onChange={(e) => setData('farm_id', e.target.value)}
+                                        required
+                                    >
+                                        {farms.map((farm) => (
+                                            <option key={farm.id} value={farm.id}>{farm.name}</option>
+                                        ))}
+                                    </select>
+                                    <InputError message={errors.farm_id} className="mt-2" />
+                                </div>
+                            )}
 
                             <div>
                                 <InputLabel htmlFor="plate_number" value="Plaque d'Immatriculation *" />
