@@ -17,7 +17,7 @@ class CsvDataSeeder extends Seeder
     public function run(): void
     {
         // 1. Create Farm
-        $farm = \App\Models\Farm::create([
+        $farm = \App\Models\Farm::updateOrCreate([
             'name' => 'Persealand',
         ]);
 

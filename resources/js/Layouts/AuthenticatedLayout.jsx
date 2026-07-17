@@ -32,6 +32,14 @@ export default function Authenticated({ user, header, children }) {
                                     {t('pointage')}
                                 </NavLink>
 
+                                {/* New Stock Management NavLink */}
+                                <NavLink href={route('stock.dashboard')} active={route().current('stock.*')}>
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                    </svg>
+                                    Gestion de Stock
+                                </NavLink>
+
                                 <NavLink href={route('employees.index')} active={route().current('employees.index')}>
                                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
                                     {t('employees')}
@@ -164,6 +172,16 @@ export default function Authenticated({ user, header, children }) {
                             <div className="flex items-center">
                                 <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 Pointage
+                            </div>
+                        </ResponsiveNavLink>
+
+                        {/* New Responsive NavLink for Stock Management */}
+                        <ResponsiveNavLink href={route('stock.dashboard')} active={route().current('stock.*')} onClick={() => setShowingNavigationDropdown(false)}>
+                            <div className="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                </svg>
+                                Gestion de Stock
                             </div>
                         </ResponsiveNavLink>
 
