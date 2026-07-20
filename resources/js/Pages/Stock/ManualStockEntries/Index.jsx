@@ -7,9 +7,8 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations, farms, selectedFarmId }) {
+export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations }) {
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
@@ -27,7 +26,6 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         parcelle_id: '',
         date: new Date().toISOString().slice(0, 10),
         notes: '',
-        farm_id: selectedFarmId || (farms?.[0]?.id ?? ''),
     });
 
     const submit = (e) => {
@@ -103,8 +101,6 @@ export default function Index({ auth, manualStockEntries, products, employees, v
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.manual-entries.index" />
-
                     {/* Filters */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -299,23 +295,6 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                     </div>
                     <form onSubmit={submit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {auth.user.role === 'super_admin' && (
-                                <div className="md:col-span-2">
-                                    <InputLabel htmlFor="farm_id" value="Ferme *" />
-                                    <select
-                                        id="farm_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                        value={data.farm_id}
-                                        onChange={(e) => setData('farm_id', e.target.value)}
-                                        required
-                                    >
-                                        {farms.map((farm) => (
-                                            <option key={farm.id} value={farm.id}>{farm.name}</option>
-                                        ))}
-                                    </select>
-                                    <InputError message={errors.farm_id} className="mt-2" />
-                                </div>
-                            )}
 
                             <div>
                                 <InputLabel htmlFor="product_id" value="Produit *" />

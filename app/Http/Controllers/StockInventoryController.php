@@ -33,10 +33,7 @@ class StockInventoryController extends Controller
         $inventory = $query->get();
 
         return Inertia::render('Stock/Inventory/Index', [
-            'stockInventory' => $inventory,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'stockInventory' => $inventory,        ]);
     }
 
     public function show(StockInventory $inventory)

@@ -33,10 +33,7 @@ class StockAlertController extends Controller
         $stockAlerts = $query->orderBy('created_at', 'desc')->get();
 
         return Inertia::render('Stock/Alerts/Index', [
-            'stockAlerts' => $stockAlerts,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'stockAlerts' => $stockAlerts,        ]);
     }
 
     public function resolve(Request $request, StockAlert $alert): JsonResponse

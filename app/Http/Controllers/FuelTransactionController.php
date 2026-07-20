@@ -48,10 +48,7 @@ class FuelTransactionController extends Controller
             'fuelTransactions' => $fuelTransactions,
             'vehicles' => $vehicles,
             'products' => $products,
-            'employees' => $employees,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'employees' => $employees,        ]);
     }
 
     public function store(Request $request)

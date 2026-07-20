@@ -56,6 +56,9 @@ class PointageController extends Controller
             ->latest();
 
         if ($user->role === 'super_admin') {
+            $query->whereHas('enterprise', function ($q) {
+                $q->where('farm_id', session('active_farm_id'));
+            });
             if ($enterpriseId) {
                 $query->where('enterprise_id', $enterpriseId);
             }
@@ -88,7 +91,7 @@ class PointageController extends Controller
         return Inertia::render('Pointage/Index', [
             'quinzaines' => $query->get(),
             'enterprises' => $user->role === 'super_admin'
-                ? \App\Models\Enterprise::all()
+                ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
                 : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
                     ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
                     : [])
@@ -105,7 +108,9 @@ class PointageController extends Controller
             if ($quinzaine->enterprise_id !== $user->enterprise_id) abort(403);
         } elseif ($user->farm_id) {
             if ($quinzaine->enterprise->farm_id !== $user->farm_id) abort(403);
-        } elseif ($user->role !== 'super_admin') {
+        } elseif ($user->role === 'super_admin') {
+            if ($quinzaine->enterprise->farm_id !== (int) session('active_farm_id')) abort(403);
+        } else {
             abort(403);
         }
 

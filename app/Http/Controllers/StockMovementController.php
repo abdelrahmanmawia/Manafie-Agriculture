@@ -43,10 +43,7 @@ class StockMovementController extends Controller
             ->get();
 
         return Inertia::render('Stock/Movements/Index', [
-            'stockMovements' => $movements,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'stockMovements' => $movements,        ]);
     }
 
     public function stockIn(Request $request): JsonResponse

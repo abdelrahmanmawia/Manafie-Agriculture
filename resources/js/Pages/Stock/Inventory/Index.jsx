@@ -1,9 +1,8 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, usePage } from '@inertiajs/react';
 import { useState } from 'react';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function Index({ auth, stockInventory, farms, selectedFarmId }) {
+export default function Index({ auth, stockInventory }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -18,8 +17,6 @@ export default function Index({ auth, stockInventory, farms, selectedFarmId }) {
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.inventory.index" />
-
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                         <div className="p-6 text-gray-900">
                             <h3 className="text-lg font-bold mb-6 border-b pb-2">Inventaire Actuel des Produits</h3>

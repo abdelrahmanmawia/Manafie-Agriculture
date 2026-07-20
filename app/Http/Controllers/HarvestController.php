@@ -15,41 +15,17 @@ class HarvestController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $farmId = $request->query('farm_id');
+        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
 
-        // For super admin, allow selecting any farm
-        if ($user->role === 'super_admin') {
-            if (!$farmId) {
-                // If no farm selected, get all farms for the selector
-                $farms = \App\Models\Farm::all();
-                return Inertia::render('Admin/Harvests', [
-                    'harvests' => [],
-                    'blocs' => [],
-                    'varieties' => ['Hass', 'Fuerte', 'Lambhass', 'Zutano'],
-                    'grades' => ['Generale', 'Catégorie 1', 'Catégorie 2', 'Écart de tri'],
-                    'selectedFarmId' => null,
-                    'farms' => $farms,
-                    'error' => 'Veuillez sélectionner une ferme.'
-                ]);
-            }
-        } else {
-            // For other roles, use their assigned farm
-            $farmId = $farmId ?: $user->farm_id;
-            if (!$user->farm_id) {
-                return Inertia::render('Admin/Harvests', [
-                    'harvests' => [],
-                    'blocs' => [],
-                    'varieties' => ['Hass', 'Fuerte', 'Lambhass', 'Zutano'],
-                    'grades' => ['Generale', 'Catégorie 1', 'Catégorie 2', 'Écart de tri'],
-                    'selectedFarmId' => null,
-                    'error' => 'Aucune ferme ne vous est assignée.'
-                ]);
-            }
-        }
-
-        // Security check for non-super admins
-        if ($user->role !== 'super_admin' && $user->farm_id != $farmId) {
-            abort(403);
+        if (!$farmId) {
+            return Inertia::render('Admin/Harvests', [
+                'harvests' => [],
+                'blocs' => [],
+                'varieties' => ['Hass', 'Fuerte', 'Lambhass', 'Zutano'],
+                'grades' => ['Generale', 'Catégorie 1', 'Catégorie 2', 'Écart de tri'],
+                'selectedFarmId' => null,
+                'error' => 'Aucune ferme ne vous est assignée.'
+            ]);
         }
 
         // Define grades with 'Generale' as an option
@@ -76,8 +52,6 @@ class HarvestController extends Controller
             $q->where('farm_id', $farmId);
         })->orderBy('name')->get();
 
-        $farms = $user->role === 'super_admin' ? \App\Models\Farm::all() : [];
-
         return Inertia::render('Admin/Harvests', [
             'harvests' => $harvests,
             'blocs' => $blocs,
@@ -87,19 +61,15 @@ class HarvestController extends Controller
             'grades' => $gradesOptions,
             'selectedFarmId' => $farmId,
             'farm' => \App\Models\Farm::find($farmId),
-            'farms' => $farms
         ]);
     }
 
     public function store(Request $request)
     {
         $user = $request->user();
-        $farmId = $request->input('farm_id') ?: $user->farm_id;
+        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
 
-        // Security check
-        if ($user->role !== 'super_admin' && $user->farm_id != $farmId) {
-            abort(403);
-        }
+        abort_unless($farmId, 403);
 
         $validated = $request->validate([
             'bloc_id' => 'required|exists:blocs,id',
@@ -167,8 +137,10 @@ class HarvestController extends Controller
         $harvests = Harvest::whereIn('id', $harvestIds)->get();
         Log::info('Fetched harvests:', $harvests->pluck('id')->toArray());
 
+        $userFarmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
+
         foreach ($harvests as $harvest) {
-            if ($user->role !== 'super_admin' && $user->farm_id != $harvest->farm_id) {
+            if ($userFarmId != $harvest->farm_id) {
                 Log::warning('Security check failed for harvest ID: ' . $harvest->id . ' by user ID: ' . $user->id);
                 abort(403);
             }
@@ -232,7 +204,8 @@ class HarvestController extends Controller
     public function destroy(Harvest $harvest, Request $request)
     {
         $user = $request->user();
-        if ($user->role !== 'super_admin' && $user->farm_id != $harvest->farm_id) {
+        $userFarmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
+        if ($userFarmId != $harvest->farm_id) {
             abort(403);
         }
 

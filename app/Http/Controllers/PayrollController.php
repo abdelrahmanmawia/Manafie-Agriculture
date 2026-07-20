@@ -92,20 +92,23 @@ class PayrollController extends Controller
     public function history(Request $request)
     {
         $enterpriseId = $request->user()->enterprise_id ?? $request->query('enterprise_id');
-        
-        if (!$enterpriseId && $request->user()->role !== 'super_admin') {
+        $farmId = $request->user()->role === 'super_admin' ? session('active_farm_id') : $request->user()->farm_id;
+
+        if (!$enterpriseId && $request->user()->role !== 'super_admin' && !$farmId) {
             abort(403);
         }
 
-        // Get all quinzaines for this enterprise
+        // Get all quinzaines for this enterprise (or every enterprise in the active farm, if none picked)
         $quinzaines = Quinzaine::query()
             ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
+            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
             ->orderBy('start_date', 'desc')
             ->get();
 
         // Get all employees
         $employees = Employee::query()
             ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
+            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
             ->with('enterprise')
             ->get();
 
@@ -113,6 +116,7 @@ class PayrollController extends Controller
         // Use snapshots for closed quinzaines if available
         $closedQuinzaineIds = Quinzaine::query()
             ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
+            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
             ->where('is_closed', true)
             ->pluck('id');
             
@@ -136,6 +140,7 @@ class PayrollController extends Controller
         // 2. Fill for unclosed or unsnapped quinzaines
         $remainingQuinzaineIds = Quinzaine::query()
             ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
+            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
             ->whereNotIn('id', $snapshots->pluck('quinzaine_id'))
             ->pluck('id');
 
@@ -167,7 +172,7 @@ class PayrollController extends Controller
             'quinzaines' => $quinzaines,
             'history' => (object)$formattedHistory,
             'selectedEnterpriseId' => $enterpriseId,
-            'allEnterprises' => $request->user()->role === 'super_admin' ? Enterprise::all() : []
+            'allEnterprises' => $request->user()->role === 'super_admin' ? Enterprise::where('farm_id', $farmId)->get() : []
         ]);
     }
 }

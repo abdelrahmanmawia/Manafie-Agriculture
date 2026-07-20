@@ -32,10 +32,12 @@ export default function FarmDashboard({ auth, farm, enterprises, stats, isSuperA
                     <div className="flex gap-2">
                         {isSuperAdmin && (
                             <Link
-                                href={route('dashboard')}
+                                method="post"
+                                as="button"
+                                href={route('farms.deactivate')}
                                 className="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded font-bold transition-colors"
                             >
-                                {t('back')} {t('fermes')}
+                                Changer de Ferme
                             </Link>
                         )}
                         <Link

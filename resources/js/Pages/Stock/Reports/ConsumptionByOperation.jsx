@@ -1,8 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function ConsumptionByOperation({ auth, consumptionByOperation, farms, selectedFarmId }) {
+export default function ConsumptionByOperation({ auth, consumptionByOperation }) {
     const totalConsumption = consumptionByOperation.reduce((sum, op) => sum + op.total_quantity_consumed, 0);
 
     return (
@@ -31,8 +30,6 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation, f
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.reports.consumption-by-operation" />
-
                     {/* Stats Card */}
                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">

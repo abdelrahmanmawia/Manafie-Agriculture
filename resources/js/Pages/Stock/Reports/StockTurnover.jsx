@@ -3,16 +3,15 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function StockTurnover({ auth, stockTurnoverData, farms, selectedFarmId }) {
+export default function StockTurnover({ auth, stockTurnoverData }) {
     const { data, setData, get } = useForm({
         period: '365', // Default to 365 days (1 year)
     });
 
     const handleFilterChange = (e) => {
         e.preventDefault();
-        get(route('stock.reports.stock-turnover', { period: data.period, farm_id: selectedFarmId || undefined }));
+        get(route('stock.reports.stock-turnover', { period: data.period }));
     };
 
     const averageTurnover = stockTurnoverData.length > 0 
@@ -45,8 +44,6 @@ export default function StockTurnover({ auth, stockTurnoverData, farms, selected
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.reports.stock-turnover" extraParams={{ period: data.period }} />
-
                     {/* Filter Card */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <form onSubmit={handleFilterChange} className="flex items-end gap-4">

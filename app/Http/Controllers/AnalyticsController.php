@@ -18,19 +18,15 @@ class AnalyticsController extends Controller
 {
     public function index(Request $request)
     {
-        $farmId = $request->query('farm_id') ?: ($request->user()->farm_id);
+        $farmId = $request->user()->role === 'super_admin'
+            ? session('active_farm_id')
+            : $request->user()->farm_id;
         $enterpriseId = $request->query('enterprise_id');
         $blocId = $request->query('bloc_id');
         $sectorId = $request->query('sector_id');
         $selectedQuinzaineId = $request->query('quinzaine_id');
         $quinzaineFromId = $request->query('quinzaine_from');
         $quinzaineToId = $request->query('quinzaine_to');
-
-        // Permission check
-        if ($request->user()->role !== 'super_admin' && $request->user()->farm_id != $farmId) {
-            if (!$request->user()->farm_id) abort(403);
-            $farmId = $request->user()->farm_id;
-        }
 
         // 0. Build base quinzaine list for selection
         $quinzaineOptionsQuery = Quinzaine::query()
@@ -274,7 +270,6 @@ class AnalyticsController extends Controller
             'quinzaineOptions' => $availableQuinzaines,
             'enterprise' => $enterpriseId ? Enterprise::find($enterpriseId) : null,
             'farm' => $farmId ? Farm::find($farmId) : null,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all() : [],
             'enterprises' => $farmId ? Enterprise::where('farm_id', $farmId)->get() : [],
             'blocs' => $farmId ? Bloc::where('farm_id', $farmId)->get() : [],
             'sectors' => $farmId ? \App\Models\Sector::whereHas('bloc', fn($q) => $q->where('farm_id', $farmId))->get() : [],

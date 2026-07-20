@@ -1,8 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function InventoryValue({ auth, inventoryValue, farms, selectedFarmId }) {
+export default function InventoryValue({ auth, inventoryValue }) {
     const totalInventoryValue = inventoryValue.reduce((sum, item) => sum + item.total_value, 0);
 
     return (
@@ -31,8 +30,6 @@ export default function InventoryValue({ auth, inventoryValue, farms, selectedFa
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.reports.inventory-value" />
-
                     {/* Total Value Card */}
                     <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">

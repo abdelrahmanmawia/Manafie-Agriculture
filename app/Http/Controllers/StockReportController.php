@@ -45,10 +45,7 @@ class StockReportController extends Controller
             });
 
         return Inertia::render('Stock/Reports/InventoryValue', [
-            'inventoryValue' => $inventoryValue,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'inventoryValue' => $inventoryValue,        ]);
     }
 
     public function movementHistory(Request $request)
@@ -64,10 +61,7 @@ class StockReportController extends Controller
             ->get();
 
         return Inertia::render('Stock/Reports/MovementHistory', [
-            'movementHistory' => $movements,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'movementHistory' => $movements,        ]);
     }
 
     public function consumptionByOperation(Request $request)
@@ -95,10 +89,7 @@ class StockReportController extends Controller
             })->values();
 
         return Inertia::render('Stock/Reports/ConsumptionByOperation', [
-            'consumptionByOperation' => $consumption,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'consumptionByOperation' => $consumption,        ]);
     }
 
     public function costPerHectare(Request $request)
@@ -129,10 +120,7 @@ class StockReportController extends Controller
             })->values();
 
         return Inertia::render('Stock/Reports/CostPerHectare', [
-            'costPerHectareData' => $costPerHectareData,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'costPerHectareData' => $costPerHectareData,        ]);
     }
 
     public function stockTurnover(Request $request)
@@ -183,10 +171,7 @@ class StockReportController extends Controller
         });
 
         return Inertia::render('Stock/Reports/StockTurnover', [
-            'stockTurnoverData' => $stockTurnoverData,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'stockTurnoverData' => $stockTurnoverData,        ]);
     }
 
     public function expiryAlerts(Request $request)
@@ -203,9 +188,6 @@ class StockReportController extends Controller
             ->get();
 
         return Inertia::render('Stock/Reports/ExpiryAlerts', [
-            'expiryAlerts' => $expiryAlerts,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'expiryAlerts' => $expiryAlerts,        ]);
     }
 }

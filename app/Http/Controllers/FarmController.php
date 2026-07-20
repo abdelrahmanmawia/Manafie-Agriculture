@@ -34,6 +34,28 @@ class FarmController extends Controller
         return redirect()->back()->with('success', 'Farm created successfully.');
     }
 
+    /**
+     * Set this farm as the super admin's active farm for the rest of their session.
+     * Everything they do in Pointage/Stock is scoped to it until they switch or leave.
+     */
+    public function activate(Request $request, Farm $farm)
+    {
+        abort_unless($request->user()->role === 'super_admin', 403);
+
+        session(['active_farm_id' => $farm->id]);
+
+        return redirect()->route('dashboard');
+    }
+
+    public function deactivate(Request $request)
+    {
+        abort_unless($request->user()->role === 'super_admin', 403);
+
+        session()->forget('active_farm_id');
+
+        return redirect()->route('dashboard');
+    }
+
     public function settings(Farm $farm)
     {
         return Inertia::render('Admin/FarmSettings', [

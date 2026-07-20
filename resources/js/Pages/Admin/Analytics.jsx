@@ -24,7 +24,6 @@ export default function Analytics({
     quinzaineOptions = [],
     farm,
     enterprise,
-    farms = [],
     enterprises = [],
     blocs = [],
     sectors = [],
@@ -121,7 +120,6 @@ export default function Analytics({
 
     const handleFilterChange = (newParams) => {
         router.get(route('analytics.index'), {
-            farm_id: farm?.id || '',
             enterprise_id: enterprise?.id || '',
             bloc_id: blocId,
             sector_id: sectorId,
@@ -131,10 +129,6 @@ export default function Analytics({
             quinzaine_to: '',
             ...newParams // This will override the above defaults if newParams has them
         });
-    };
-
-    const handleFarmChange = (e) => {
-        handleFilterChange({ farm_id: e.target.value, enterprise_id: '', bloc_id: '', sector_id: '', quinzaine_id: '', quinzaine_from: '', quinzaine_to: '' });
     };
 
     const handleEnterpriseChange = (e) => {
@@ -168,22 +162,11 @@ export default function Analytics({
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <h2 className="font-black text-2xl text-gray-800 leading-tight uppercase tracking-tighter shrink-0">Tableau de Bord Analytique</h2>
                         <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full justify-end">
-                            {auth.user.role === 'super_admin' && (
-                                <select
-                                    className="rounded-xl border-gray-200 bg-white font-bold text-xs shadow-sm focus:ring-blue-500 min-w-[150px]"
-                                    value={farm?.id || ''}
-                                    onChange={handleFarmChange}
-                                >
-                                    <option value="">-- Toutes les Fermes --</option>
-                                    {farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                </select>
-                            )}
                             {(auth.user.role === 'super_admin' || auth.user.farm_id) && (
                                 <select
                                     className="rounded-xl border-gray-200 bg-white font-bold text-xs shadow-sm focus:ring-blue-500 min-w-[150px]"
                                     value={enterprise?.id || ''}
                                     onChange={handleEnterpriseChange}
-                                    disabled={!farm && auth.user.role === 'super_admin'}
                                 >
                                     <option value="">-- Toutes les Divisions --</option>
                                     {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}

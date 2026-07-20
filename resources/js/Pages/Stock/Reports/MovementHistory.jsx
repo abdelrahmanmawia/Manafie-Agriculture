@@ -1,8 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import FarmFilter from '@/Components/FarmFilter';
 
-export default function MovementHistory({ auth, movementHistory, farms, selectedFarmId }) {
+export default function MovementHistory({ auth, movementHistory }) {
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
@@ -55,8 +54,6 @@ export default function MovementHistory({ auth, movementHistory, farms, selected
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <FarmFilter farms={farms} selectedFarmId={selectedFarmId} routeName="stock.reports.movement-history" />
-
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">

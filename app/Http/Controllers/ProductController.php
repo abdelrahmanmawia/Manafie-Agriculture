@@ -39,10 +39,7 @@ class ProductController extends Controller
         return Inertia::render('Stock/Index', [
             'products' => $products,
             'categories' => $categories,
-            'unitTypes' => $unitTypes,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'unitTypes' => $unitTypes,        ]);
     }
 
     public function categories(): JsonResponse

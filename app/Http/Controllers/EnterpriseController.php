@@ -25,7 +25,7 @@ class EnterpriseController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        $farmId = $request->query('farm_id');
+        $farmId = session('active_farm_id');
 
         if ($user->role === 'super_admin') {
             if ($farmId) {

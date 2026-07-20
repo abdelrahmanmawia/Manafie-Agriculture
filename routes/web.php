@@ -41,6 +41,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Farm & Enterprise Management
     Route::post('/farms', [App\Http\Controllers\FarmController::class, 'store'])->name('farms.store');
+    Route::post('/farms/{farm}/activate', [App\Http\Controllers\FarmController::class, 'activate'])->name('farms.activate');
+    Route::post('/farms/deactivate', [App\Http\Controllers\FarmController::class, 'deactivate'])->name('farms.deactivate');
     Route::delete('/farms/{farm}', [App\Http\Controllers\FarmController::class, 'destroy'])->name('farms.destroy');
     Route::get('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'settings'])->name('farms.settings');
     Route::patch('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'updateSettings'])->name('farms.updateSettings');
@@ -74,6 +76,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings/quinzaine', [EnterpriseController::class, 'createQuinzaine'])->name('settings.quinzaine');
     Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
 
+    Route::middleware('farm.selected')->group(function () {
     // Pointage
     Route::get('/pointage', [PointageController::class, 'index'])->name('pointage.index');
     Route::get('/pointage/grid/{quinzaine}', [PointageController::class, 'grid'])->name('pointage.grid');
@@ -161,6 +164,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/reports/cost-per-hectare', [StockReportController::class, 'costPerHectare'])->name('stock.reports.cost-per-hectare');
     Route::get('/stock/reports/stock-turnover', [StockReportController::class, 'stockTurnover'])->name('stock.reports.stock-turnover');
     Route::get('/stock/reports/expiry-alerts', [StockReportController::class, 'expiryAlerts'])->name('stock.reports.expiry-alerts');
+    }); // end farm.selected group
 });
 
 Route::middleware('auth')->group(function () {

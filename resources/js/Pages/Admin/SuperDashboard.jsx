@@ -106,10 +106,12 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
                                 
                                 <div className="flex flex-col gap-3 mt-8">
                                     <Link
-                                        href={route('dashboard', { farm_id: farm.id })}
+                                        method="post"
+                                        as="button"
+                                        href={route('farms.activate', farm.id)}
                                         className="w-full text-center bg-gray-900 text-white hover:bg-black py-4 rounded-xl font-black text-xs transition-all uppercase tracking-widest shadow-sm"
                                     >
-                                        {t('view')} {t('enterprises')}
+                                        Travailler sur cette Ferme
                                     </Link>
                                     <Link
                                         href={route('farms.settings', farm.id)}

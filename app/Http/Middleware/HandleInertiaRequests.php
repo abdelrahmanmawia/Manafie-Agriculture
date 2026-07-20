@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Farm;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -29,11 +30,19 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $user = $request->user();
+        $activeFarm = null;
+
+        if ($user && $user->role === 'super_admin' && session('active_farm_id')) {
+            $activeFarm = Farm::find(session('active_farm_id'));
+        }
+
         return [
             ...parent::share($request),
             'auth' => [
-                'user' => $request->user() ? $request->user()->load(['farm', 'enterprise']) : null,
+                'user' => $user ? $user->load(['farm', 'enterprise']) : null,
             ],
+            'activeFarm' => $activeFarm,
         ];
     }
 }

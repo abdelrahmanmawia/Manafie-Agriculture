@@ -36,10 +36,7 @@ class VehicleController extends Controller
             'vehicles' => $vehicles,
             'types' => $types,
             'fuelTypes' => $fuelTypes,
-            'employees' => $employees,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'employees' => $employees,        ]);
     }
 
     public function types(): JsonResponse

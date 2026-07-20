@@ -70,10 +70,7 @@ class ManualStockEntryController extends Controller
             'blocs' => $blocs,
             'sectors' => $sectors,
             'parcelles' => $parcelles,
-            'operations' => $operations,
-            'farms' => $request->user()->role === 'super_admin' ? Farm::all(['id', 'name']) : [],
-            'selectedFarmId' => $farmId,
-        ]);
+            'operations' => $operations,        ]);
     }
 
     public function store(Request $request)
