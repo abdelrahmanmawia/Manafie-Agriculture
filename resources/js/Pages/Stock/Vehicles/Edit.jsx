@@ -5,19 +5,16 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { VEHICLE_TYPE_LABELS, FUEL_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function Edit({ auth, vehicle, types, fuelTypes, employees }) {
     const { data, setData, put, processing, errors } = useForm({
         name: vehicle.name,
         plate_number: vehicle.plate_number,
         type: vehicle.type,
-        brand: vehicle.brand || '',
         model: vehicle.model || '',
-        year: vehicle.year || '',
         fuel_type: vehicle.fuel_type,
-        fuel_capacity_liters: vehicle.fuel_capacity_liters || '',
         default_driver_id: vehicle.default_driver_id || '',
-        current_location: vehicle.current_location || '',
         is_active: vehicle.is_active,
         notes: vehicle.notes || '',
     });
@@ -87,22 +84,10 @@ export default function Edit({ auth, vehicle, types, fuelTypes, employees }) {
                                         required
                                     >
                                         {types.map((type) => (
-                                            <option key={type} value={type}>{type}</option>
+                                            <option key={type} value={type}>{VEHICLE_TYPE_LABELS[type] || type}</option>
                                         ))}
                                     </select>
                                     <InputError message={errors.type} className="mt-2" />
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="brand" value="Marque" />
-                                    <TextInput
-                                        id="brand"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.brand}
-                                        onChange={(e) => setData('brand', e.target.value)}
-                                    />
-                                    <InputError message={errors.brand} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -118,18 +103,6 @@ export default function Edit({ auth, vehicle, types, fuelTypes, employees }) {
                                 </div>
 
                                 <div>
-                                    <InputLabel htmlFor="year" value="Année" />
-                                    <TextInput
-                                        id="year"
-                                        type="number"
-                                        className="mt-1 block w-full"
-                                        value={data.year}
-                                        onChange={(e) => setData('year', e.target.value)}
-                                    />
-                                    <InputError message={errors.year} className="mt-2" />
-                                </div>
-
-                                <div>
                                     <InputLabel htmlFor="fuel_type" value="Type de Carburant *" />
                                     <select
                                         id="fuel_type"
@@ -139,23 +112,10 @@ export default function Edit({ auth, vehicle, types, fuelTypes, employees }) {
                                         required
                                     >
                                         {fuelTypes.map((fuel) => (
-                                            <option key={fuel} value={fuel}>{fuel}</option>
+                                            <option key={fuel} value={fuel}>{FUEL_TYPE_LABELS[fuel] || fuel}</option>
                                         ))}
                                     </select>
                                     <InputError message={errors.fuel_type} className="mt-2" />
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="fuel_capacity_liters" value="Capacité du Réservoir (Litres)" />
-                                    <TextInput
-                                        id="fuel_capacity_liters"
-                                        type="number"
-                                        step="0.01"
-                                        className="mt-1 block w-full"
-                                        value={data.fuel_capacity_liters}
-                                        onChange={(e) => setData('fuel_capacity_liters', e.target.value)}
-                                    />
-                                    <InputError message={errors.fuel_capacity_liters} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -172,18 +132,6 @@ export default function Edit({ auth, vehicle, types, fuelTypes, employees }) {
                                         ))}
                                     </select>
                                     <InputError message={errors.default_driver_id} className="mt-2" />
-                                </div>
-
-                                <div>
-                                    <InputLabel htmlFor="current_location" value="Localisation Actuelle" />
-                                    <TextInput
-                                        id="current_location"
-                                        type="text"
-                                        className="mt-1 block w-full"
-                                        value={data.current_location}
-                                        onChange={(e) => setData('current_location', e.target.value)}
-                                    />
-                                    <InputError message={errors.current_location} className="mt-2" />
                                 </div>
 
                                 <div className="flex items-center">

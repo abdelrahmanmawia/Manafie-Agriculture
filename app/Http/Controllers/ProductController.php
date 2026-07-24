@@ -2,8 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Bloc;
+use App\Models\Employee;
 use App\Models\Farm;
+use App\Models\Operation;
+use App\Models\Parcelle;
 use App\Models\Product;
+use App\Models\Sector;
+use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -39,7 +45,14 @@ class ProductController extends Controller
         return Inertia::render('Stock/Index', [
             'products' => $products,
             'categories' => $categories,
-            'unitTypes' => $unitTypes,        ]);
+            'unitTypes' => $unitTypes,
+            'employees' => Employee::when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))->get(['id', 'full_name']),
+            'vehicles' => Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'type']),
+            'blocs' => Bloc::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
+            'sectors' => Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']),
+            'parcelles' => Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']),
+            'operations' => Operation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
+        ]);
     }
 
     public function categories(): JsonResponse
@@ -52,6 +65,7 @@ class ProductController extends Controller
             'packaging',
             'equipment',
             'fuel',
+            'vehicle_needs',
             'other'
         ];
 
@@ -91,7 +105,7 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'category' => 'required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,other',
+            'category' => 'required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
             'unit_type' => 'required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
@@ -138,7 +152,7 @@ class ProductController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'category' => 'sometimes|required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,other',
+            'category' => 'sometimes|required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
             'unit_type' => 'sometimes|required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',

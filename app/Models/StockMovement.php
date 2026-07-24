@@ -20,10 +20,6 @@ class StockMovement extends Model
         'performed_by',
         'date',
         'notes',
-        'bloc_id',
-        'sector_id',
-        'parcelle_id',
-        'vehicle_id',
     ];
 
     protected $casts = [
@@ -43,24 +39,12 @@ class StockMovement extends Model
         return $this->belongsTo(User::class, 'performed_by');
     }
 
-    public function bloc()
+    // The source document behind this movement (ManualStockEntry or FuelTransaction),
+    // which is where destination context (bloc/sector/parcelle/vehicle) actually lives.
+    // Resolves to null for movements with no source document (e.g. a plain réception).
+    public function reference()
     {
-        return $this->belongsTo(Bloc::class);
-    }
-
-    public function sector()
-    {
-        return $this->belongsTo(Sector::class);
-    }
-
-    public function parcelle()
-    {
-        return $this->belongsTo(Parcelle::class);
-    }
-
-    public function vehicle()
-    {
-        return $this->belongsTo(Vehicle::class);
+        return $this->morphTo();
     }
 
     public function isInbound()

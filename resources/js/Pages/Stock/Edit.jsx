@@ -6,6 +6,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { CATEGORY_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function Edit({ auth, product, categories, unitTypes }) {
     const [imagePreview, setImagePreview] = useState(null);
@@ -117,7 +118,7 @@ export default function Edit({ auth, product, categories, unitTypes }) {
                                             required
                                         >
                                             {categories.map((cat) => (
-                                                <option key={cat} value={cat}>{cat}</option>
+                                                <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
                                             ))}
                                         </select>
                                         <InputError message={errors.category} className="mt-2" />
@@ -133,7 +134,7 @@ export default function Edit({ auth, product, categories, unitTypes }) {
                                             required
                                         >
                                             {unitTypes.map((unit) => (
-                                                <option key={unit} value={unit}>{unit}</option>
+                                                <option key={unit} value={unit}>{UNIT_TYPE_LABELS[unit] || unit}</option>
                                             ))}
                                         </select>
                                         <InputError message={errors.unit_type} className="mt-2" />

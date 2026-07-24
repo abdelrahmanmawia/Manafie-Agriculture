@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatInt, formatMAD } from '@/utils/number';
 
 export default function CostPerHectare({ auth, costPerHectareData }) {
     const averageCostPerHectare = costPerHectareData.length > 0 
@@ -44,7 +45,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                                 </div>
                                 <div>
                                     <p className="text-orange-100 text-sm font-medium">Moyenne Coût/Ha</p>
-                                    <p className="text-white text-2xl font-bold mt-1">{averageCostPerHectare.toFixed(2)} MAD</p>
+                                    <p className="text-white text-2xl font-bold mt-1">{formatMAD(averageCostPerHectare)}</p>
                                 </div>
                             </div>
                         </div>
@@ -52,7 +53,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Superficie Totale</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{totalArea.toFixed(2)} Ha</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(totalArea)} Ha</p>
                                 </div>
                                 <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,7 +66,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Nombre de Blocs</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{costPerHectareData.length}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(costPerHectareData.length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,20 +116,20 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                                                         {data.bloc_name}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {data.total_cost.toFixed(2)} MAD
+                                                        {formatMAD(data.total_cost)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium">
-                                                            {data.total_area_hectares.toFixed(2)} Ha
+                                                            {formatNumber(data.total_area_hectares)} Ha
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-md ${
-                                                            data.cost_per_hectare > averageCostPerHectare 
-                                                                ? 'bg-red-50 text-red-700' 
+                                                            data.cost_per_hectare > averageCostPerHectare
+                                                                ? 'bg-red-50 text-red-700'
                                                                 : 'bg-green-50 text-green-700'
                                                         } text-xs font-medium`}>
-                                                            {data.cost_per_hectare.toFixed(2)} MAD/Ha
+                                                            {formatNumber(data.cost_per_hectare)} MAD/Ha
                                                         </span>
                                                     </td>
                                                 </tr>

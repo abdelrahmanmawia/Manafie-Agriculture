@@ -6,6 +6,7 @@ use App\Models\Farm;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\ManualStockEntry;
+use App\Models\FuelTransaction;
 use App\Models\StockAlert;
 use App\Models\Product;
 use App\Models\Vehicle;
@@ -34,13 +35,15 @@ class StockReportController extends Controller
             ->with('product')
             ->get()
             ->map(function ($item) {
-                $cost = $item->average_cost ?? $item->product->unit_cost ?? 0;
+                // average_cost/unit_cost are decimal-cast attributes, which Eloquent serializes
+                // as strings — cast explicitly so the frontend can call .toFixed() on them.
+                $cost = (float) ($item->average_cost ?? $item->product->unit_cost ?? 0);
                 return [
                     'product_name' => $item->product->name,
-                    'quantity_on_hand' => $item->quantity_on_hand,
+                    'quantity_on_hand' => (float) $item->quantity_on_hand,
                     'unit_type' => $item->product->unit_type,
                     'unit_cost' => $cost,
-                    'total_value' => $item->quantity_on_hand * $cost,
+                    'total_value' => (float) $item->quantity_on_hand * $cost,
                 ];
             });
 
@@ -52,7 +55,16 @@ class StockReportController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
-        $movements = StockMovement::with('product', 'performedBy', 'bloc', 'sector', 'parcelle', 'vehicle')
+        $movements = StockMovement::with([
+                'product',
+                'performedBy',
+                'reference' => function ($morphTo) {
+                    $morphTo->morphWith([
+                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
+                        FuelTransaction::class => ['vehicle'],
+                    ]);
+                },
+            ])
             ->when($farmId, function ($query) use ($farmId) {
                 $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             })
@@ -68,21 +80,45 @@ class StockReportController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
-        $consumption = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        // Merge two sources: field consumption (ManualStockEntry) and fuel fill-ups attributed
+        // to an operation (FuelTransaction) — both are "stock consumed for an operation", just
+        // recorded through different forms.
+        $manualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('operation_id')
-            ->with('product', 'operation', 'bloc', 'sector', 'parcelle')
+            ->with('product', 'operation')
             ->get()
-            ->groupBy('operation.name')
+            ->filter(fn ($entry) => $entry->operation && $entry->product)
+            ->map(fn ($entry) => [
+                'operation_name' => $entry->operation->name,
+                'product_name' => $entry->product->name,
+                'unit_type' => $entry->product->unit_type,
+                'quantity' => (float) $entry->quantity,
+            ]);
+
+        $fuelEntries = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->whereNotNull('operation_id')
+            ->with('product', 'operation')
+            ->get()
+            ->filter(fn ($transaction) => $transaction->operation && $transaction->product)
+            ->map(fn ($transaction) => [
+                'operation_name' => $transaction->operation->name,
+                'product_name' => $transaction->product->name,
+                'unit_type' => $transaction->product->unit_type,
+                'quantity' => (float) $transaction->quantity_liters,
+            ]);
+
+        $consumption = $manualEntries->concat($fuelEntries)
+            ->groupBy('operation_name')
             ->map(function ($entries, $operationName) {
                 return [
                     'operation_name' => $operationName,
                     'total_quantity_consumed' => $entries->sum('quantity'),
-                    'products_consumed' => $entries->groupBy('product.name')->map(function ($productEntries, $productName) {
+                    'products_consumed' => $entries->groupBy('product_name')->map(function ($productEntries, $productName) {
                         return [
                             'product_name' => $productName,
                             'quantity' => $productEntries->sum('quantity'),
-                            'unit_type' => $productEntries->first()->product->unit_type,
+                            'unit_type' => $productEntries->first()['unit_type'],
                         ];
                     })->values(),
                 ];
@@ -96,20 +132,38 @@ class StockReportController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
-        $costPerHectareData = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $hasArea = fn ($query) => $query->whereNotNull('area_ha')->where('area_ha', '>', 0);
+
+        // Merge two sources: field consumption (ManualStockEntry) and fuel fill-ups attributed
+        // to a bloc (FuelTransaction) — both are costs incurred on that bloc.
+        $manualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('bloc_id')
-            ->whereHas('bloc', function ($query) {
-                $query->whereNotNull('area_ha')->where('area_ha', '>', 0);
-            })
+            ->whereHas('bloc', $hasArea)
             ->with('product', 'bloc')
             ->get()
-            ->groupBy('bloc.name')
+            ->map(fn ($entry) => [
+                'bloc_name' => $entry->bloc->name,
+                'area_ha' => (float) $entry->bloc->area_ha,
+                'cost' => ($entry->product->unit_cost ?? 0) * $entry->quantity,
+            ]);
+
+        $fuelEntries = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->whereNotNull('bloc_id')
+            ->whereHas('bloc', $hasArea)
+            ->with('bloc')
+            ->get()
+            ->map(fn ($transaction) => [
+                'bloc_name' => $transaction->bloc->name,
+                'area_ha' => (float) $transaction->bloc->area_ha,
+                'cost' => (float) ($transaction->total_cost ?? 0),
+            ]);
+
+        $costPerHectareData = $manualEntries->concat($fuelEntries)
+            ->groupBy('bloc_name')
             ->map(function ($entries, $blocName) {
-                $totalCost = $entries->sum(function ($entry) {
-                    return ($entry->product->unit_cost ?? 0) * $entry->quantity;
-                });
-                $totalArea = $entries->first()->bloc->area_ha ?? 0;
+                $totalCost = $entries->sum('cost');
+                $totalArea = $entries->first()['area_ha'] ?? 0;
 
                 return [
                     'bloc_name' => $blocName,
@@ -133,8 +187,10 @@ class StockReportController extends Controller
         $stockTurnoverData = $products->map(function ($product) use ($periodInDays) {
             $startDate = now()->subDays($periodInDays);
 
-            $beginningInventory = StockInventory::where('product_id', $product->id)
-                ->value('quantity_on_hand') ?? 0; // Simplified: current stock as beginning
+            // ->value() reads the raw DB column (not through Eloquent's decimal cast), so cast
+            // explicitly — some drivers return DECIMAL columns as strings.
+            $beginningInventory = (float) (StockInventory::where('product_id', $product->id)
+                ->value('quantity_on_hand') ?? 0); // Simplified: current stock as beginning
 
             $purchases = StockMovement::where('product_id', $product->id)
                 ->where('movement_type', 'in')

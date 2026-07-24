@@ -129,8 +129,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Movements
     Route::get('/stock/movements', [StockMovementController::class, 'index'])->name('stock.movements.index');
     Route::post('/stock/movements/in', [StockMovementController::class, 'stockIn'])->name('stock.movements.in');
-    Route::post('/stock/movements/out', [StockMovementController::class, 'stockOut'])->name('stock.movements.out');
-    Route::post('/stock/movements/adjustment', [StockMovementController::class, 'adjustment'])->name('stock.movements.adjustment');
 
     // Stock Management - Stock Alerts
     Route::get('/stock/alerts', [StockAlertController::class, 'index'])->name('stock.alerts.index');
@@ -138,12 +136,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/alerts/unresolved-count', [StockAlertController::class, 'unresolvedCount'])->name('stock.alerts.unresolved-count');
 
     // Stock Management - Fuel Transactions
+    // Read-only history — new fuel/vehicle consumption is logged via Entrée Manuelle (stock.manual-entries.store)
     Route::get('/stock/fuel-transactions', [FuelTransactionController::class, 'index'])->name('stock.fuel-transactions.index');
-    Route::post('/stock/fuel-transactions', [FuelTransactionController::class, 'store'])->name('stock.fuel-transactions.store');
     Route::get('/stock/fuel-transactions/{transaction}', [FuelTransactionController::class, 'show'])->name('stock.fuel-transactions.show');
-    Route::get('/stock/fuel-transactions/{transaction}/edit', [FuelTransactionController::class, 'edit'])->name('stock.fuel-transactions.edit');
-    Route::put('/stock/fuel-transactions/{transaction}', [FuelTransactionController::class, 'update'])->name('stock.fuel-transactions.update');
-    Route::delete('/stock/fuel-transactions/{transaction}', [FuelTransactionController::class, 'destroy'])->name('stock.fuel-transactions.destroy');
 
     // Stock Management - Manual Stock Entries
     Route::get('/stock/manual-entries', [ManualStockEntryController::class, 'index'])->name('stock.manual-entries.index');
@@ -153,8 +148,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/manual-entries/{entry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
     Route::delete('/stock/manual-entries/{entry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
     Route::post('/stock/manual-entries/{entry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
-    Route::post('/stock/manual-entries/fuel-for-vehicle', [ManualStockEntryController::class, 'fuelForVehicle'])->name('stock.manual-entries.fuel-for-vehicle');
-    Route::post('/stock/manual-entries/materials-for-operation', [ManualStockEntryController::class, 'materialsForOperation'])->name('stock.manual-entries.materials-for-operation');
 
     // Stock Management - Reports & Analytics
     Route::get('/stock/reports', [StockReportController::class, 'index'])->name('stock.reports.index');

@@ -1,5 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatInt } from '@/utils/number';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function ExpiryAlerts({ auth, expiryAlerts }) {
     const formatDate = (dateString) => {
@@ -64,7 +66,7 @@ export default function ExpiryAlerts({ auth, expiryAlerts }) {
                                 </div>
                                 <div>
                                     <p className="text-red-100 text-sm font-medium">Produits Expirés</p>
-                                    <p className="text-white text-3xl font-bold mt-1">{expiredCount}</p>
+                                    <p className="text-white text-3xl font-bold mt-1">{formatInt(expiredCount)}</p>
                                 </div>
                             </div>
                         </div>
@@ -72,7 +74,7 @@ export default function ExpiryAlerts({ auth, expiryAlerts }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Expiration Proche</p>
-                                    <p className="text-2xl font-bold text-orange-600 mt-1">{expiringSoonCount}</p>
+                                    <p className="text-2xl font-bold text-orange-600 mt-1">{formatInt(expiringSoonCount)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-orange-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,7 +87,7 @@ export default function ExpiryAlerts({ auth, expiryAlerts }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Total Alertes</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{expiryAlerts.length}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(expiryAlerts.length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -146,15 +148,15 @@ export default function ExpiryAlerts({ auth, expiryAlerts }) {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {alert.threshold_value} {alert.product.unit_type}
+                                                        {formatNumber(alert.threshold_value)} {UNIT_TYPE_LABELS[alert.product.unit_type] || alert.product.unit_type}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-md ${
-                                                            alert.current_value <= alert.threshold_value 
-                                                                ? 'bg-red-50 text-red-700' 
+                                                            alert.current_value <= alert.threshold_value
+                                                                ? 'bg-red-50 text-red-700'
                                                                 : 'bg-yellow-50 text-yellow-700'
                                                         } text-xs font-medium`}>
-                                                            {alert.current_value} {alert.product.unit_type}
+                                                            {formatNumber(alert.current_value)} {UNIT_TYPE_LABELS[alert.product.unit_type] || alert.product.unit_type}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">

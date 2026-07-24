@@ -22,8 +22,11 @@ class FuelTransaction extends Model
         'performed_by',
         'date',
         'odometer_km',
-        'hours_worked',
         'notes',
+        'operation_id',
+        'bloc_id',
+        'sector_id',
+        'parcelle_id',
     ];
 
     protected $casts = [
@@ -32,7 +35,6 @@ class FuelTransaction extends Model
         'unit_price_per_liter' => 'decimal:2',
         'total_cost' => 'decimal:2',
         'odometer_km' => 'decimal:2',
-        'hours_worked' => 'decimal:2',
     ];
 
     public function farm(): BelongsTo
@@ -58,5 +60,25 @@ class FuelTransaction extends Model
     public function performedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'performed_by');
+    }
+
+    public function operation(): BelongsTo
+    {
+        return $this->belongsTo(Operation::class);
+    }
+
+    public function bloc(): BelongsTo
+    {
+        return $this->belongsTo(Bloc::class);
+    }
+
+    public function sector(): BelongsTo
+    {
+        return $this->belongsTo(Sector::class);
+    }
+
+    public function parcelle(): BelongsTo
+    {
+        return $this->belongsTo(Parcelle::class);
     }
 }

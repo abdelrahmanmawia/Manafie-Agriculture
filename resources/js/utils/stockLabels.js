@@ -1,0 +1,67 @@
+// Shared French labels for the raw English enum values stored in the DB, used across every
+// Stock page so the UI never leaks an English category/type/status to the user.
+
+export const CATEGORY_LABELS = {
+    seeds: 'Semences',
+    fertilizers: 'Engrais',
+    pesticides: 'Pesticides',
+    tools: 'Outils',
+    packaging: 'Emballage',
+    equipment: 'Équipement',
+    fuel: 'Carburant',
+    vehicle_needs: 'Besoins Véhicule',
+    other: 'Autre',
+};
+
+export const UNIT_TYPE_LABELS = {
+    kg: 'kg',
+    liters: 'litres',
+    units: 'unités',
+    boxes: 'boîtes',
+    bags: 'sacs',
+};
+
+export const ENTRY_TYPE_LABELS = {
+    consumption: 'Consommation',
+    transfer: 'Transfert',
+    loss: 'Perte',
+    theft: 'Vol',
+    damage: 'Dommage',
+};
+
+export const MOVEMENT_TYPE_LABELS = {
+    in: { label: 'Entrée', className: 'bg-green-100 text-green-700' },
+    production: { label: 'Production', className: 'bg-green-100 text-green-700' },
+    out: { label: 'Sortie', className: 'bg-red-100 text-red-700' },
+    transfer: { label: 'Transfert', className: 'bg-purple-100 text-purple-700' },
+    loss: { label: 'Perte', className: 'bg-gray-200 text-gray-700' },
+    adjustment: { label: 'Ajustement', className: 'bg-blue-100 text-blue-700' },
+};
+
+export const ALERT_TYPE_LABELS = {
+    low_stock: 'Stock Faible',
+    expired: 'Expiré',
+    expiring_soon: 'Expiration Proche',
+    overstock: 'Surstock',
+};
+
+export const VEHICLE_TYPE_LABELS = {
+    tractor: 'Tracteur',
+    truck: 'Camion',
+    van: 'Camionnette',
+    car: 'Voiture',
+    other: 'Autre',
+};
+
+export const FUEL_TYPE_LABELS = {
+    diesel: 'Diesel',
+    gasoline: 'Essence',
+    electric: 'Électrique',
+    other: 'Autre',
+};
+
+export const FUEL_TRANSACTION_TYPE_LABELS = {
+    fueling: 'Ravitaillement',
+    transfer: 'Transfert',
+    adjustment: 'Ajustement',
+};

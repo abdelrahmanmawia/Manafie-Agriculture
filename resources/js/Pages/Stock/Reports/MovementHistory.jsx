@@ -1,5 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatInt, formatMAD } from '@/utils/number';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function MovementHistory({ auth, movementHistory }) {
     const formatDate = (dateString) => {
@@ -60,7 +62,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Total Mouvements</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{movementHistory.length}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(movementHistory.length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,7 +75,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Entrées</p>
-                                    <p className="text-2xl font-bold text-green-600 mt-1">{movementHistory.filter(m => m.movement_type === 'in').length}</p>
+                                    <p className="text-2xl font-bold text-green-600 mt-1">{formatInt(movementHistory.filter(m => m.movement_type === 'in').length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -86,7 +88,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Sorties</p>
-                                    <p className="text-2xl font-bold text-red-600 mt-1">{movementHistory.filter(m => m.movement_type === 'out').length}</p>
+                                    <p className="text-2xl font-bold text-red-600 mt-1">{formatInt(movementHistory.filter(m => m.movement_type === 'out').length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-red-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +101,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Coût Total</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{movementHistory.reduce((sum, m) => sum + (m.total_cost || 0), 0).toFixed(2)} MAD</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatMAD(movementHistory.reduce((sum, m) => sum + Number(m.total_cost || 0), 0))}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-purple-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,16 +169,16 @@ export default function MovementHistory({ auth, movementHistory }) {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {movement.quantity} {movement.product?.unit_type}
+                                                        {formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[movement.product?.unit_type] || movement.product?.unit_type}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {movement.total_cost ? `${movement.total_cost.toFixed(2)} MAD` : 'N/A'}
+                                                        {movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         {movement.performed_by?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {movement.bloc?.name || movement.sector?.name || movement.parcelle?.name || movement.vehicle?.name || 'N/A'}
+                                                        {movement.reference?.bloc?.name || movement.reference?.sector?.name || movement.reference?.parcelle?.name || movement.reference?.vehicle?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         {movement.notes || 'N/A'}

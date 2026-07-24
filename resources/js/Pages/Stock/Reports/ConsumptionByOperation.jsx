@@ -1,5 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatInt } from '@/utils/number';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function ConsumptionByOperation({ auth, consumptionByOperation }) {
     const totalConsumption = consumptionByOperation.reduce((sum, op) => sum + op.total_quantity_consumed, 0);
@@ -41,12 +43,12 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                                 </div>
                                 <div>
                                     <p className="text-purple-100 text-sm font-medium">Consommation Totale</p>
-                                    <p className="text-white text-3xl font-bold mt-1">{totalConsumption.toFixed(2)} unités</p>
+                                    <p className="text-white text-3xl font-bold mt-1">{formatNumber(totalConsumption)} unités</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <p className="text-purple-100 text-sm">Nombre d'Opérations</p>
-                                <p className="text-white text-xl font-semibold">{consumptionByOperation.length}</p>
+                                <p className="text-white text-xl font-semibold">{formatInt(consumptionByOperation.length)}</p>
                             </div>
                         </div>
                     </div>
@@ -72,7 +74,7 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                                                 <div className="flex items-center justify-between">
                                                     <h4 className="text-lg font-bold text-gray-800">{operationData.operation_name}</h4>
                                                     <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm font-semibold">
-                                                        {operationData.total_quantity_consumed.toFixed(2)} unités
+                                                        {formatNumber(operationData.total_quantity_consumed)} unités
                                                     </span>
                                                 </div>
                                             </div>
@@ -101,11 +103,11 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                                                                     </td>
                                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-purple-50 text-purple-700 text-xs font-medium">
-                                                                            {product.quantity.toFixed(2)} {product.unit_type}
+                                                                            {formatNumber(product.quantity)} {UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                                        {((product.quantity / operationData.total_quantity_consumed) * 100).toFixed(1)}%
+                                                                        {formatNumber((product.quantity / operationData.total_quantity_consumed) * 100, 1)}%
                                                                     </td>
                                                                 </tr>
                                                             ))}

@@ -7,6 +7,8 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { formatNumber } from '@/utils/number';
+import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations }) {
     const [isCreating, setIsCreating] = useState(false);
@@ -26,7 +28,12 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         parcelle_id: '',
         date: new Date().toISOString().slice(0, 10),
         notes: '',
+        odometer_km: '',
     });
+
+    const selectedVehicle = vehicles.find((v) => String(v.id) === String(data.vehicle_id));
+    // A tractor/truck works a field (bloc/opération apply); a car/van is just transport (they don't).
+    const hidesFieldContext = selectedVehicle && ['car', 'van'].includes(selectedVehicle.type);
 
     const submit = (e) => {
         e.preventDefault();
@@ -37,6 +44,10 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             },
         });
     };
+
+    // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
+    const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
+    const isVehicleConsumable = ['fuel', 'vehicle_needs'].includes(selectedProduct?.category);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -63,16 +74,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         return colors[type] || 'bg-gray-100 text-gray-800';
     };
 
-    const getEntryTypeLabel = (type) => {
-        const labels = {
-            'consumption': 'Consommation',
-            'transfer': 'Transfert',
-            'loss': 'Perte',
-            'theft': 'Vol',
-            'damage': 'Dommage',
-        };
-        return labels[type] || type;
-    };
+    const getEntryTypeLabel = (type) => ENTRY_TYPE_LABELS[type] || type;
 
     return (
         <AuthenticatedLayout
@@ -80,7 +82,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Entrées de Stock Manuelles</h2>
+                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Sorties de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Enregistrez les consommations, transferts et ajustements de stock</p>
                     </div>
                     {auth.user.role !== 'data_entry' && (
@@ -91,13 +93,13 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Nouvelle Entrée
+                            Nouvelle Sortie
                         </button>
                     )}
                 </div>
             }
         >
-            <Head title="Entrées Manuelles de Stock" />
+            <Head title="Sorties de Stock" />
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
@@ -120,7 +122,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Type d'Entrée</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Type de Sortie</label>
                                 <select
                                     value={selectedType}
                                     onChange={(e) => setSelectedType(e.target.value)}
@@ -141,8 +143,8 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Historique des Entrées</h3>
-                                <span className="text-sm text-gray-500">{filteredEntries.length} entrée(s)</span>
+                                <h3 className="text-lg font-bold text-gray-800">Historique des Sorties</h3>
+                                <span className="text-sm text-gray-500">{filteredEntries.length} sortie(s)</span>
                             </div>
                         </div>
 
@@ -151,13 +153,13 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                 </svg>
-                                <p className="mt-4 text-gray-500">Aucune entrée trouvée</p>
+                                <p className="mt-4 text-gray-500">Aucune sortie trouvée</p>
                                 {auth.user.role !== 'data_entry' && (
                                     <button
                                         onClick={() => setIsCreating(true)}
                                         className="mt-4 text-indigo-600 hover:text-indigo-700 font-medium"
                                     >
-                                        Enregistrer votre première entrée
+                                        Enregistrer votre première sortie
                                     </button>
                                 )}
                             </div>
@@ -216,7 +218,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">{entry.quantity} {entry.product?.unit_type || ''}</div>
+                                                    <div className="text-sm font-medium text-gray-900">{formatNumber(entry.quantity)} {UNIT_TYPE_LABELS[entry.product?.unit_type] || entry.product?.unit_type || ''}</div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {entry.employee?.full_name || 'N/A'}
@@ -225,8 +227,8 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                     <div className="text-xs">
                                                         {entry.vehicle?.name && <div>{entry.vehicle.name}</div>}
                                                         {entry.operation?.name && <div>{entry.operation.name}</div>}
-                                                        {entry.parcelle?.name && <div>{entry.parcelle.name}</div>}
-                                                        {!entry.vehicle && !entry.operation && !entry.parcelle && <span>-</span>}
+                                                        {entry.bloc?.name && <div>{entry.bloc.name}</div>}
+                                                        {!entry.vehicle && !entry.operation && !entry.bloc && <span>-</span>}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
@@ -279,11 +281,11 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                 </div>
             </div>
 
-            {/* CREATE MANUAL STOCK ENTRY MODAL */}
+            {/* CREATE STOCK SORTIE MODAL */}
             <Modal show={isCreating} onClose={() => setIsCreating(false)}>
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-gray-800">Enregistrer une Entrée de Stock</h3>
+                        <h3 className="text-xl font-bold text-gray-800">Enregistrer une Sortie de Stock</h3>
                         <button
                             onClick={() => setIsCreating(false)}
                             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -302,19 +304,27 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     id="product_id"
                                     className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
                                     value={data.product_id}
-                                    onChange={(e) => setData('product_id', e.target.value)}
+                                    onChange={(e) => {
+                                        const nextProduct = products.find((p) => String(p.id) === e.target.value);
+                                        const nextIsVehicleConsumable = ['fuel', 'vehicle_needs'].includes(nextProduct?.category);
+                                        setData((prev) => ({
+                                            ...prev,
+                                            product_id: e.target.value,
+                                            vehicle_id: nextIsVehicleConsumable ? prev.vehicle_id : '',
+                                        }));
+                                    }}
                                     required
                                 >
                                     <option value="">-- Sélectionner un produit --</option>
                                     {products.map((product) => (
-                                        <option key={product.id} value={product.id}>{product.name} ({product.unit_type})</option>
+                                        <option key={product.id} value={product.id}>{product.name} ({UNIT_TYPE_LABELS[product.unit_type] || product.unit_type})</option>
                                     ))}
                                 </select>
                                 <InputError message={errors.product_id} className="mt-2" />
                             </div>
 
                             <div>
-                                <InputLabel htmlFor="entry_type" value="Type d'Entrée *" />
+                                <InputLabel htmlFor="entry_type" value="Type de Sortie *" />
                                 <select
                                     id="entry_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
@@ -375,85 +385,108 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <InputError message={errors.employee_id} className="mt-2" />
                             </div>
 
-                            <div>
-                                <InputLabel htmlFor="vehicle_id" value="Véhicule" />
-                                <select
-                                    id="vehicle_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                    value={data.vehicle_id}
-                                    onChange={(e) => setData('vehicle_id', e.target.value)}
-                                >
-                                    <option value="">-- Sélectionner un véhicule --</option>
-                                    {vehicles.map((vehicle) => (
-                                        <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.plate_number})</option>
-                                    ))}
-                                </select>
-                                <InputError message={errors.vehicle_id} className="mt-2" />
-                            </div>
+                            {isVehicleConsumable && (
+                                <div>
+                                    <InputLabel htmlFor="vehicle_id" value="Véhicule" />
+                                    <select
+                                        id="vehicle_id"
+                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                        value={data.vehicle_id}
+                                        onChange={(e) => setData('vehicle_id', e.target.value)}
+                                    >
+                                        <option value="">-- Sélectionner un véhicule --</option>
+                                        {vehicles.map((vehicle) => (
+                                            <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.plate_number})</option>
+                                        ))}
+                                    </select>
+                                    <InputError message={errors.vehicle_id} className="mt-2" />
+                                </div>
+                            )}
 
-                            <div>
-                                <InputLabel htmlFor="operation_id" value="Opération" />
-                                <select
-                                    id="operation_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                    value={data.operation_id}
-                                    onChange={(e) => setData('operation_id', e.target.value)}
-                                >
-                                    <option value="">-- Sélectionner une opération --</option>
-                                    {operations.map((operation) => (
-                                        <option key={operation.id} value={operation.id}>{operation.name}</option>
-                                    ))}
-                                </select>
-                                <InputError message={errors.operation_id} className="mt-2" />
-                            </div>
+                            {isVehicleConsumable && data.vehicle_id && (
+                                <div>
+                                    <InputLabel htmlFor="odometer_km" value="Kilométrage (km)" />
+                                    <TextInput
+                                        id="odometer_km"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="mt-1 block w-full"
+                                        value={data.odometer_km}
+                                        onChange={(e) => setData('odometer_km', e.target.value)}
+                                        placeholder="Ex: 12500.5"
+                                    />
+                                    <InputError message={errors.odometer_km} className="mt-2" />
+                                </div>
+                            )}
 
-                            <div className="grid grid-cols-3 gap-4 md:col-span-2">
-                                <div>
-                                    <InputLabel htmlFor="bloc_id" value="Bloc" />
-                                    <select
-                                        id="bloc_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                        value={data.bloc_id}
-                                        onChange={(e) => setData('bloc_id', e.target.value)}
-                                    >
-                                        <option value="">-- Sélectionner --</option>
-                                        {blocs.map((bloc) => (
-                                            <option key={bloc.id} value={bloc.id}>{bloc.name}</option>
-                                        ))}
-                                    </select>
-                                    <InputError message={errors.bloc_id} className="mt-2" />
-                                </div>
-                                <div>
-                                    <InputLabel htmlFor="sector_id" value="Secteur" />
-                                    <select
-                                        id="sector_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                        value={data.sector_id}
-                                        onChange={(e) => setData('sector_id', e.target.value)}
-                                    >
-                                        <option value="">-- Sélectionner --</option>
-                                        {sectors.map((sector) => (
-                                            <option key={sector.id} value={sector.id}>{sector.name}</option>
-                                        ))}
-                                    </select>
-                                    <InputError message={errors.sector_id} className="mt-2" />
-                                </div>
-                                <div>
-                                    <InputLabel htmlFor="parcelle_id" value="Parcelle" />
-                                    <select
-                                        id="parcelle_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
-                                        value={data.parcelle_id}
-                                        onChange={(e) => setData('parcelle_id', e.target.value)}
-                                    >
-                                        <option value="">-- Sélectionner --</option>
-                                        {parcelles.map((parcelle) => (
-                                            <option key={parcelle.id} value={parcelle.id}>{parcelle.name}</option>
-                                        ))}
-                                    </select>
-                                    <InputError message={errors.parcelle_id} className="mt-2" />
-                                </div>
-                            </div>
+                            {!hidesFieldContext && (
+                                <>
+                                    <div>
+                                        <InputLabel htmlFor="operation_id" value="Opération" />
+                                        <select
+                                            id="operation_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                            value={data.operation_id}
+                                            onChange={(e) => setData('operation_id', e.target.value)}
+                                        >
+                                            <option value="">-- Sélectionner une opération --</option>
+                                            {operations.map((operation) => (
+                                                <option key={operation.id} value={operation.id}>{operation.name}</option>
+                                            ))}
+                                        </select>
+                                        <InputError message={errors.operation_id} className="mt-2" />
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4 md:col-span-2">
+                                        <div>
+                                            <InputLabel htmlFor="bloc_id" value="Bloc" />
+                                            <select
+                                                id="bloc_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                                value={data.bloc_id}
+                                                onChange={(e) => setData('bloc_id', e.target.value)}
+                                            >
+                                                <option value="">-- Sélectionner --</option>
+                                                {blocs.map((bloc) => (
+                                                    <option key={bloc.id} value={bloc.id}>{bloc.name}</option>
+                                                ))}
+                                            </select>
+                                            <InputError message={errors.bloc_id} className="mt-2" />
+                                        </div>
+                                        <div>
+                                            <InputLabel htmlFor="sector_id" value="Secteur" />
+                                            <select
+                                                id="sector_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                                value={data.sector_id}
+                                                onChange={(e) => setData('sector_id', e.target.value)}
+                                            >
+                                                <option value="">-- Sélectionner --</option>
+                                                {sectors.map((sector) => (
+                                                    <option key={sector.id} value={sector.id}>{sector.name}</option>
+                                                ))}
+                                            </select>
+                                            <InputError message={errors.sector_id} className="mt-2" />
+                                        </div>
+                                        <div>
+                                            <InputLabel htmlFor="parcelle_id" value="Parcelle" />
+                                            <select
+                                                id="parcelle_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                                value={data.parcelle_id}
+                                                onChange={(e) => setData('parcelle_id', e.target.value)}
+                                            >
+                                                <option value="">-- Sélectionner --</option>
+                                                {parcelles.map((parcelle) => (
+                                                    <option key={parcelle.id} value={parcelle.id}>{parcelle.name}</option>
+                                                ))}
+                                            </select>
+                                            <InputError message={errors.parcelle_id} className="mt-2" />
+                                        </div>
+                                    </div>
+                                </>
+                            )}
 
                             <div className="md:col-span-2">
                                 <InputLabel htmlFor="notes" value="Notes" />
@@ -472,7 +505,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing} className="bg-indigo-600 hover:bg-indigo-700">
-                                {processing ? 'Enregistrement...' : 'Enregistrer l\'Entrée'}
+                                {processing ? 'Enregistrement...' : 'Enregistrer la Sortie'}
                             </PrimaryButton>
                         </div>
                     </form>

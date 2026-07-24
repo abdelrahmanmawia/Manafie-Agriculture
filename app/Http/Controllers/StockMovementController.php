@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Farm;
+use App\Models\FuelTransaction;
+use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\StockInventory;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia; // Import Inertia
 
@@ -17,7 +17,16 @@ class StockMovementController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
-        $query = StockMovement::with('product', 'performedBy', 'bloc', 'sector', 'parcelle', 'vehicle')
+        $query = StockMovement::with([
+                'product',
+                'performedBy',
+                'reference' => function ($morphTo) {
+                    $morphTo->morphWith([
+                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
+                        FuelTransaction::class => ['vehicle'],
+                    ]);
+                },
+            ])
             ->when($farmId, function ($query) use ($farmId) {
                 $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             });
@@ -42,39 +51,46 @@ class StockMovementController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name', 'unit_type', 'unit_cost']);
+
         return Inertia::render('Stock/Movements/Index', [
-            'stockMovements' => $movements,        ]);
+            'stockMovements' => $movements,
+            'products' => $products,
+        ]);
     }
 
-    public function stockIn(Request $request): JsonResponse
+    public function stockIn(Request $request)
     {
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric|min:0',
+            'quantity' => 'required|numeric|min:0.01',
             'unit_cost' => 'nullable|numeric|min:0',
-            'reference_type' => 'nullable|string',
-            'reference_id' => 'nullable|integer',
+            'batch_number' => 'nullable|string|max:255',
             'date' => 'required|date',
             'notes' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated, $request) {
+        DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
+            $unitCost = $validated['unit_cost'] ?? $product->unit_cost ?? 0;
 
-            $movement = StockMovement::create([
+            StockMovement::create([
                 'product_id' => $product->id,
                 'movement_type' => 'in',
                 'quantity' => $validated['quantity'],
-                'unit_cost' => $validated['unit_cost'] ?? $product->unit_cost,
-                'total_cost' => ($validated['unit_cost'] ?? $product->unit_cost) * $validated['quantity'],
-                'reference_type' => $validated['reference_type'] ?? null,
-                'reference_id' => $validated['reference_id'] ?? null,
+                'unit_cost' => $unitCost,
+                'total_cost' => $unitCost * $validated['quantity'],
+                // No reference_type: a réception has no source document to link back to —
+                // see StockMovement::reference() and AppServiceProvider's morph map.
                 'performed_by' => $request->user()->id,
                 'date' => $validated['date'],
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // Update inventory
+            // Update inventory: quantity + weighted-average cost + latest batch info
             $inventory = StockInventory::firstOrCreate(
                 ['product_id' => $product->id],
                 [
@@ -83,95 +99,22 @@ class StockMovementController extends Controller
                 ]
             );
 
-            $inventory->quantity_on_hand += $validated['quantity'];
+            $previousQuantity = (float) $inventory->quantity_on_hand;
+            $newQuantity = $previousQuantity + $validated['quantity'];
+
+            $inventory->average_cost = $newQuantity > 0
+                ? ((((float) ($inventory->average_cost ?? 0)) * $previousQuantity) + ($unitCost * $validated['quantity'])) / $newQuantity
+                : $unitCost;
+            $inventory->quantity_on_hand = $newQuantity;
             $inventory->last_restock_date = $validated['date'];
+
+            if (! empty($validated['batch_number'])) {
+                $inventory->batch_number = $validated['batch_number'];
+            }
+
             $inventory->save();
-
-            return response()->json($movement, 201);
         });
-    }
 
-    public function stockOut(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric|min:0',
-            'unit_cost' => 'nullable|numeric|min:0',
-            'reference_type' => 'nullable|string',
-            'reference_id' => 'nullable|integer',
-            'date' => 'required|date',
-            'notes' => 'nullable|string',
-            'bloc_id' => 'nullable|exists:blocs,id',
-            'sector_id' => 'nullable|exists:sectors,id',
-            'parcelle_id' => 'nullable|exists:parcelles,id',
-            'vehicle_id' => 'nullable|exists:vehicles,id',
-        ]);
-
-        return DB::transaction(function () use ($validated, $request) {
-            $product = Product::findOrFail($validated['product_id']);
-
-            $movement = StockMovement::create([
-                'product_id' => $product->id,
-                'movement_type' => 'out',
-                'quantity' => $validated['quantity'],
-                'unit_cost' => $validated['unit_cost'] ?? $product->unit_cost,
-                'total_cost' => ($validated['unit_cost'] ?? $product->unit_cost) * $validated['quantity'],
-                'reference_type' => $validated['reference_type'] ?? null,
-                'reference_id' => $validated['reference_id'] ?? null,
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                'notes' => $validated['notes'] ?? null,
-                'bloc_id' => $validated['bloc_id'] ?? null,
-                'sector_id' => $validated['sector_id'] ?? null,
-                'parcelle_id' => $validated['parcelle_id'] ?? null,
-                'vehicle_id' => $validated['vehicle_id'] ?? null,
-            ]);
-
-            // Update inventory
-            $inventory = StockInventory::where('product_id', $product->id)->first();
-
-            if ($inventory) {
-                $inventory->quantity_on_hand -= $validated['quantity'];
-                $inventory->save();
-            }
-
-            return response()->json($movement, 201);
-        });
-    }
-
-    public function adjustment(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric',
-            'unit_cost' => 'nullable|numeric|min:0',
-            'date' => 'required|date',
-            'notes' => 'required|string',
-        ]);
-
-        return DB::transaction(function () use ($validated, $request) {
-            $product = Product::findOrFail($validated['product_id']);
-
-            $movement = StockMovement::create([
-                'product_id' => $product->id,
-                'movement_type' => 'adjustment',
-                'quantity' => $validated['quantity'],
-                'unit_cost' => $validated['unit_cost'] ?? $product->unit_cost,
-                'total_cost' => ($validated['unit_cost'] ?? $product->unit_cost) * $validated['quantity'],
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                'notes' => $validated['notes'],
-            ]);
-
-            // Update inventory
-            $inventory = StockInventory::where('product_id', $product->id)->first();
-
-            if ($inventory) {
-                $inventory->quantity_on_hand += $validated['quantity'];
-                $inventory->save();
-            }
-
-            return response()->json($movement, 201);
-        });
+        return redirect()->back();
     }
 }

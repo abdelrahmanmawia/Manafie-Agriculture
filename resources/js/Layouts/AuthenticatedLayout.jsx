@@ -68,7 +68,7 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Alertes', href: 'stock.alerts.index', match: 'stock.alerts.*', icon: ICONS.alert },
         { label: 'Véhicules', href: 'stock.vehicles.index', match: 'stock.vehicles.*', icon: ICONS.truck },
         { label: 'Carburant', href: 'stock.fuel-transactions.index', match: 'stock.fuel-transactions.*', icon: ICONS.fuel },
-        { label: 'Entrées Manuelles', href: 'stock.manual-entries.index', match: 'stock.manual-entries.*', icon: ICONS.pencil },
+        { label: 'Sorties de Stock', href: 'stock.manual-entries.index', match: 'stock.manual-entries.*', icon: ICONS.pencil },
         { label: 'Rapports', href: 'stock.reports.index', match: 'stock.reports.*', icon: ICONS.chart },
     ];
 

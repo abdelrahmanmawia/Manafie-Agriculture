@@ -14,20 +14,14 @@ class Vehicle extends Model
         'name',
         'plate_number',
         'type',
-        'brand',
         'model',
-        'year',
         'fuel_type',
-        'fuel_capacity_liters',
         'default_driver_id',
-        'current_location',
         'is_active',
         'notes',
     ];
 
     protected $casts = [
-        'fuel_capacity_liters' => 'decimal:2',
-        'year' => 'integer',
         'is_active' => 'boolean',
     ];
 

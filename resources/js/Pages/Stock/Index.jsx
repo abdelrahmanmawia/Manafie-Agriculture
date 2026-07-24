@@ -7,12 +7,15 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { formatNumber, formatMAD } from '@/utils/number';
+import { CATEGORY_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, products, categories, unitTypes }) {
+export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations }) {
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [imagePreview, setImagePreview] = useState(null);
+    const [movementModal, setMovementModal] = useState(null); // { product, type: 'in' | 'out' }
 
     const { data, setData, post, processing, reset, errors } = useForm({
         name: '',
@@ -22,6 +25,37 @@ export default function Index({ auth, products, categories, unitTypes }) {
         min_stock_level: 0,
         unit_cost: '',
     });
+
+    // "Entrée" (réception) — a delivery arriving at the magasin
+    const receiveForm = useForm({
+        product_id: '',
+        quantity: '',
+        unit_cost: '',
+        batch_number: '',
+        date: new Date().toISOString().slice(0, 10),
+        notes: '',
+    });
+
+    // "Sortie" — same shape as the Sorties de Stock form, since a sortie IS a manual stock entry
+    // (consumption/loss/etc. with who/where context), just triggered from the product row.
+    const sortieForm = useForm({
+        product_id: '',
+        entry_type: 'consumption',
+        quantity: '',
+        employee_id: '',
+        vehicle_id: '',
+        operation_id: '',
+        bloc_id: '',
+        sector_id: '',
+        parcelle_id: '',
+        date: new Date().toISOString().slice(0, 10),
+        notes: '',
+        odometer_km: '',
+    });
+
+    const sortieSelectedVehicle = vehicles.find((v) => String(v.id) === String(sortieForm.data.vehicle_id));
+    // A tractor/truck works a field (bloc/opération apply); a car/van is just transport (they don't).
+    const sortieHidesFieldContext = sortieSelectedVehicle && ['car', 'van'].includes(sortieSelectedVehicle.type);
 
     const handleImageChange = (e) => {
         const file = e.target.files[0] ?? null;
@@ -40,6 +74,56 @@ export default function Index({ auth, products, categories, unitTypes }) {
         });
     };
 
+    const openMovementModal = (product, type) => {
+        if (type === 'in') {
+            receiveForm.clearErrors();
+            receiveForm.setData({
+                product_id: product.id,
+                quantity: '',
+                unit_cost: '',
+                batch_number: '',
+                date: new Date().toISOString().slice(0, 10),
+                notes: '',
+            });
+        } else {
+            sortieForm.clearErrors();
+            sortieForm.setData({
+                product_id: product.id,
+                entry_type: 'consumption',
+                quantity: '',
+                employee_id: '',
+                vehicle_id: '',
+                operation_id: '',
+                bloc_id: '',
+                sector_id: '',
+                parcelle_id: '',
+                date: new Date().toISOString().slice(0, 10),
+                notes: '',
+                odometer_km: '',
+            });
+        }
+        setMovementModal({ product, type });
+    };
+
+    const submitMovement = (e) => {
+        e.preventDefault();
+        if (movementModal.type === 'in') {
+            receiveForm.post(route('stock.movements.in'), {
+                onSuccess: () => {
+                    receiveForm.reset();
+                    setMovementModal(null);
+                },
+            });
+        } else {
+            sortieForm.post(route('stock.manual-entries.store'), {
+                onSuccess: () => {
+                    sortieForm.reset();
+                    setMovementModal(null);
+                },
+            });
+        }
+    };
+
     const filteredProducts = products.filter(product => {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = !selectedCategory || product.category === selectedCategory;
@@ -55,13 +139,20 @@ export default function Index({ auth, products, categories, unitTypes }) {
             'packaging': 'bg-yellow-100 text-yellow-800',
             'equipment': 'bg-purple-100 text-purple-800',
             'fuel': 'bg-orange-100 text-orange-800',
+            'vehicle_needs': 'bg-orange-100 text-orange-800',
             'other': 'bg-indigo-100 text-indigo-800',
         };
         return colors[category] || 'bg-gray-100 text-gray-800';
     };
 
+    // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
+    const isVehicleConsumable = (product) => ['fuel', 'vehicle_needs'].includes(product?.category);
+
+    const getCurrentStock = (product) =>
+        (product.stock_inventory ?? []).reduce((sum, inv) => sum + parseFloat(inv.quantity_on_hand || 0), 0);
+
     const getStockStatus = (product) => {
-        const currentStock = product.stock_inventory?.quantity_on_hand || 0;
+        const currentStock = getCurrentStock(product);
         const minStock = product.min_stock_level || 0;
 
         if (currentStock === 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600' };
@@ -124,7 +215,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                 >
                                     <option value="">Toutes les catégories</option>
                                     {categories.map((cat) => (
-                                        <option key={cat} value={cat}>{cat}</option>
+                                        <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
                                     ))}
                                 </select>
                             </div>
@@ -207,14 +298,14 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
-                                                            {product.category}
+                                                            {CATEGORY_LABELS[product.category] || product.category}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm text-gray-900 font-medium">
-                                                            {product.stock_inventory?.quantity_on_hand || 0} {product.unit_type}
+                                                            {formatNumber(getCurrentStock(product))} {UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}
                                                         </div>
-                                                        <div className="text-xs text-gray-500">Min: {product.min_stock_level || 0}</div>
+                                                        <div className="text-xs text-gray-500">Min : {formatNumber(product.min_stock_level || 0)}</div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="flex items-center">
@@ -223,10 +314,28 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {product.unit_cost ? `${product.unit_cost} MAD` : 'N/A'}
+                                                        {product.unit_cost ? formatMAD(product.unit_cost) : 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex items-center justify-end space-x-2">
+                                                            <button
+                                                                onClick={() => openMovementModal(product, 'in')}
+                                                                className="text-gray-400 hover:text-green-600 transition-colors"
+                                                                title="Entrée de stock"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            </button>
+                                                            <button
+                                                                onClick={() => openMovementModal(product, 'out')}
+                                                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                                                title="Sortie de stock"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                </svg>
+                                                            </button>
                                                             <Link
                                                                 href={route('stock.products.show', product.id)}
                                                                 className="text-gray-400 hover:text-blue-600 transition-colors"
@@ -239,7 +348,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                                             </Link>
                                                             <Link
                                                                 href={route('stock.products.edit', product.id)}
-                                                                className="text-gray-400 hover:text-green-600 transition-colors"
+                                                                className="text-gray-400 hover:text-gray-700 transition-colors"
                                                                 title="Modifier"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -332,7 +441,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                         required
                                     >
                                         {categories.map((cat) => (
-                                            <option key={cat} value={cat}>{cat}</option>
+                                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
                                         ))}
                                     </select>
                                     <InputError message={errors.category} className="mt-2" />
@@ -348,7 +457,7 @@ export default function Index({ auth, products, categories, unitTypes }) {
                                         required
                                     >
                                         {unitTypes.map((unit) => (
-                                            <option key={unit} value={unit}>{unit}</option>
+                                            <option key={unit} value={unit}>{UNIT_TYPE_LABELS[unit] || unit}</option>
                                         ))}
                                     </select>
                                     <InputError message={errors.unit_type} className="mt-2" />
@@ -402,6 +511,315 @@ export default function Index({ auth, products, categories, unitTypes }) {
                         </div>
                     </form>
                 </div>
+            </Modal>
+
+            {/* STOCK IN / STOCK OUT MODAL */}
+            <Modal show={movementModal !== null} onClose={() => setMovementModal(null)}>
+                {movementModal && (
+                    <div className="p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${movementModal.type === 'in' ? 'bg-green-100' : 'bg-red-100'}`}>
+                                    <svg className={`h-6 w-6 ${movementModal.type === 'in' ? 'text-green-600' : 'text-red-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        {movementModal.type === 'in' ? (
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        ) : (
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        )}
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-800">
+                                        {movementModal.type === 'in' ? 'Entrée de Stock' : 'Sortie de Stock'}
+                                    </h3>
+                                    <p className="text-sm text-gray-500">{movementModal.product.name}</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setMovementModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {movementModal.type === 'in' ? (
+                            <form onSubmit={submitMovement} className="space-y-6">
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <InputLabel htmlFor="movement_quantity" value={`Quantité (${UNIT_TYPE_LABELS[movementModal.product.unit_type] || movementModal.product.unit_type}) *`} />
+                                            <TextInput
+                                                id="movement_quantity"
+                                                type="number"
+                                                step="0.01"
+                                                min="0.01"
+                                                className="mt-1 block w-full"
+                                                value={receiveForm.data.quantity}
+                                                onChange={(e) => receiveForm.setData('quantity', e.target.value)}
+                                                required
+                                                autoFocus
+                                            />
+                                            <InputError message={receiveForm.errors.quantity} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="movement_unit_cost" value="Coût Unitaire (MAD)" />
+                                            <TextInput
+                                                id="movement_unit_cost"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                className="mt-1 block w-full"
+                                                value={receiveForm.data.unit_cost}
+                                                onChange={(e) => receiveForm.setData('unit_cost', e.target.value)}
+                                                placeholder={movementModal.product.unit_cost ?? 'Ex: 15.50'}
+                                            />
+                                            <InputError message={receiveForm.errors.unit_cost} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="movement_date" value="Date *" />
+                                            <TextInput
+                                                id="movement_date"
+                                                type="date"
+                                                className="mt-1 block w-full"
+                                                value={receiveForm.data.date}
+                                                onChange={(e) => receiveForm.setData('date', e.target.value)}
+                                                required
+                                            />
+                                            <InputError message={receiveForm.errors.date} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="movement_batch_number" value="N° de Lot" />
+                                            <TextInput
+                                                id="movement_batch_number"
+                                                type="text"
+                                                className="mt-1 block w-full"
+                                                value={receiveForm.data.batch_number}
+                                                onChange={(e) => receiveForm.setData('batch_number', e.target.value)}
+                                                placeholder="Optionnel"
+                                            />
+                                            <InputError message={receiveForm.errors.batch_number} className="mt-2" />
+                                        </div>
+
+                                        <div className="md:col-span-2">
+                                            <InputLabel htmlFor="movement_notes" value="Notes" />
+                                            <textarea
+                                                id="movement_notes"
+                                                rows={2}
+                                                className="mt-1 block w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-lg shadow-sm"
+                                                value={receiveForm.data.notes}
+                                                onChange={(e) => receiveForm.setData('notes', e.target.value)}
+                                                placeholder="Ex: Livraison fournisseur X, bon n°..."
+                                            />
+                                            <InputError message={receiveForm.errors.notes} className="mt-2" />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                                    <SecondaryButton onClick={() => setMovementModal(null)}>Annuler</SecondaryButton>
+                                    <PrimaryButton disabled={receiveForm.processing} className="bg-green-600 hover:bg-green-700">
+                                        {receiveForm.processing ? 'Enregistrement...' : "Enregistrer l'Entrée"}
+                                    </PrimaryButton>
+                                </div>
+                            </form>
+                        ) : (
+                            // Same fields as the Sorties de Stock form — a sortie IS a manual stock entry,
+                            // just started from the product row instead of the Sorties de Stock page.
+                            <form onSubmit={submitMovement} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <InputLabel htmlFor="sortie_entry_type" value="Type de Sortie *" />
+                                        <select
+                                            id="sortie_entry_type"
+                                            className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                            value={sortieForm.data.entry_type}
+                                            onChange={(e) => sortieForm.setData('entry_type', e.target.value)}
+                                            required
+                                        >
+                                            <option value="consumption">Consommation</option>
+                                            <option value="transfer">Transfert</option>
+                                            <option value="loss">Perte</option>
+                                            <option value="theft">Vol</option>
+                                            <option value="damage">Dommage</option>
+                                        </select>
+                                        <InputError message={sortieForm.errors.entry_type} className="mt-2" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="sortie_quantity" value={`Quantité (${UNIT_TYPE_LABELS[movementModal.product.unit_type] || movementModal.product.unit_type}) *`} />
+                                        <TextInput
+                                            id="sortie_quantity"
+                                            type="number"
+                                            step="0.01"
+                                            min="0.01"
+                                            className="mt-1 block w-full"
+                                            value={sortieForm.data.quantity}
+                                            onChange={(e) => sortieForm.setData('quantity', e.target.value)}
+                                            required
+                                            autoFocus
+                                        />
+                                        <InputError message={sortieForm.errors.quantity} className="mt-2" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="sortie_date" value="Date *" />
+                                        <TextInput
+                                            id="sortie_date"
+                                            type="date"
+                                            className="mt-1 block w-full"
+                                            value={sortieForm.data.date}
+                                            onChange={(e) => sortieForm.setData('date', e.target.value)}
+                                            required
+                                        />
+                                        <InputError message={sortieForm.errors.date} className="mt-2" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="sortie_employee_id" value="Employé" />
+                                        <select
+                                            id="sortie_employee_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                            value={sortieForm.data.employee_id}
+                                            onChange={(e) => sortieForm.setData('employee_id', e.target.value)}
+                                        >
+                                            <option value="">-- Sélectionner un employé --</option>
+                                            {employees.map((employee) => (
+                                                <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                            ))}
+                                        </select>
+                                        <InputError message={sortieForm.errors.employee_id} className="mt-2" />
+                                    </div>
+
+                                    {isVehicleConsumable(movementModal.product) && (
+                                        <div>
+                                            <InputLabel htmlFor="sortie_vehicle_id" value="Véhicule" />
+                                            <select
+                                                id="sortie_vehicle_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                value={sortieForm.data.vehicle_id}
+                                                onChange={(e) => sortieForm.setData('vehicle_id', e.target.value)}
+                                            >
+                                                <option value="">-- Sélectionner un véhicule --</option>
+                                                {vehicles.map((vehicle) => (
+                                                    <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.plate_number})</option>
+                                                ))}
+                                            </select>
+                                            <InputError message={sortieForm.errors.vehicle_id} className="mt-2" />
+                                        </div>
+                                    )}
+
+                                    {isVehicleConsumable(movementModal.product) && sortieForm.data.vehicle_id && (
+                                        <div>
+                                            <InputLabel htmlFor="sortie_odometer_km" value="Kilométrage (km)" />
+                                            <TextInput
+                                                id="sortie_odometer_km"
+                                                type="number"
+                                                step="0.01"
+                                                min="0"
+                                                className="mt-1 block w-full"
+                                                value={sortieForm.data.odometer_km}
+                                                onChange={(e) => sortieForm.setData('odometer_km', e.target.value)}
+                                                placeholder="Ex: 12500.5"
+                                            />
+                                            <InputError message={sortieForm.errors.odometer_km} className="mt-2" />
+                                        </div>
+                                    )}
+
+                                    {!sortieHidesFieldContext && (
+                                        <>
+                                            <div>
+                                                <InputLabel htmlFor="sortie_operation_id" value="Opération" />
+                                                <select
+                                                    id="sortie_operation_id"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                    value={sortieForm.data.operation_id}
+                                                    onChange={(e) => sortieForm.setData('operation_id', e.target.value)}
+                                                >
+                                                    <option value="">-- Sélectionner une opération --</option>
+                                                    {operations.map((operation) => (
+                                                        <option key={operation.id} value={operation.id}>{operation.name}</option>
+                                                    ))}
+                                                </select>
+                                                <InputError message={sortieForm.errors.operation_id} className="mt-2" />
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-4 md:col-span-2">
+                                                <div>
+                                                    <InputLabel htmlFor="sortie_bloc_id" value="Bloc" />
+                                                    <select
+                                                        id="sortie_bloc_id"
+                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                        value={sortieForm.data.bloc_id}
+                                                        onChange={(e) => sortieForm.setData('bloc_id', e.target.value)}
+                                                    >
+                                                        <option value="">-- Sélectionner --</option>
+                                                        {blocs.map((bloc) => (
+                                                            <option key={bloc.id} value={bloc.id}>{bloc.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <InputError message={sortieForm.errors.bloc_id} className="mt-2" />
+                                                </div>
+                                                <div>
+                                                    <InputLabel htmlFor="sortie_sector_id" value="Secteur" />
+                                                    <select
+                                                        id="sortie_sector_id"
+                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                        value={sortieForm.data.sector_id}
+                                                        onChange={(e) => sortieForm.setData('sector_id', e.target.value)}
+                                                    >
+                                                        <option value="">-- Sélectionner --</option>
+                                                        {sectors.map((sector) => (
+                                                            <option key={sector.id} value={sector.id}>{sector.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <InputError message={sortieForm.errors.sector_id} className="mt-2" />
+                                                </div>
+                                                <div>
+                                                    <InputLabel htmlFor="sortie_parcelle_id" value="Parcelle" />
+                                                    <select
+                                                        id="sortie_parcelle_id"
+                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                        value={sortieForm.data.parcelle_id}
+                                                        onChange={(e) => sortieForm.setData('parcelle_id', e.target.value)}
+                                                    >
+                                                        <option value="">-- Sélectionner --</option>
+                                                        {parcelles.map((parcelle) => (
+                                                            <option key={parcelle.id} value={parcelle.id}>{parcelle.name}</option>
+                                                        ))}
+                                                    </select>
+                                                    <InputError message={sortieForm.errors.parcelle_id} className="mt-2" />
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+
+                                    <div className="md:col-span-2">
+                                        <InputLabel htmlFor="sortie_notes" value="Notes" />
+                                        <textarea
+                                            id="sortie_notes"
+                                            className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                            value={sortieForm.data.notes}
+                                            onChange={(e) => sortieForm.setData('notes', e.target.value)}
+                                            rows="3"
+                                            placeholder="Ajoutez des notes supplémentaires..."
+                                        ></textarea>
+                                        <InputError message={sortieForm.errors.notes} className="mt-2" />
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                                    <SecondaryButton onClick={() => setMovementModal(null)}>Annuler</SecondaryButton>
+                                    <PrimaryButton disabled={sortieForm.processing} className="bg-red-600 hover:bg-red-700">
+                                        {sortieForm.processing ? 'Enregistrement...' : 'Enregistrer la Sortie'}
+                                    </PrimaryButton>
+                                </div>
+                            </form>
+                        )}
+                    </div>
+                )}
             </Modal>
         </AuthenticatedLayout>
     );

@@ -3,6 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import InputLabel from '@/Components/InputLabel';
 import TextInput from '@/Components/TextInput';
+import { formatNumber, formatInt } from '@/utils/number';
 
 export default function StockTurnover({ auth, stockTurnoverData }) {
     const { data, setData, get } = useForm({
@@ -76,12 +77,12 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
                                 </div>
                                 <div>
                                     <p className="text-indigo-100 text-sm font-medium">Rotation Moyenne</p>
-                                    <p className="text-white text-3xl font-bold mt-1">{averageTurnover.toFixed(2)}x</p>
+                                    <p className="text-white text-3xl font-bold mt-1">{formatNumber(averageTurnover)}x</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <p className="text-indigo-100 text-sm">Nombre de Produits</p>
-                                <p className="text-white text-xl font-semibold">{stockTurnoverData.length}</p>
+                                <p className="text-white text-xl font-semibold">{formatInt(stockTurnoverData.length)}</p>
                             </div>
                         </div>
                     </div>
@@ -134,32 +135,32 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
                                                         {data.product_name}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {data.beginning_inventory.toFixed(2)}
+                                                        {formatNumber(data.beginning_inventory)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-green-50 text-green-700 text-xs font-medium">
-                                                            +{data.purchases.toFixed(2)}
+                                                            +{formatNumber(data.purchases)}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-red-50 text-red-700 text-xs font-medium">
-                                                            -{data.sales_consumption.toFixed(2)}
+                                                            -{formatNumber(data.sales_consumption)}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {data.ending_inventory.toFixed(2)}
+                                                        {formatNumber(data.ending_inventory)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold">
                                                         <span className={`inline-flex items-center px-2 py-1 rounded-md ${
-                                                            data.stock_turnover_ratio > averageTurnover 
-                                                                ? 'bg-green-50 text-green-700' 
+                                                            data.stock_turnover_ratio > averageTurnover
+                                                                ? 'bg-green-50 text-green-700'
                                                                 : 'bg-red-50 text-red-700'
                                                         } text-xs font-medium`}>
-                                                            {data.stock_turnover_ratio}x
+                                                            {formatNumber(data.stock_turnover_ratio)}x
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {data.days_inventory_outstanding}
+                                                        {formatInt(data.days_inventory_outstanding)}
                                                     </td>
                                                 </tr>
                                             ))}

@@ -1,97 +1,172 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatMAD } from '@/utils/number';
+import { CATEGORY_LABELS, UNIT_TYPE_LABELS, MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS } from '@/utils/stockLabels';
+
+function destinationOf(movement) {
+    const ref = movement.reference;
+    if (!ref) return 'N/A';
+    return ref.bloc?.name || ref.sector?.name || ref.parcelle?.name || ref.vehicle?.name || 'N/A';
+}
 
 export default function Show({ auth, stockInventory }) {
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const currentStock = parseFloat(stockInventory.quantity_on_hand || 0);
+    const minStock = parseFloat(stockInventory.product.min_stock_level || 0);
+    const stockStatus = currentStock <= 0
+        ? { status: 'Épuisé', bgColor: 'bg-red-50', textColor: 'text-red-600', color: 'bg-red-500' }
+        : currentStock <= minStock
+            ? { status: 'Faible', bgColor: 'bg-orange-50', textColor: 'text-orange-600', color: 'bg-orange-500' }
+            : currentStock <= minStock * 1.5
+                ? { status: 'Normal', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600', color: 'bg-yellow-500' }
+                : { status: 'Bon', bgColor: 'bg-green-50', textColor: 'text-green-600', color: 'bg-green-500' };
+
+    const movements = stockInventory.product.stock_movements ?? [];
+
     return (
         <AuthenticatedLayout
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Détails de l'Inventaire</h2>
+                    <div className="flex items-center gap-4">
+                        <Link href={route('stock.inventory.index')} className="text-gray-500 hover:text-gray-700 transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                        </Link>
+                        <div>
+                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Détails de l'Inventaire</h2>
+                            <p className="text-sm text-gray-500 mt-1">{stockInventory.product.name}</p>
+                        </div>
+                    </div>
                     <Link
-                        href={route('stock.inventory.index')}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
+                        href={route('stock.products.show', stockInventory.product.id)}
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-semibold shadow transition-all"
                     >
-                        Retour à l'Inventaire
+                        Voir le Produit
                     </Link>
                 </div>
             }
         >
             <Head title={`Inventaire: ${stockInventory.product.name}`} />
 
-            <div className="py-12">
+            <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                        <h3 className="text-xl font-bold mb-4 border-b pb-2">Inventaire pour: {stockInventory.product.name}</h3>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <p className="text-gray-600"><strong>Produit:</strong> {stockInventory.product.name}</p>
-                                <p className="text-gray-600"><strong>Catégorie:</strong> {stockInventory.product.category}</p>
-                                <p className="text-gray-600"><strong>Unité:</strong> {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Coût Unitaire Moyen:</strong> {stockInventory.average_cost ? `${stockInventory.average_cost} MAD` : 'N/A'}</p>
-                            </div>
-                            <div>
-                                <p className="text-gray-600"><strong>Quantité en Stock:</strong> {stockInventory.quantity_on_hand} {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Quantité Réservée:</strong> {stockInventory.quantity_reserved} {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Quantité Disponible:</strong> {stockInventory.quantity_available} {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Niveau de Stock Minimum:</strong> {stockInventory.product.min_stock_level} {stockInventory.product.unit_type}</p>
-                                <p className="text-gray-600"><strong>Dernier Réapprovisionnement:</strong> {stockInventory.last_restock_date || 'N/A'}</p>
-                                <p className="text-gray-600"><strong>Dernier Inventaire:</strong> {stockInventory.last_count_date || 'N/A'}</p>
-                                <p className="text-gray-600"><strong>Numéro de Lot:</strong> {stockInventory.batch_number || 'N/A'}</p>
-                                <p className="text-gray-600"><strong>Date d'Expiration:</strong> {stockInventory.expiry_date || 'N/A'}</p>
+                    {/* Header Card */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="p-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <h3 className="text-2xl font-bold text-gray-900">{stockInventory.product.name}</h3>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                            {CATEGORY_LABELS[stockInventory.product.category] || stockInventory.product.category}
+                                        </span>
+                                        {stockInventory.batch_number && (
+                                            <span className="text-sm text-gray-500">Lot: {stockInventory.batch_number}</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className={`px-4 py-2 rounded-lg ${stockStatus.bgColor}`}>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`h-3 w-3 rounded-full ${stockStatus.color}`}></span>
+                                        <span className={`font-semibold ${stockStatus.textColor}`}>{stockStatus.status}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="mt-6">
-                            <h4 className="text-lg font-bold mb-2">Historique des Mouvements de Stock</h4>
-                            {stockInventory.product.stock_movements && stockInventory.product.stock_movements.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Date
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Type
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Quantité
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Coût Total
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Référence
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Effectué par
-                                                </th>
-                                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                    Notes
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {stockInventory.product.stock_movements.map((movement) => (
-                                                <tr key={movement.id}>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(movement.date).toLocaleDateString()}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.movement_type}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.quantity} {stockInventory.product.unit_type}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.total_cost} MAD</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.reference_type} {movement.reference_id}</td>
+                    {/* Quick Stats */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <p className="text-sm text-gray-500">Quantité en Stock</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(stockInventory.quantity_on_hand)}</p>
+                            <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</p>
+                        </div>
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <p className="text-sm text-gray-500">Stock Minimum</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(stockInventory.product.min_stock_level)}</p>
+                            <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</p>
+                        </div>
+                    </div>
+
+                    {/* Info */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100">
+                            <h4 className="text-lg font-bold text-gray-800">Informations de Stock</h4>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <span className="text-gray-500">Coût Unitaire Moyen</span>
+                                <span className="font-medium text-gray-900">{stockInventory.average_cost ? formatMAD(stockInventory.average_cost) : 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                <span className="text-gray-500">Numéro de Lot</span>
+                                <span className="font-medium text-gray-900">{stockInventory.batch_number || 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 md:border-b-0 border-b border-gray-50">
+                                <span className="text-gray-500">Dernier Réapprovisionnement</span>
+                                <span className="font-medium text-gray-900">{formatDate(stockInventory.last_restock_date)}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2">
+                                <span className="text-gray-500">Dernier Inventaire</span>
+                                <span className="font-medium text-gray-900">{formatDate(stockInventory.last_count_date)}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Movements */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100">
+                            <h4 className="text-lg font-bold text-gray-800">Historique des Mouvements de Stock</h4>
+                        </div>
+                        {movements.length === 0 ? (
+                            <div className="text-center py-12">
+                                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                </svg>
+                                <p className="mt-4 text-gray-500">Aucun mouvement de stock enregistré pour ce produit</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-200">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Date</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantité</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Coût Total</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destination</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Effectué par</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white divide-y divide-gray-200">
+                                        {movements.map((movement) => {
+                                            const meta = MOVEMENT_LABELS[movement.movement_type] ?? { label: movement.movement_type, className: 'bg-gray-100 text-gray-700' };
+                                            return (
+                                                <tr key={movement.id} className="hover:bg-gray-50 transition-colors">
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatDate(movement.date)}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{destinationOf(movement)}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.performed_by?.name || 'N/A'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.notes || 'N/A'}</td>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <p className="text-gray-500 italic">Aucun mouvement de stock enregistré pour ce produit.</p>
-                            )}
-                        </div>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

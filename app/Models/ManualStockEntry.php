@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ManualStockEntry extends Model
 {
@@ -28,6 +29,7 @@ class ManualStockEntry extends Model
         'is_verified',
         'verified_by',
         'verified_at',
+        'odometer_km',
     ];
 
     protected $casts = [
@@ -35,6 +37,7 @@ class ManualStockEntry extends Model
         'quantity' => 'decimal:2',
         'is_verified' => 'boolean',
         'verified_at' => 'datetime',
+        'odometer_km' => 'decimal:2',
     ];
 
     public function farm(): BelongsTo
@@ -90,5 +93,12 @@ class ManualStockEntry extends Model
     public function verifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    // Reverse of StockMovement::reference() — the cost of this sortie lives on the movement,
+    // not here, since ManualStockEntry no longer stores its own unit_cost.
+    public function stockMovement(): HasOne
+    {
+        return $this->hasOne(StockMovement::class, 'reference_id')->where('reference_type', 'manual_entry');
     }
 }

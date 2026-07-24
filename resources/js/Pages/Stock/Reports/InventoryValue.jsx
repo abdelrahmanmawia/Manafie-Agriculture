@@ -1,5 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
+import { formatNumber, formatInt, formatMAD } from '@/utils/number';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function InventoryValue({ auth, inventoryValue }) {
     const totalInventoryValue = inventoryValue.reduce((sum, item) => sum + item.total_value, 0);
@@ -41,12 +43,12 @@ export default function InventoryValue({ auth, inventoryValue }) {
                                 </div>
                                 <div>
                                     <p className="text-blue-100 text-sm font-medium">Valeur Totale de l'Inventaire</p>
-                                    <p className="text-white text-3xl font-bold mt-1">{totalInventoryValue.toFixed(2)} MAD</p>
+                                    <p className="text-white text-3xl font-bold mt-1">{formatMAD(totalInventoryValue)}</p>
                                 </div>
                             </div>
                             <div className="text-right">
                                 <p className="text-blue-100 text-sm">Nombre de Produits</p>
-                                <p className="text-white text-xl font-semibold">{inventoryValue.length}</p>
+                                <p className="text-white text-xl font-semibold">{formatInt(inventoryValue.length)}</p>
                             </div>
                         </div>
                     </div>
@@ -91,14 +93,14 @@ export default function InventoryValue({ auth, inventoryValue }) {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
-                                                            {item.quantity_on_hand} {item.unit_type}
+                                                            {formatNumber(item.quantity_on_hand)} {UNIT_TYPE_LABELS[item.unit_type] || item.unit_type}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {item.unit_cost.toFixed(2)} MAD
+                                                        {formatMAD(item.unit_cost)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">
-                                                        {item.total_value.toFixed(2)} MAD
+                                                        {formatMAD(item.total_value)}
                                                     </td>
                                                 </tr>
                                             ))}

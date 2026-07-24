@@ -32,11 +32,21 @@ class StockAlertController extends Controller
 
         $stockAlerts = $query->orderBy('created_at', 'desc')->get();
 
+        // The listing above defaults to unresolved-only, so the resolved count needs its own
+        // query — counting on $stockAlerts here would always read 0.
+        $resolvedCount = StockAlert::where('is_resolved', true)
+            ->when($farmId, function ($query) use ($farmId) {
+                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
+            })
+            ->count();
+
         return Inertia::render('Stock/Alerts/Index', [
-            'stockAlerts' => $stockAlerts,        ]);
+            'stockAlerts' => $stockAlerts,
+            'resolvedCount' => $resolvedCount,
+        ]);
     }
 
-    public function resolve(Request $request, StockAlert $alert): JsonResponse
+    public function resolve(Request $request, StockAlert $alert)
     {
         $alert->update([
             'is_resolved' => true,
@@ -44,7 +54,7 @@ class StockAlertController extends Controller
             'notes' => $request->input('notes', $alert->notes), // Allow updating notes on resolve
         ]);
 
-        return response()->json($alert);
+        return redirect()->back();
     }
 
     public function unresolvedCount(Request $request): JsonResponse

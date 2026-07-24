@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Farm;
+use App\Models\FuelTransaction;
+use App\Models\ManualStockEntry;
 use App\Models\StockInventory;
 use App\Models\Product;
 use Illuminate\Http\Request;
@@ -38,7 +40,16 @@ class StockInventoryController extends Controller
 
     public function show(StockInventory $inventory)
     {
-        $inventory->load('product', 'product.stockMovements.performedBy', 'product.stockMovements.bloc', 'product.stockMovements.sector', 'product.stockMovements.parcelle', 'product.stockMovements.vehicle');
+        $inventory->load([
+            'product',
+            'product.stockMovements.performedBy',
+            'product.stockMovements.reference' => function ($morphTo) {
+                $morphTo->morphWith([
+                    ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
+                    FuelTransaction::class => ['vehicle'],
+                ]);
+            },
+        ]);
 
         return Inertia::render('Stock/Inventory/Show', [
             'stockInventory' => $inventory,
@@ -126,7 +137,12 @@ class StockInventoryController extends Controller
     public function movements(Product $product): JsonResponse
     {
         $movements = $product->stockMovements()
-            ->with('performedBy', 'bloc', 'sector', 'parcelle', 'vehicle')
+            ->with(['performedBy', 'reference' => function ($morphTo) {
+                $morphTo->morphWith([
+                    ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
+                    FuelTransaction::class => ['vehicle'],
+                ]);
+            }])
             ->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
             ->get();

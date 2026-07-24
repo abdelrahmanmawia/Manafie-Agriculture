@@ -5,9 +5,12 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
+import { formatNumber, formatMAD } from '@/utils/number';
+import { CATEGORY_LABELS, UNIT_TYPE_LABELS, ALERT_TYPE_LABELS, MOVEMENT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function Show({ auth, product }) {
     const [confirmingProductDeletion, setConfirmingProductDeletion] = useState(false);
+    const [showImagePreview, setShowImagePreview] = useState(false);
     const { delete: destroy, processing } = useForm();
 
     const confirmProductDeletion = () => {
@@ -28,8 +31,11 @@ export default function Show({ auth, product }) {
         setConfirmingProductDeletion(false);
     };
 
-    const currentStock = product.stock_inventory?.quantity_on_hand || 0;
-    const minStock = product.min_stock_level || 0;
+    // Product.stockInventory() is a hasMany — always exactly one row in practice (no
+    // per-batch splitting happens in this system), so take the first.
+    const inventory = product.stock_inventory?.[0];
+    const currentStock = parseFloat(inventory?.quantity_on_hand || 0);
+    const minStock = parseFloat(product.min_stock_level || 0);
     
     const getStockStatus = () => {
         if (currentStock === 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600', bgColor: 'bg-red-50' };
@@ -106,11 +112,23 @@ export default function Show({ auth, product }) {
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
                                     {product.image_url ? (
-                                        <img
-                                            src={product.image_url}
-                                            alt={product.name}
-                                            className="flex-shrink-0 h-16 w-16 rounded-xl object-cover"
-                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowImagePreview(true)}
+                                            className="group relative flex-shrink-0 h-16 w-16 rounded-xl overflow-hidden"
+                                            title="Agrandir l'image"
+                                        >
+                                            <img
+                                                src={product.image_url}
+                                                alt={product.name}
+                                                className="h-16 w-16 object-cover"
+                                            />
+                                            <span className="absolute inset-0 bg-black/0 group-hover:bg-black/40 flex items-center justify-center transition-colors">
+                                                <svg className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16zM11 8v6m-3-3h6" />
+                                                </svg>
+                                            </span>
+                                        </button>
                                     ) : (
                                         <div className="flex-shrink-0 h-16 w-16 bg-blue-100 rounded-xl flex items-center justify-center">
                                             <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -122,7 +140,7 @@ export default function Show({ auth, product }) {
                                         <h3 className="text-2xl font-bold text-gray-900">{product.name}</h3>
                                         <div className="flex items-center gap-3 mt-2">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
-                                                {product.category}
+                                                {CATEGORY_LABELS[product.category] || product.category}
                                             </span>
                                             {product.is_active ? (
                                                 <span className="flex items-center text-green-600 text-sm">
@@ -153,13 +171,13 @@ export default function Show({ auth, product }) {
                     </div>
 
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Stock Actuel</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{currentStock}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{product.unit_type}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(currentStock)}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -172,41 +190,12 @@ export default function Show({ auth, product }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Stock Minimum</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{minStock}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{product.unit_type}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(minStock)}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-orange-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-500">Stock Réservé</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{product.stock_inventory?.quantity_reserved ?? 0}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{product.unit_type}</p>
-                                </div>
-                                <div className="h-12 w-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                                    <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <p className="text-sm text-gray-500">Disponible</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{product.stock_inventory?.quantity_available ?? 0}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{product.unit_type}</p>
-                                </div>
-                                <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                    <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                 </div>
                             </div>
@@ -222,11 +211,15 @@ export default function Show({ auth, product }) {
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
                                     <span className="text-gray-500">Type d'Unité</span>
-                                    <span className="font-medium text-gray-900">{product.unit_type}</span>
+                                    <span className="font-medium text-gray-900">{UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}</span>
+                                </div>
+                                <div className="flex justify-between items-center py-2 border-b border-gray-50">
+                                    <span className="text-gray-500">Coût Unitaire (catalogue)</span>
+                                    <span className="font-medium text-gray-900">{product.unit_cost ? formatMAD(product.unit_cost) : 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2">
-                                    <span className="text-gray-500">Coût Unitaire</span>
-                                    <span className="font-medium text-gray-900">{product.unit_cost ? `${product.unit_cost} MAD` : 'N/A'}</span>
+                                    <span className="text-gray-500">Coût Moyen Pondéré (CUMP)</span>
+                                    <span className="font-medium text-gray-900">{inventory?.average_cost ? formatMAD(inventory.average_cost) : 'N/A'}</span>
                                 </div>
                             </div>
                         </div>
@@ -238,11 +231,11 @@ export default function Show({ auth, product }) {
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
                                     <span className="text-gray-500">Dernier Réapprovisionnement</span>
-                                    <span className="font-medium text-gray-900">{formatDate(product.stock_inventory?.last_restock_date)}</span>
+                                    <span className="font-medium text-gray-900">{formatDate(inventory?.last_restock_date)}</span>
                                 </div>
                                 <div className="flex justify-between items-center py-2">
                                     <span className="text-gray-500">Dernier Inventaire</span>
-                                    <span className="font-medium text-gray-900">{formatDate(product.stock_inventory?.last_count_date)}</span>
+                                    <span className="font-medium text-gray-900">{formatDate(inventory?.last_count_date)}</span>
                                 </div>
                             </div>
                         </div>
@@ -271,15 +264,15 @@ export default function Show({ auth, product }) {
                                                     )}
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{movement.movement_type === 'in' ? 'Entrée' : 'Sortie'}</p>
+                                                    <p className="font-medium text-gray-900">{MOVEMENT_TYPE_LABELS[movement.movement_type]?.label || movement.movement_type}</p>
                                                     <p className="text-sm text-gray-500">{formatDate(movement.date)}</p>
                                                 </div>
                                             </div>
                                             <div className="text-right">
                                                 <p className={`font-semibold ${movement.movement_type === 'in' ? 'text-green-600' : 'text-red-600'}`}>
-                                                    {movement.movement_type === 'in' ? '+' : '-'}{movement.quantity} {product.unit_type}
+                                                    {movement.movement_type === 'in' ? '+' : '-'}{formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}
                                                 </p>
-                                                <p className="text-sm text-gray-500">{movement.total_cost ? `${movement.total_cost} MAD` : 'N/A'}</p>
+                                                <p className="text-sm text-gray-500">{movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}</p>
                                             </div>
                                         </div>
                                     ))}
@@ -318,7 +311,7 @@ export default function Show({ auth, product }) {
                                                     )}
                                                     <div>
                                                         <p className={`font-medium ${alert.is_resolved ? 'text-gray-600' : 'text-red-700'}`}>
-                                                            {alert.alert_type.toUpperCase()}
+                                                            {ALERT_TYPE_LABELS[alert.alert_type] || alert.alert_type}
                                                         </p>
                                                         <p className="text-sm text-gray-500">{alert.notes}</p>
                                                     </div>
@@ -327,7 +320,7 @@ export default function Show({ auth, product }) {
                                                     <p className={`text-sm font-medium ${alert.is_resolved ? 'text-gray-600' : 'text-red-600'}`}>
                                                         {alert.is_resolved ? 'Résolue' : 'Non Résolue'}
                                                     </p>
-                                                    <p className="text-xs text-gray-500">{alert.threshold_value} vs {alert.current_value}</p>
+                                                    <p className="text-xs text-gray-500">{formatNumber(alert.threshold_value)} / {formatNumber(alert.current_value)}</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -369,6 +362,30 @@ export default function Show({ auth, product }) {
                     </div>
                 </form>
             </Modal>
+
+            {product.image_url && showImagePreview && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+                    onClick={() => setShowImagePreview(false)}
+                >
+                    <button
+                        type="button"
+                        onClick={() => setShowImagePreview(false)}
+                        className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors"
+                        title="Fermer"
+                    >
+                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <img
+                        src={product.image_url}
+                        alt={product.name}
+                        className="max-w-full max-h-full rounded-xl shadow-2xl object-contain"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
         </AuthenticatedLayout>
     );
 }
