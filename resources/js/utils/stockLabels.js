@@ -40,8 +40,6 @@ export const MOVEMENT_TYPE_LABELS = {
 
 export const ALERT_TYPE_LABELS = {
     low_stock: 'Stock Faible',
-    expired: 'Expiré',
-    expiring_soon: 'Expiration Proche',
     overstock: 'Surstock',
 };
 

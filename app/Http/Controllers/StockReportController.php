@@ -7,7 +7,6 @@ use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\ManualStockEntry;
 use App\Models\FuelTransaction;
-use App\Models\StockAlert;
 use App\Models\Product;
 use App\Models\Vehicle;
 use App\Models\Bloc;
@@ -135,41 +134,94 @@ class StockReportController extends Controller
         $hasArea = fn ($query) => $query->whereNotNull('area_ha')->where('area_ha', '>', 0);
 
         // Merge two sources: field consumption (ManualStockEntry) and fuel fill-ups attributed
-        // to a bloc (FuelTransaction) — both are costs incurred on that bloc.
+        // to a bloc (FuelTransaction) — both are costs incurred on that bloc. Sector/parcelle are
+        // optional on both (a sortie can be logged at just the bloc level), so entries without
+        // one are bucketed under a "Non spécifié" placeholder rather than dropped.
+        $toRow = fn ($blocId, $blocName, $blocArea, $sectorId, $sectorName, $sectorArea, $parcelleId, $parcelleName, $parcelleArea, $cost) => [
+            'bloc_id' => $blocId,
+            'bloc_name' => $blocName,
+            'bloc_area' => $blocArea,
+            'sector_id' => $sectorId,
+            'sector_name' => $sectorName,
+            'sector_area' => $sectorArea,
+            'parcelle_id' => $parcelleId,
+            'parcelle_name' => $parcelleName,
+            'parcelle_area' => $parcelleArea,
+            'cost' => $cost,
+        ];
+
         $manualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('bloc_id')
             ->whereHas('bloc', $hasArea)
-            ->with('product', 'bloc')
+            ->with('product', 'bloc', 'sector', 'parcelle')
             ->get()
-            ->map(fn ($entry) => [
-                'bloc_name' => $entry->bloc->name,
-                'area_ha' => (float) $entry->bloc->area_ha,
-                'cost' => ($entry->product->unit_cost ?? 0) * $entry->quantity,
-            ]);
+            ->map(fn ($entry) => $toRow(
+                $entry->bloc_id, $entry->bloc->name, (float) $entry->bloc->area_ha,
+                $entry->sector_id, $entry->sector?->name, (float) ($entry->sector?->area_ha ?? 0),
+                $entry->parcelle_id, $entry->parcelle?->name, (float) ($entry->parcelle?->area_ha ?? 0),
+                ($entry->product->unit_cost ?? 0) * $entry->quantity
+            ));
 
         $fuelEntries = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->whereNotNull('bloc_id')
             ->whereHas('bloc', $hasArea)
-            ->with('bloc')
+            ->with('bloc', 'sector', 'parcelle')
             ->get()
-            ->map(fn ($transaction) => [
-                'bloc_name' => $transaction->bloc->name,
-                'area_ha' => (float) $transaction->bloc->area_ha,
-                'cost' => (float) ($transaction->total_cost ?? 0),
-            ]);
+            ->map(fn ($transaction) => $toRow(
+                $transaction->bloc_id, $transaction->bloc->name, (float) $transaction->bloc->area_ha,
+                $transaction->sector_id, $transaction->sector?->name, (float) ($transaction->sector?->area_ha ?? 0),
+                $transaction->parcelle_id, $transaction->parcelle?->name, (float) ($transaction->parcelle?->area_ha ?? 0),
+                (float) ($transaction->total_cost ?? 0)
+            ));
+
+        $costPerHa = fn ($cost, $area) => $area > 0 ? $cost / $area : 0;
 
         $costPerHectareData = $manualEntries->concat($fuelEntries)
-            ->groupBy('bloc_name')
-            ->map(function ($entries, $blocName) {
-                $totalCost = $entries->sum('cost');
-                $totalArea = $entries->first()['area_ha'] ?? 0;
+            ->groupBy('bloc_id')
+            ->map(function ($blocRows, $blocId) use ($costPerHa) {
+                $first = $blocRows->first();
+                $totalCost = $blocRows->sum('cost');
+                $totalArea = $first['bloc_area'];
+
+                $sectors = $blocRows->groupBy(fn ($row) => $row['sector_id'] ?? 'none')
+                    ->map(function ($sectorRows, $sectorKey) use ($costPerHa) {
+                        $sFirst = $sectorRows->first();
+                        $sCost = $sectorRows->sum('cost');
+                        $sArea = $sFirst['sector_area'];
+
+                        $parcelles = $sectorRows->groupBy(fn ($row) => $row['parcelle_id'] ?? 'none')
+                            ->map(function ($parcelleRows, $parcelleKey) use ($costPerHa) {
+                                $pFirst = $parcelleRows->first();
+                                $pCost = $parcelleRows->sum('cost');
+                                $pArea = $pFirst['parcelle_area'];
+
+                                return [
+                                    'parcelle_key' => $parcelleKey,
+                                    'parcelle_name' => $pFirst['parcelle_name'] ?? 'Non spécifiée',
+                                    'total_cost' => $pCost,
+                                    'total_area_hectares' => $pArea,
+                                    'cost_per_hectare' => $costPerHa($pCost, $pArea),
+                                ];
+                            })->values();
+
+                        return [
+                            'sector_key' => $sectorKey,
+                            'sector_name' => $sFirst['sector_name'] ?? 'Non spécifié',
+                            'total_cost' => $sCost,
+                            'total_area_hectares' => $sArea,
+                            'cost_per_hectare' => $costPerHa($sCost, $sArea),
+                            'parcelles' => $parcelles,
+                        ];
+                    })->values();
 
                 return [
-                    'bloc_name' => $blocName,
+                    'bloc_key' => $blocId,
+                    'bloc_name' => $first['bloc_name'],
                     'total_cost' => $totalCost,
                     'total_area_hectares' => $totalArea,
-                    'cost_per_hectare' => $totalArea > 0 ? $totalCost / $totalArea : 0,
+                    'cost_per_hectare' => $costPerHa($totalCost, $totalArea),
+                    'sectors' => $sectors,
                 ];
             })->values();
 
@@ -187,10 +239,13 @@ class StockReportController extends Controller
         $stockTurnoverData = $products->map(function ($product) use ($periodInDays) {
             $startDate = now()->subDays($periodInDays);
 
-            // ->value() reads the raw DB column (not through Eloquent's decimal cast), so cast
-            // explicitly — some drivers return DECIMAL columns as strings.
-            $beginningInventory = (float) (StockInventory::where('product_id', $product->id)
-                ->value('quantity_on_hand') ?? 0); // Simplified: current stock as beginning
+            // Value inventory at CUMP (the actual weighted-average cost paid in), same basis
+            // used for every other cost calculation in this module — falling back to the
+            // catalog unit_cost only when no réception has ever set a CUMP yet.
+            $inventory = StockInventory::where('product_id', $product->id)->first();
+            $valuationCost = (float) ($inventory->average_cost ?? $product->unit_cost ?? 1);
+
+            $beginningInventory = (float) ($inventory->quantity_on_hand ?? 0); // Simplified: current stock as beginning
 
             $purchases = StockMovement::where('product_id', $product->id)
                 ->where('movement_type', 'in')
@@ -211,7 +266,7 @@ class StockReportController extends Controller
                 ->where('date', '>=', $startDate)
                 ->sum('total_cost');
 
-            $stockTurnoverRatio = $averageInventory > 0 ? $costOfGoodsSold / ($averageInventory * ($product->unit_cost ?? 1)) : 0; // Using unit cost for value
+            $stockTurnoverRatio = $averageInventory > 0 ? $costOfGoodsSold / ($averageInventory * $valuationCost) : 0;
 
             return [
                 'product_name' => $product->name,
@@ -228,22 +283,5 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/StockTurnover', [
             'stockTurnoverData' => $stockTurnoverData,        ]);
-    }
-
-    public function expiryAlerts(Request $request)
-    {
-        $farmId = $this->scopedFarmId($request);
-
-        $expiryAlerts = StockAlert::with('product')
-            ->when($farmId, function ($query) use ($farmId) {
-                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
-            })
-            ->whereIn('alert_type', ['expired', 'expiring_soon'])
-            ->where('is_resolved', false)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return Inertia::render('Stock/Reports/ExpiryAlerts', [
-            'expiryAlerts' => $expiryAlerts,        ]);
     }
 }

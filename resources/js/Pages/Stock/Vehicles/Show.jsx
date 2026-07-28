@@ -1,15 +1,32 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
+import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
+import TextInput from '@/Components/TextInput';
+import InputLabel from '@/Components/InputLabel';
+import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
 import { VEHICLE_TYPE_LABELS as TYPE_LABELS, FUEL_TYPE_LABELS, ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Show({ auth, vehicle }) {
+export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
-    const { delete: destroy, processing } = useForm();
+    const [isEditing, setIsEditing] = useState(false);
+    const { delete: destroy, processing, errors } = useForm();
+
+    const editForm = useForm({
+        name: vehicle.name,
+        plate_number: vehicle.plate_number,
+        type: vehicle.type,
+        model: vehicle.model || '',
+        fuel_type: vehicle.fuel_type,
+        default_driver_id: vehicle.default_driver_id || '',
+        is_active: vehicle.is_active,
+        notes: vehicle.notes || '',
+    });
 
     const confirmVehicleDeletion = () => setConfirmingVehicleDeletion(true);
     const closeModal = () => setConfirmingVehicleDeletion(false);
@@ -19,9 +36,35 @@ export default function Show({ auth, vehicle }) {
         destroy(route('stock.vehicles.destroy', vehicle.id), {
             preserveScroll: true,
             onSuccess: closeModal,
-            onError: closeModal,
-            onFinish: closeModal,
         });
+    };
+
+    const openEdit = () => {
+        editForm.clearErrors();
+        editForm.setData({
+            name: vehicle.name,
+            plate_number: vehicle.plate_number,
+            type: vehicle.type,
+            model: vehicle.model || '',
+            fuel_type: vehicle.fuel_type,
+            default_driver_id: vehicle.default_driver_id || '',
+            is_active: vehicle.is_active,
+            notes: vehicle.notes || '',
+        });
+        setIsEditing(true);
+    };
+
+    const closeEdit = () => setIsEditing(false);
+
+    const submitEdit = (e) => {
+        e.preventDefault();
+        editForm.put(route('stock.vehicles.update', vehicle.id), {
+            onSuccess: () => closeEdit(),
+        });
+    };
+
+    const handleToggleActive = () => {
+        router.post(route('stock.vehicles.toggle-active', vehicle.id), {}, { preserveScroll: true });
     };
 
     const formatDate = (dateString) => {
@@ -79,15 +122,16 @@ export default function Show({ auth, vehicle }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link
-                            href={route('stock.vehicles.edit', vehicle.id)}
+                        <button
+                            type="button"
+                            onClick={openEdit}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Modifier
-                        </Link>
+                        </button>
                         {auth.user.role !== 'data_entry' && (
                             <DangerButton onClick={confirmVehicleDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
@@ -119,9 +163,16 @@ export default function Show({ auth, vehicle }) {
                                         </div>
                                     </div>
                                 </div>
-                                <span className={`px-4 py-2 rounded-lg font-semibold text-sm ${vehicle.is_active ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>
-                                    {vehicle.is_active ? 'Actif' : 'Inactif'}
-                                </span>
+                                <div className={`px-4 py-2 rounded-lg flex items-center gap-3 ${vehicle.is_active ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                    <span className={`font-semibold text-sm ${vehicle.is_active ? 'text-green-600' : 'text-gray-500'}`}>
+                                        {vehicle.is_active ? 'Actif' : 'Inactif'}
+                                    </span>
+                                    <ToggleSwitch
+                                        checked={vehicle.is_active}
+                                        onChange={handleToggleActive}
+                                        disabled={auth.user.role === 'data_entry'}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -222,8 +273,9 @@ export default function Show({ auth, vehicle }) {
                         Êtes-vous sûr de vouloir supprimer ce véhicule ?
                     </h2>
                     <p className="mt-1 text-sm text-gray-600">
-                        Une fois le véhicule supprimé, toutes ses ressources et données associées seront définitivement effacées.
+                        Cette action est irréversible. La suppression n'est possible que si le véhicule n'a aucun historique (carburant ou sorties de stock).
                     </p>
+                    <InputError message={errors.vehicle} className="mt-2" />
                     <div className="mt-6 flex justify-end">
                         <SecondaryButton onClick={closeModal}>Annuler</SecondaryButton>
                         <DangerButton className="ml-3" disabled={processing}>
@@ -231,6 +283,147 @@ export default function Show({ auth, vehicle }) {
                         </DangerButton>
                     </div>
                 </form>
+            </Modal>
+
+            {/* EDIT VEHICLE MODAL */}
+            <Modal show={isEditing} onClose={closeEdit}>
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-gray-100 rounded-xl flex items-center justify-center">
+                                <svg className="h-6 w-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">Modifier le Véhicule</h3>
+                        </div>
+                        <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <form onSubmit={submitEdit} className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <InputLabel htmlFor="edit_name" value="Nom du Véhicule *" />
+                                <TextInput
+                                    id="edit_name"
+                                    type="text"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.name}
+                                    onChange={(e) => editForm.setData('name', e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                                <InputError message={editForm.errors.name} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_plate_number" value="Plaque d'Immatriculation *" />
+                                <TextInput
+                                    id="edit_plate_number"
+                                    type="text"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.plate_number}
+                                    onChange={(e) => editForm.setData('plate_number', e.target.value)}
+                                    required
+                                />
+                                <InputError message={editForm.errors.plate_number} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_type" value="Type de Véhicule *" />
+                                <select
+                                    id="edit_type"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={editForm.data.type}
+                                    onChange={(e) => editForm.setData('type', e.target.value)}
+                                    required
+                                >
+                                    {types.map((type) => (
+                                        <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
+                                    ))}
+                                </select>
+                                <InputError message={editForm.errors.type} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_fuel_type" value="Type de Carburant *" />
+                                <select
+                                    id="edit_fuel_type"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={editForm.data.fuel_type}
+                                    onChange={(e) => editForm.setData('fuel_type', e.target.value)}
+                                    required
+                                >
+                                    {fuelTypes.map((fuel) => (
+                                        <option key={fuel} value={fuel}>{FUEL_TYPE_LABELS[fuel] || fuel}</option>
+                                    ))}
+                                </select>
+                                <InputError message={editForm.errors.fuel_type} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_model" value="Modèle" />
+                                <TextInput
+                                    id="edit_model"
+                                    type="text"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.model}
+                                    onChange={(e) => editForm.setData('model', e.target.value)}
+                                />
+                                <InputError message={editForm.errors.model} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_default_driver_id" value="Conducteur par Défaut" />
+                                <select
+                                    id="edit_default_driver_id"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={editForm.data.default_driver_id}
+                                    onChange={(e) => editForm.setData('default_driver_id', e.target.value)}
+                                >
+                                    <option value="">-- Sélectionner un conducteur --</option>
+                                    {employees.map((employee) => (
+                                        <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                    ))}
+                                </select>
+                                <InputError message={editForm.errors.default_driver_id} className="mt-2" />
+                            </div>
+
+                            <div className="md:col-span-2">
+                                <InputLabel htmlFor="edit_notes" value="Notes" />
+                                <textarea
+                                    id="edit_notes"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={editForm.data.notes}
+                                    onChange={(e) => editForm.setData('notes', e.target.value)}
+                                    rows="3"
+                                ></textarea>
+                                <InputError message={editForm.errors.notes} className="mt-2" />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                            <div>
+                                <InputLabel htmlFor="edit_is_active" value="Véhicule Actif" className="mb-0" />
+                                <p className="text-xs text-gray-500">Les véhicules inactifs ne sont plus proposés dans les sélections</p>
+                            </div>
+                            <ToggleSwitch
+                                checked={editForm.data.is_active}
+                                onChange={(e) => editForm.setData('is_active', e.target.checked)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                            <SecondaryButton onClick={closeEdit}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={editForm.processing} className="bg-gray-700 hover:bg-gray-800">
+                                {editForm.processing ? 'Mise à jour...' : 'Mettre à Jour le Véhicule'}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                </div>
             </Modal>
         </AuthenticatedLayout>
     );

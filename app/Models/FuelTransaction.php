@@ -47,9 +47,11 @@ class FuelTransaction extends Model
         return $this->belongsTo(Vehicle::class);
     }
 
+    // withTrashed(): see StockMovement::product() — a historical transaction should keep
+    // showing its product's name even after the product is archived.
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     public function driver(): BelongsTo

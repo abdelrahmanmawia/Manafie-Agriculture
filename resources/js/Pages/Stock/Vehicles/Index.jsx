@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -7,6 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatInt } from '@/utils/number';
 import { VEHICLE_TYPE_LABELS as TYPE_LABELS, FUEL_TYPE_LABELS } from '@/utils/stockLabels';
 
@@ -30,27 +31,64 @@ const TYPE_ICON = {
 
 export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
     const [isCreating, setIsCreating] = useState(false);
+    const [editingVehicle, setEditingVehicle] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
 
-    const { data, setData, post, processing, reset, errors } = useForm({
+    const { data, setData, post, put, processing, reset, errors, clearErrors } = useForm({
         name: '',
         plate_number: '',
         type: types.length > 0 ? types[0] : '',
         model: '',
         fuel_type: fuelTypes.length > 0 ? fuelTypes[0] : '',
         default_driver_id: '',
+        is_active: true,
         notes: '',
     });
 
+    const openCreate = () => {
+        setEditingVehicle(null);
+        clearErrors();
+        reset();
+        setIsCreating(true);
+    };
+
+    const openEdit = (vehicle) => {
+        setEditingVehicle(vehicle);
+        clearErrors();
+        setData({
+            name: vehicle.name,
+            plate_number: vehicle.plate_number,
+            type: vehicle.type,
+            model: vehicle.model || '',
+            fuel_type: vehicle.fuel_type,
+            default_driver_id: vehicle.default_driver_id || '',
+            is_active: vehicle.is_active,
+            notes: vehicle.notes || '',
+        });
+        setIsCreating(true);
+    };
+
+    const closeVehicleModal = () => {
+        setIsCreating(false);
+        setEditingVehicle(null);
+    };
+
     const submit = (e) => {
         e.preventDefault();
-        post(route('stock.vehicles.store'), {
-            onSuccess: () => {
-                reset();
-                setIsCreating(false);
-            },
-        });
+        if (editingVehicle) {
+            put(route('stock.vehicles.update', editingVehicle.id), {
+                onSuccess: () => closeVehicleModal(),
+            });
+        } else {
+            post(route('stock.vehicles.store'), {
+                onSuccess: () => closeVehicleModal(),
+            });
+        }
+    };
+
+    const handleToggleActive = (vehicle) => {
+        router.post(route('stock.vehicles.toggle-active', vehicle.id), {}, { preserveScroll: true });
     };
 
     const filteredVehicles = vehicles.filter((vehicle) => {
@@ -74,7 +112,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                     </div>
                     {auth.user.role !== 'data_entry' && (
                         <button
-                            onClick={() => setIsCreating(true)}
+                            onClick={openCreate}
                             className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,7 +215,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">{TYPE_ICON.other}</svg>
                                 <p className="mt-4 text-gray-500">Aucun véhicule trouvé</p>
                                 {auth.user.role !== 'data_entry' && (
-                                    <button onClick={() => setIsCreating(true)} className="mt-4 text-gray-700 hover:text-gray-900 font-medium">
+                                    <button onClick={openCreate} className="mt-4 text-gray-700 hover:text-gray-900 font-medium">
                                         Ajouter votre premier véhicule
                                     </button>
                                 )}
@@ -197,7 +235,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {filteredVehicles.map((vehicle) => (
-                                            <tr key={vehicle.id} className="hover:bg-gray-50 transition-colors">
+                                            <tr key={vehicle.id} className={`hover:bg-gray-50 transition-colors ${!vehicle.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center">
                                                         <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -221,9 +259,11 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                                     {vehicle.default_driver?.full_name || 'N/A'}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                                                        {vehicle.is_active ? 'Actif' : 'Inactif'}
-                                                    </span>
+                                                    <ToggleSwitch
+                                                        checked={vehicle.is_active}
+                                                        onChange={() => handleToggleActive(vehicle)}
+                                                        disabled={auth.user.role === 'data_entry'}
+                                                    />
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex items-center justify-end space-x-2">
@@ -237,15 +277,16 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                             </svg>
                                                         </Link>
-                                                        <Link
-                                                            href={route('stock.vehicles.edit', vehicle.id)}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEdit(vehicle)}
                                                             className="text-gray-400 hover:text-blue-600 transition-colors"
                                                             title="Modifier"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                             </svg>
-                                                        </Link>
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -258,8 +299,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                 </div>
             </div>
 
-            {/* CREATE VEHICLE MODAL */}
-            <Modal show={isCreating} onClose={() => setIsCreating(false)}>
+            {/* CREATE / EDIT VEHICLE MODAL */}
+            <Modal show={isCreating} onClose={closeVehicleModal}>
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
@@ -268,9 +309,9 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">Ajouter un Nouveau Véhicule</h3>
+                            <h3 className="text-xl font-bold text-gray-800">{editingVehicle ? 'Modifier le Véhicule' : 'Ajouter un Nouveau Véhicule'}</h3>
                         </div>
-                        <button onClick={() => setIsCreating(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                        <button onClick={closeVehicleModal} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -378,10 +419,25 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                             </div>
                         </div>
 
+                        {editingVehicle && (
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                                <div>
+                                    <InputLabel htmlFor="is_active" value="Véhicule Actif" className="mb-0" />
+                                    <p className="text-xs text-gray-500">Les véhicules inactifs ne sont plus proposés dans les sélections</p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={data.is_active}
+                                    onChange={(e) => setData('is_active', e.target.checked)}
+                                />
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
-                            <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
+                            <SecondaryButton onClick={closeVehicleModal}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing} className="bg-gray-700 hover:bg-gray-800">
-                                {processing ? 'Ajout en cours...' : 'Ajouter le Véhicule'}
+                                {processing
+                                    ? (editingVehicle ? 'Mise à jour...' : 'Ajout en cours...')
+                                    : (editingVehicle ? 'Mettre à Jour le Véhicule' : 'Ajouter le Véhicule')}
                             </PrimaryButton>
                         </div>
                     </form>

@@ -4,8 +4,6 @@ import { formatInt, formatNumber } from '@/utils/number';
 
 const ALERT_LABELS = {
     low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
-    expired: { label: 'Expiré', className: 'bg-gray-200 text-gray-700' },
-    expiring_soon: { label: 'Expire bientôt', className: 'bg-amber-100 text-amber-700' },
 };
 
 const MOVEMENT_LABELS = {

@@ -31,19 +31,12 @@ export default function Index({ auth }) {
             icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
             color: 'bg-orange-500'
         },
-        { 
-            name: 'Rotation des Stocks', 
-            description: 'Mesure de la fréquence de renouvellement des stocks.', 
+        {
+            name: 'Rotation des Stocks',
+            description: 'Mesure de la fréquence de renouvellement des stocks.',
             route: 'stock.reports.stock-turnover',
             icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
             color: 'bg-indigo-500'
-        },
-        { 
-            name: 'Alertes d\'Expiration', 
-            description: 'Liste des produits expirés ou proches de l\'expiration.', 
-            route: 'stock.reports.expiry-alerts',
-            icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-            color: 'bg-red-500'
         },
     ];
 

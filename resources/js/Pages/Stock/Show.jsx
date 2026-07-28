@@ -1,17 +1,33 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
+import TextInput from '@/Components/TextInput';
+import InputLabel from '@/Components/InputLabel';
+import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { CATEGORY_LABELS, UNIT_TYPE_LABELS, ALERT_TYPE_LABELS, MOVEMENT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Show({ auth, product }) {
+export default function Show({ auth, product, categories, unitTypes }) {
     const [confirmingProductDeletion, setConfirmingProductDeletion] = useState(false);
     const [showImagePreview, setShowImagePreview] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [imagePreview, setImagePreview] = useState(null);
     const { delete: destroy, processing } = useForm();
+
+    const editForm = useForm({
+        name: product.name,
+        image: null,
+        category: product.category,
+        unit_type: product.unit_type,
+        min_stock_level: product.min_stock_level || 0,
+        unit_cost: product.unit_cost || '',
+        is_active: product.is_active,
+    });
 
     const confirmProductDeletion = () => {
         setConfirmingProductDeletion(true);
@@ -29,6 +45,43 @@ export default function Show({ auth, product }) {
 
     const closeModal = () => {
         setConfirmingProductDeletion(false);
+    };
+
+    const openEdit = () => {
+        editForm.clearErrors();
+        editForm.setData({
+            name: product.name,
+            image: null,
+            category: product.category,
+            unit_type: product.unit_type,
+            min_stock_level: product.min_stock_level || 0,
+            unit_cost: product.unit_cost || '',
+            is_active: product.is_active,
+        });
+        setImagePreview(null);
+        setIsEditing(true);
+    };
+
+    const closeEdit = () => {
+        setIsEditing(false);
+        setImagePreview(null);
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0] ?? null;
+        editForm.setData('image', file);
+        setImagePreview(file ? URL.createObjectURL(file) : null);
+    };
+
+    const submitEdit = (e) => {
+        e.preventDefault();
+        editForm.put(route('stock.products.update', product.id), {
+            onSuccess: () => closeEdit(),
+        });
+    };
+
+    const handleToggleActive = () => {
+        router.post(route('stock.products.toggle-active', product.id), {}, { preserveScroll: true });
     };
 
     // Product.stockInventory() is a hasMany — always exactly one row in practice (no
@@ -86,15 +139,16 @@ export default function Show({ auth, product }) {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Link
-                            href={route('stock.products.edit', product.id)}
+                        <button
+                            type="button"
+                            onClick={openEdit}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Modifier
-                        </Link>
+                        </button>
                         {auth.user.role !== 'data_entry' && (
                             <DangerButton onClick={confirmProductDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
@@ -142,21 +196,16 @@ export default function Show({ auth, product }) {
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
                                                 {CATEGORY_LABELS[product.category] || product.category}
                                             </span>
-                                            {product.is_active ? (
-                                                <span className="flex items-center text-green-600 text-sm">
-                                                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Actif
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-sm ${product.is_active ? 'text-green-600' : 'text-gray-400'}`}>
+                                                    {product.is_active ? 'Actif' : 'Inactif'}
                                                 </span>
-                                            ) : (
-                                                <span className="flex items-center text-gray-400 text-sm">
-                                                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
-                                                    Inactif
-                                                </span>
-                                            )}
+                                                <ToggleSwitch
+                                                    checked={product.is_active}
+                                                    onChange={handleToggleActive}
+                                                    disabled={auth.user.role === 'data_entry'}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -361,6 +410,142 @@ export default function Show({ auth, product }) {
                         </DangerButton>
                     </div>
                 </form>
+            </Modal>
+
+            {/* EDIT PRODUCT MODAL */}
+            <Modal show={isEditing} onClose={closeEdit}>
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">Modifier le Produit</h3>
+                        </div>
+                        <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <form onSubmit={submitEdit} className="space-y-6">
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <InputLabel htmlFor="edit_name" value="Nom du Produit *" />
+                                    <TextInput
+                                        id="edit_name"
+                                        type="text"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.name}
+                                        onChange={(e) => editForm.setData('name', e.target.value)}
+                                        required
+                                        autoFocus
+                                    />
+                                    <InputError message={editForm.errors.name} className="mt-2" />
+                                </div>
+
+                                <div className="md:col-span-2">
+                                    <InputLabel htmlFor="edit_image" value="Photo du Produit" />
+                                    <div className="mt-1 flex items-center gap-4">
+                                        {(imagePreview || product.image_url) && (
+                                            <img src={imagePreview || product.image_url} alt="Aperçu" className="h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                                        )}
+                                        <input
+                                            id="edit_image"
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageChange}
+                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                        />
+                                    </div>
+                                    <InputError message={editForm.errors.image} className="mt-2" />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="edit_category" value="Catégorie *" />
+                                    <select
+                                        id="edit_category"
+                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        value={editForm.data.category}
+                                        onChange={(e) => editForm.setData('category', e.target.value)}
+                                        required
+                                    >
+                                        {categories.map((cat) => (
+                                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+                                        ))}
+                                    </select>
+                                    <InputError message={editForm.errors.category} className="mt-2" />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="edit_unit_type" value="Type d'Unité *" />
+                                    <select
+                                        id="edit_unit_type"
+                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        value={editForm.data.unit_type}
+                                        onChange={(e) => editForm.setData('unit_type', e.target.value)}
+                                        required
+                                    >
+                                        {unitTypes.map((unit) => (
+                                            <option key={unit} value={unit}>{UNIT_TYPE_LABELS[unit] || unit}</option>
+                                        ))}
+                                    </select>
+                                    <InputError message={editForm.errors.unit_type} className="mt-2" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-gray-50 rounded-xl p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <InputLabel htmlFor="edit_min_stock_level" value="Stock Minimum" />
+                                    <TextInput
+                                        id="edit_min_stock_level"
+                                        type="number"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.min_stock_level}
+                                        onChange={(e) => editForm.setData('min_stock_level', e.target.value)}
+                                    />
+                                    <InputError message={editForm.errors.min_stock_level} className="mt-2" />
+                                </div>
+
+                                <div>
+                                    <InputLabel htmlFor="edit_unit_cost" value="Coût Unitaire (MAD)" />
+                                    <TextInput
+                                        id="edit_unit_cost"
+                                        type="number"
+                                        step="0.01"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.unit_cost}
+                                        onChange={(e) => editForm.setData('unit_cost', e.target.value)}
+                                    />
+                                    <InputError message={editForm.errors.unit_cost} className="mt-2" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                            <div>
+                                <InputLabel htmlFor="edit_is_active" value="Produit Actif" className="mb-0" />
+                                <p className="text-xs text-gray-500">Les produits inactifs ne sont plus proposés dans les sélections</p>
+                            </div>
+                            <ToggleSwitch
+                                checked={editForm.data.is_active}
+                                onChange={(e) => editForm.setData('is_active', e.target.checked)}
+                            />
+                        </div>
+
+                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                            <SecondaryButton onClick={closeEdit}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={editForm.processing} className="bg-blue-600 hover:bg-blue-700">
+                                {editForm.processing ? 'Mise à jour...' : 'Mettre à Jour le Produit'}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                </div>
             </Modal>
 
             {product.image_url && showImagePreview && (

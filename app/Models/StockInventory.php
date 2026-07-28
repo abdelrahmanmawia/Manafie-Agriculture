@@ -32,18 +32,11 @@ class StockInventory extends Model
         'expiry_date' => 'date',
     ];
 
+    // withTrashed(): see StockMovement::product() — StockInventory has no farm_id of its
+    // own, so whereHas('product', ...) farm-scoping would otherwise silently drop the
+    // inventory row for a product that's since been archived.
     public function product()
     {
-        return $this->belongsTo(Product::class);
-    }
-
-    public function isExpiringSoon($days = 30)
-    {
-        return $this->expiry_date && $this->expiry_date <= now()->addDays($days);
-    }
-
-    public function isExpired()
-    {
-        return $this->expiry_date && $this->expiry_date < now();
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 }

@@ -107,17 +107,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/products/unit-types', [ProductController::class, 'unitTypes'])->name('stock.products.unit-types');
     Route::get('/stock/products/low-stock', [ProductController::class, 'lowStock'])->name('stock.products.low-stock');
     Route::get('/stock/products/{product}', [ProductController::class, 'show'])->name('stock.products.show');
-    Route::get('/stock/products/{product}/edit', [ProductController::class, 'edit'])->name('stock.products.edit');
     Route::put('/stock/products/{product}', [ProductController::class, 'update'])->name('stock.products.update');
     Route::delete('/stock/products/{product}', [ProductController::class, 'destroy'])->name('stock.products.destroy');
+    Route::post('/stock/products/{product}/toggle-active', [ProductController::class, 'toggleActive'])->name('stock.products.toggle-active');
 
     // Stock Management - Vehicles
     Route::get('/stock/vehicles', [VehicleController::class, 'index'])->name('stock.vehicles.index');
     Route::post('/stock/vehicles', [VehicleController::class, 'store'])->name('stock.vehicles.store');
     Route::get('/stock/vehicles/{vehicle}', [VehicleController::class, 'show'])->name('stock.vehicles.show');
-    Route::get('/stock/vehicles/{vehicle}/edit', [VehicleController::class, 'edit'])->name('stock.vehicles.edit');
     Route::put('/stock/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('stock.vehicles.update');
     Route::delete('/stock/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('stock.vehicles.destroy');
+    Route::post('/stock/vehicles/{vehicle}/toggle-active', [VehicleController::class, 'toggleActive'])->name('stock.vehicles.toggle-active');
 
     // Stock Management - Inventory
     Route::get('/stock/inventory', [StockInventoryController::class, 'index'])->name('stock.inventory.index');
@@ -156,7 +156,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/reports/consumption-by-operation', [StockReportController::class, 'consumptionByOperation'])->name('stock.reports.consumption-by-operation');
     Route::get('/stock/reports/cost-per-hectare', [StockReportController::class, 'costPerHectare'])->name('stock.reports.cost-per-hectare');
     Route::get('/stock/reports/stock-turnover', [StockReportController::class, 'stockTurnover'])->name('stock.reports.stock-turnover');
-    Route::get('/stock/reports/expiry-alerts', [StockReportController::class, 'expiryAlerts'])->name('stock.reports.expiry-alerts');
     }); // end farm.selected group
 });
 

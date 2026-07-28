@@ -25,9 +25,12 @@ class StockAlert extends Model
         'resolved_at' => 'datetime',
     ];
 
+    // withTrashed(): see StockMovement::product() — StockAlert has no farm_id of its own,
+    // so whereHas('product', ...) farm-scoping would otherwise silently drop alerts whose
+    // product has since been archived.
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     public function scopeUnresolved($query)
@@ -38,16 +41,6 @@ class StockAlert extends Model
     public function scopeLowStock($query)
     {
         return $query->where('alert_type', 'low_stock');
-    }
-
-    public function scopeExpired($query)
-    {
-        return $query->where('alert_type', 'expired');
-    }
-
-    public function scopeExpiringSoon($query)
-    {
-        return $query->where('alert_type', 'expiring_soon');
     }
 
     public function resolve()

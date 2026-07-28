@@ -30,7 +30,9 @@ class VehicleController extends Controller
 
         $types = $this->types()->original;
         $fuelTypes = $this->fuelTypes()->original;
-        $employees = Employee::when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))->get(['id', 'full_name']);
+        $employees = Employee::where('is_active', true)
+            ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
+            ->get(['id', 'full_name']);
 
         return Inertia::render('Stock/Vehicles/Index', [
             'vehicles' => $vehicles,
@@ -66,6 +68,10 @@ class VehicleController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'plate_number' => 'required|string|unique:vehicles,plate_number',
@@ -103,23 +109,34 @@ class VehicleController extends Controller
             'manualStockEntries.stockMovement'
         );
 
+        // Keep the vehicle's currently assigned driver selectable even if they've since gone
+        // inactive, so editing the vehicle doesn't silently drop that field.
+        $employees = Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $vehicle->farm_id))
+            ->where(function ($q) use ($vehicle) {
+                $q->where('is_active', true);
+                if ($vehicle->default_driver_id) {
+                    $q->orWhere('id', $vehicle->default_driver_id);
+                }
+            })
+            ->get(['id', 'full_name']);
+
         return Inertia::render('Stock/Vehicles/Show', [
             'vehicle' => $vehicle,
+            'types' => $this->types()->original,
+            'fuelTypes' => $this->fuelTypes()->original,
+            'employees' => $employees,
         ]);
     }
 
-    public function edit(Vehicle $vehicle)
+    public function toggleActive(Request $request, Vehicle $vehicle)
     {
-        $types = $this->types()->original;
-        $fuelTypes = $this->fuelTypes()->original;
-        $employees = Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $vehicle->farm_id))->get(['id', 'full_name']);
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
 
-        return Inertia::render('Stock/Vehicles/Edit', [
-            'vehicle' => $vehicle,
-            'types' => $types,
-            'fuelTypes' => $fuelTypes,
-            'employees' => $employees,
-        ]);
+        $vehicle->update(['is_active' => !$vehicle->is_active]);
+
+        return redirect()->back();
     }
 
     public function update(Request $request, Vehicle $vehicle)
@@ -137,11 +154,25 @@ class VehicleController extends Controller
 
         $vehicle->update($validated);
 
-        return redirect()->route('stock.vehicles.show', $vehicle);
+        return redirect()->back();
     }
 
-    public function destroy(Vehicle $vehicle)
+    public function destroy(Request $request, Vehicle $vehicle)
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
+        // Vehicle has no soft-deletes, and fuel_transactions/manual_stock_entries reference it
+        // with no cascade — the DB would already reject this delete via a foreign key
+        // violation, but check up front so the magasinier gets an actionable message instead
+        // of a crash.
+        if ($vehicle->fuelTransactions()->exists() || $vehicle->manualStockEntries()->exists()) {
+            return redirect()->back()->withErrors([
+                'vehicle' => 'Ce véhicule a un historique (carburant ou sorties de stock) et ne peut pas être supprimé. Désactivez-le plutôt depuis "Modifier".',
+            ]);
+        }
+
         $vehicle->delete();
 
         return redirect()->route('stock.vehicles.index');

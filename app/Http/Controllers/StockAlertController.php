@@ -48,6 +48,10 @@ class StockAlertController extends Controller
 
     public function resolve(Request $request, StockAlert $alert)
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
         $alert->update([
             'is_resolved' => true,
             'resolved_at' => now(),

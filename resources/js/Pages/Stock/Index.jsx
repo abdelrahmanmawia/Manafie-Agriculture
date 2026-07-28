@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm, usePage } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -7,23 +7,26 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { CATEGORY_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
 export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations }) {
     const [isCreating, setIsCreating] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [imagePreview, setImagePreview] = useState(null);
     const [movementModal, setMovementModal] = useState(null); // { product, type: 'in' | 'out' }
 
-    const { data, setData, post, processing, reset, errors } = useForm({
+    const { data, setData, post, put, processing, reset, errors, clearErrors } = useForm({
         name: '',
         image: null,
         category: categories.length > 0 ? categories[0] : '',
         unit_type: unitTypes.length > 0 ? unitTypes[0] : '',
         min_stock_level: 0,
         unit_cost: '',
+        is_active: true,
     });
 
     // "Entrée" (réception) — a delivery arriving at the magasin
@@ -57,21 +60,64 @@ export default function Index({ auth, products, categories, unitTypes, employees
     // A tractor/truck works a field (bloc/opération apply); a car/van is just transport (they don't).
     const sortieHidesFieldContext = sortieSelectedVehicle && ['car', 'van'].includes(sortieSelectedVehicle.type);
 
+    const sortieFilteredSectors = sortieForm.data.bloc_id
+        ? sectors.filter((sector) => String(sector.bloc_id) === String(sortieForm.data.bloc_id))
+        : [];
+    const sortieFilteredParcelles = sortieForm.data.sector_id
+        ? parcelles.filter((parcelle) => String(parcelle.sector_id) === String(sortieForm.data.sector_id))
+        : [];
+
     const handleImageChange = (e) => {
         const file = e.target.files[0] ?? null;
         setData('image', file);
         setImagePreview(file ? URL.createObjectURL(file) : null);
     };
 
+    const openCreate = () => {
+        setEditingProduct(null);
+        clearErrors();
+        reset();
+        setImagePreview(null);
+        setIsCreating(true);
+    };
+
+    const openEdit = (product) => {
+        setEditingProduct(product);
+        clearErrors();
+        setData({
+            name: product.name,
+            image: null,
+            category: product.category,
+            unit_type: product.unit_type,
+            min_stock_level: product.min_stock_level || 0,
+            unit_cost: product.unit_cost || '',
+            is_active: product.is_active,
+        });
+        setImagePreview(null);
+        setIsCreating(true);
+    };
+
+    const closeProductModal = () => {
+        setIsCreating(false);
+        setEditingProduct(null);
+        setImagePreview(null);
+    };
+
     const submit = (e) => {
         e.preventDefault();
-        post(route('stock.products.store'), {
-            onSuccess: () => {
-                reset();
-                setImagePreview(null);
-                setIsCreating(false);
-            },
-        });
+        if (editingProduct) {
+            put(route('stock.products.update', editingProduct.id), {
+                onSuccess: () => closeProductModal(),
+            });
+        } else {
+            post(route('stock.products.store'), {
+                onSuccess: () => closeProductModal(),
+            });
+        }
+    };
+
+    const handleToggleActive = (product) => {
+        router.post(route('stock.products.toggle-active', product.id), {}, { preserveScroll: true });
     };
 
     const openMovementModal = (product, type) => {
@@ -172,7 +218,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                     </div>
                     {auth.user.role !== 'data_entry' && (
                         <button
-                            onClick={() => setIsCreating(true)}
+                            onClick={openCreate}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -239,7 +285,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                 <p className="mt-4 text-gray-500">Aucun produit trouvé</p>
                                 {auth.user.role !== 'data_entry' && (
                                     <button
-                                        onClick={() => setIsCreating(true)}
+                                        onClick={openCreate}
                                         className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
                                     >
                                         Ajouter votre premier produit
@@ -266,6 +312,9 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Prix Unitaire
                                             </th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                Actif
+                                            </th>
                                             <th scope="col" className="relative px-6 py-3">
                                                 <span className="sr-only">Actions</span>
                                             </th>
@@ -275,7 +324,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                         {filteredProducts.map((product) => {
                                             const stockStatus = getStockStatus(product);
                                             return (
-                                                <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                                                <tr key={product.id} className={`hover:bg-gray-50 transition-colors ${!product.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                                     <td className="px-6 py-4">
                                                         <div className="flex items-center">
                                                             {product.image_url ? (
@@ -316,6 +365,13 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         {product.unit_cost ? formatMAD(product.unit_cost) : 'N/A'}
                                                     </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <ToggleSwitch
+                                                            checked={product.is_active}
+                                                            onChange={() => handleToggleActive(product)}
+                                                            disabled={auth.user.role === 'data_entry'}
+                                                        />
+                                                    </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex items-center justify-end space-x-2">
                                                             <button
@@ -346,15 +402,16 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                                 </svg>
                                                             </Link>
-                                                            <Link
-                                                                href={route('stock.products.edit', product.id)}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openEdit(product)}
                                                                 className="text-gray-400 hover:text-gray-700 transition-colors"
                                                                 title="Modifier"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                 </svg>
-                                                            </Link>
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -368,8 +425,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                 </div>
             </div>
 
-            {/* CREATE PRODUCT MODAL */}
-            <Modal show={isCreating} onClose={() => setIsCreating(false)}>
+            {/* CREATE / EDIT PRODUCT MODAL */}
+            <Modal show={isCreating} onClose={closeProductModal}>
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
@@ -378,10 +435,10 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">Ajouter un Nouveau Produit</h3>
+                            <h3 className="text-xl font-bold text-gray-800">{editingProduct ? 'Modifier le Produit' : 'Ajouter un Nouveau Produit'}</h3>
                         </div>
                         <button
-                            onClick={() => setIsCreating(false)}
+                            onClick={closeProductModal}
                             className="text-gray-400 hover:text-gray-600 transition-colors"
                         >
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -417,8 +474,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                 <div className="md:col-span-2">
                                     <InputLabel htmlFor="image" value="Photo du Produit" />
                                     <div className="mt-1 flex items-center gap-4">
-                                        {imagePreview && (
-                                            <img src={imagePreview} alt="Aperçu" className="h-16 w-16 rounded-lg object-cover border border-gray-200" />
+                                        {(imagePreview || editingProduct?.image_url) && (
+                                            <img src={imagePreview || editingProduct.image_url} alt="Aperçu" className="h-16 w-16 rounded-lg object-cover border border-gray-200" />
                                         )}
                                         <input
                                             id="image"
@@ -503,10 +560,25 @@ export default function Index({ auth, products, categories, unitTypes, employees
                             </div>
                         </div>
 
+                        {editingProduct && (
+                            <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                                <div>
+                                    <InputLabel htmlFor="is_active" value="Produit Actif" className="mb-0" />
+                                    <p className="text-xs text-gray-500">Les produits inactifs ne sont plus proposés dans les sélections</p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={data.is_active}
+                                    onChange={(e) => setData('is_active', e.target.checked)}
+                                />
+                            </div>
+                        )}
+
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
-                            <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
+                            <SecondaryButton onClick={closeProductModal}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing} className="bg-blue-600 hover:bg-blue-700">
-                                {processing ? 'Création en cours...' : 'Ajouter le Produit'}
+                                {processing
+                                    ? (editingProduct ? 'Mise à jour...' : 'Création en cours...')
+                                    : (editingProduct ? 'Mettre à Jour le Produit' : 'Ajouter le Produit')}
                             </PrimaryButton>
                         </div>
                     </form>
@@ -753,7 +825,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                         id="sortie_bloc_id"
                                                         className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
                                                         value={sortieForm.data.bloc_id}
-                                                        onChange={(e) => sortieForm.setData('bloc_id', e.target.value)}
+                                                        onChange={(e) => sortieForm.setData((prev) => ({ ...prev, bloc_id: e.target.value, sector_id: '', parcelle_id: '' }))}
                                                     >
                                                         <option value="">-- Sélectionner --</option>
                                                         {blocs.map((bloc) => (
@@ -766,12 +838,13 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                     <InputLabel htmlFor="sortie_sector_id" value="Secteur" />
                                                     <select
                                                         id="sortie_sector_id"
-                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                         value={sortieForm.data.sector_id}
-                                                        onChange={(e) => sortieForm.setData('sector_id', e.target.value)}
+                                                        onChange={(e) => sortieForm.setData((prev) => ({ ...prev, sector_id: e.target.value, parcelle_id: '' }))}
+                                                        disabled={!sortieForm.data.bloc_id}
                                                     >
-                                                        <option value="">-- Sélectionner --</option>
-                                                        {sectors.map((sector) => (
+                                                        <option value="">{sortieForm.data.bloc_id ? '-- Sélectionner --' : '-- Choisir un bloc d\'abord --'}</option>
+                                                        {sortieFilteredSectors.map((sector) => (
                                                             <option key={sector.id} value={sector.id}>{sector.name}</option>
                                                         ))}
                                                     </select>
@@ -781,12 +854,13 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                     <InputLabel htmlFor="sortie_parcelle_id" value="Parcelle" />
                                                     <select
                                                         id="sortie_parcelle_id"
-                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                        className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                         value={sortieForm.data.parcelle_id}
                                                         onChange={(e) => sortieForm.setData('parcelle_id', e.target.value)}
+                                                        disabled={!sortieForm.data.sector_id}
                                                     >
-                                                        <option value="">-- Sélectionner --</option>
-                                                        {parcelles.map((parcelle) => (
+                                                        <option value="">{sortieForm.data.sector_id ? '-- Sélectionner --' : '-- Choisir un secteur d\'abord --'}</option>
+                                                        {sortieFilteredParcelles.map((parcelle) => (
                                                             <option key={parcelle.id} value={parcelle.id}>{parcelle.name}</option>
                                                         ))}
                                                     </select>

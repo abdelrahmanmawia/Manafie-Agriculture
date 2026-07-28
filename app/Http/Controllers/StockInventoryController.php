@@ -7,8 +7,10 @@ use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\StockInventory;
 use App\Models\Product;
+use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia; // Import Inertia
 
 class StockInventoryController extends Controller
@@ -27,8 +29,11 @@ class StockInventoryController extends Controller
         }
 
         if ($request->has('low_stock')) {
+            // quantity_on_hand lives on stock_inventory (this table), min_stock_level on
+            // products — whereColumn inside whereHas previously compared both names against
+            // the products table alone, which has no quantity_on_hand column.
             $query->whereHas('product', function ($q) {
-                $q->whereColumn('quantity_on_hand', '<=', 'min_stock_level');
+                $q->whereColumn('products.min_stock_level', '>=', 'stock_inventory.quantity_on_hand');
             });
         }
 
@@ -58,78 +63,98 @@ class StockInventoryController extends Controller
 
     public function adjust(Request $request): JsonResponse
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric',
+            'quantity' => 'required|numeric|min:0',
             'reason' => 'required|string|max:255',
         ]);
 
-        $product = Product::findOrFail($validated['product_id']);
+        $inventory = DB::transaction(function () use ($validated, $request) {
+            $product = Product::findOrFail($validated['product_id']);
 
-        $inventory = StockInventory::firstOrCreate(
-            ['product_id' => $product->id],
-            [
-                'quantity_on_hand' => 0,
-                'quantity_reserved' => 0,
-            ]
-        );
+            $inventory = StockInventory::firstOrCreate(
+                ['product_id' => $product->id],
+                [
+                    'quantity_on_hand' => 0,
+                    'quantity_reserved' => 0,
+                ]
+            );
 
-        $oldQuantity = $inventory->quantity_on_hand;
-        $inventory->quantity_on_hand = $validated['quantity'];
-        $inventory->last_count_date = now();
-        $inventory->save();
+            $oldQuantity = $inventory->quantity_on_hand;
+            $inventory->quantity_on_hand = $validated['quantity'];
+            $inventory->last_count_date = now();
+            $inventory->save();
 
-        // Create stock movement for adjustment
-        $movement = $inventory->product->stockMovements()->create([
-            'movement_type' => 'adjustment',
-            'quantity' => $validated['quantity'] - $oldQuantity,
-            'unit_cost' => $product->unit_cost,
-            'total_cost' => $product->unit_cost * ($validated['quantity'] - $oldQuantity),
-            'performed_by' => $request->user()->id,
-            'date' => now(),
-            'notes' => "Manual adjustment: {$validated['reason']}",
-        ]);
+            // Create stock movement for adjustment
+            $inventory->product->stockMovements()->create([
+                'movement_type' => 'adjustment',
+                'quantity' => $validated['quantity'] - $oldQuantity,
+                'unit_cost' => $product->unit_cost,
+                'total_cost' => $product->unit_cost * ($validated['quantity'] - $oldQuantity),
+                'performed_by' => $request->user()->id,
+                'date' => now(),
+                'notes' => "Manual adjustment: {$validated['reason']}",
+            ]);
+
+            StockAlertService::syncLowStock($product);
+
+            return $inventory;
+        });
 
         return response()->json($inventory);
     }
 
     public function count(Request $request): JsonResponse
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'counted_quantity' => 'required|numeric',
+            'counted_quantity' => 'required|numeric|min:0',
             'batch_number' => 'nullable|string',
         ]);
 
-        $product = Product::findOrFail($validated['product_id']);
+        $inventory = DB::transaction(function () use ($validated, $request) {
+            $product = Product::findOrFail($validated['product_id']);
 
-        $inventory = StockInventory::firstOrCreate(
-            [
-                'product_id' => $product->id,
-                'batch_number' => $validated['batch_number'] ?? null,
-            ],
-            [
-                'quantity_on_hand' => 0,
-                'quantity_reserved' => 0,
-            ]
-        );
+            $inventory = StockInventory::firstOrCreate(
+                [
+                    'product_id' => $product->id,
+                    'batch_number' => $validated['batch_number'] ?? null,
+                ],
+                [
+                    'quantity_on_hand' => 0,
+                    'quantity_reserved' => 0,
+                ]
+            );
 
-        $oldQuantity = $inventory->quantity_on_hand;
-        $inventory->quantity_on_hand = $validated['counted_quantity'];
-        $inventory->last_count_date = now();
-        $inventory->save();
+            $oldQuantity = $inventory->quantity_on_hand;
+            $inventory->quantity_on_hand = $validated['counted_quantity'];
+            $inventory->last_count_date = now();
+            $inventory->save();
 
-        // Create stock movement for count adjustment
-        $difference = $validated['counted_quantity'] - $oldQuantity;
-        $inventory->product->stockMovements()->create([
-            'movement_type' => 'adjustment',
-            'quantity' => $difference,
-            'unit_cost' => $product->unit_cost,
-            'total_cost' => $product->unit_cost * $difference,
-            'performed_by' => $request->user()->id,
-            'date' => now(),
-            'notes' => "Stock count adjustment. Previous: {$oldQuantity}, Counted: {$validated['counted_quantity']}",
-        ]);
+            // Create stock movement for count adjustment
+            $difference = $validated['counted_quantity'] - $oldQuantity;
+            $inventory->product->stockMovements()->create([
+                'movement_type' => 'adjustment',
+                'quantity' => $difference,
+                'unit_cost' => $product->unit_cost,
+                'total_cost' => $product->unit_cost * $difference,
+                'performed_by' => $request->user()->id,
+                'date' => now(),
+                'notes' => "Stock count adjustment. Previous: {$oldQuantity}, Counted: {$validated['counted_quantity']}",
+            ]);
+
+            StockAlertService::syncLowStock($product);
+
+            return $inventory;
+        });
 
         return response()->json($inventory);
     }

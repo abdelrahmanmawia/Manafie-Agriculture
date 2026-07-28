@@ -39,8 +39,6 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
         switch (alert.alert_type) {
             case 'low_stock': return 'bg-red-100 text-red-800';
             case 'overstock': return 'bg-yellow-100 text-yellow-800';
-            case 'expired': return 'bg-red-200 text-red-900';
-            case 'expiring_soon': return 'bg-orange-100 text-orange-800';
             default: return 'bg-blue-100 text-blue-800';
         }
     };

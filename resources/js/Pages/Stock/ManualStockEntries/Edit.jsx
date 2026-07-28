@@ -29,6 +29,13 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
     const selectedVehicle = vehicles.find((v) => String(v.id) === String(data.vehicle_id));
     const hidesFieldContext = selectedVehicle && ['car', 'van'].includes(selectedVehicle.type);
 
+    const filteredSectors = data.bloc_id
+        ? sectors.filter((sector) => String(sector.bloc_id) === String(data.bloc_id))
+        : [];
+    const filteredParcelles = data.sector_id
+        ? parcelles.filter((parcelle) => String(parcelle.sector_id) === String(data.sector_id))
+        : [];
+
     const submit = (e) => {
         e.preventDefault();
         put(route('stock.manual-entries.update', manualStockEntry.id));
@@ -182,7 +189,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                     id="bloc_id"
                                                     className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                                                     value={data.bloc_id}
-                                                    onChange={(e) => setData('bloc_id', e.target.value)}
+                                                    onChange={(e) => setData((prev) => ({ ...prev, bloc_id: e.target.value, sector_id: '', parcelle_id: '' }))}
                                                 >
                                                     <option value="">-- Sélectionner un bloc --</option>
                                                     {blocs.map((bloc) => (
@@ -195,12 +202,13 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                 <InputLabel htmlFor="sector_id" value="Secteur" />
                                                 <select
                                                     id="sector_id"
-                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                     value={data.sector_id}
-                                                    onChange={(e) => setData('sector_id', e.target.value)}
+                                                    onChange={(e) => setData((prev) => ({ ...prev, sector_id: e.target.value, parcelle_id: '' }))}
+                                                    disabled={!data.bloc_id}
                                                 >
-                                                    <option value="">-- Sélectionner un secteur --</option>
-                                                    {sectors.map((sector) => (
+                                                    <option value="">{data.bloc_id ? '-- Sélectionner un secteur --' : '-- Choisir un bloc d\'abord --'}</option>
+                                                    {filteredSectors.map((sector) => (
                                                         <option key={sector.id} value={sector.id}>{sector.name}</option>
                                                     ))}
                                                 </select>
@@ -210,12 +218,13 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                 <InputLabel htmlFor="parcelle_id" value="Parcelle" />
                                                 <select
                                                     id="parcelle_id"
-                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                     value={data.parcelle_id}
                                                     onChange={(e) => setData('parcelle_id', e.target.value)}
+                                                    disabled={!data.sector_id}
                                                 >
-                                                    <option value="">-- Sélectionner une parcelle --</option>
-                                                    {parcelles.map((parcelle) => (
+                                                    <option value="">{data.sector_id ? '-- Sélectionner une parcelle --' : '-- Choisir un secteur d\'abord --'}</option>
+                                                    {filteredParcelles.map((parcelle) => (
                                                         <option key={parcelle.id} value={parcelle.id}>{parcelle.name}</option>
                                                     ))}
                                                 </select>

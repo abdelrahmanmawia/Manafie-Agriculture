@@ -45,9 +45,11 @@ class ManualStockEntry extends Model
         return $this->belongsTo(Farm::class);
     }
 
+    // withTrashed(): see StockMovement::product() — a historical entry should keep showing
+    // its product's name even after the product is archived.
     public function product(): BelongsTo
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     public function employee(): BelongsTo

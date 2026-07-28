@@ -44,9 +44,4 @@ class Vehicle extends Model
     {
         return $this->hasMany(ManualStockEntry::class);
     }
-
-    public function stockMovements()
-    {
-        return $this->hasMany(StockMovement::class);
-    }
 }

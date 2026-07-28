@@ -7,6 +7,7 @@ use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\StockInventory;
+use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia; // Import Inertia
@@ -113,6 +114,8 @@ class StockMovementController extends Controller
             }
 
             $inventory->save();
+
+            StockAlertService::syncLowStock($product);
         });
 
         return redirect()->back();

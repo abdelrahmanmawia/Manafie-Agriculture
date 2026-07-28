@@ -69,13 +69,15 @@ class StockSeeder extends Seeder
 
             // 1. Products — "Huile Moteur" is vehicle_needs (not "fuel" itself, but still tied to
             // a vehicle when it leaves the magasin) so it exercises the same UI path as Gasoil.
+            // Note: a vehicle (e.g. a tractor) is never seeded here as a Product — it's already
+            // tracked by the Vehicle model, and treating it as a consumable stock item that gets
+            // "sortied" by the unit produces nonsensical costs (unit_cost × quantity at vehicle scale).
             $productsData = [
                 ['name' => 'Semences de Tomate', 'category' => 'seeds', 'unit_type' => 'units', 'min_stock_level' => 500, 'unit_cost' => 0.15],
                 ['name' => 'Engrais NPK 15-15-15', 'category' => 'fertilizers', 'unit_type' => 'kg', 'min_stock_level' => 1000, 'unit_cost' => 12.50],
                 ['name' => 'Insecticide Bio', 'category' => 'pesticides', 'unit_type' => 'liters', 'min_stock_level' => 50, 'unit_cost' => 85.00],
                 ['name' => 'Petite Pelle', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 10, 'unit_cost' => 45.00],
                 ['name' => 'Sacs de 25kg', 'category' => 'packaging', 'unit_type' => 'units', 'min_stock_level' => 200, 'unit_cost' => 2.00],
-                ['name' => 'Tracteur John Deere', 'category' => 'equipment', 'unit_type' => 'units', 'min_stock_level' => 1, 'unit_cost' => 500000.00],
                 ['name' => 'Gasoil', 'category' => 'fuel', 'unit_type' => 'liters', 'min_stock_level' => 500, 'unit_cost' => 13.00],
                 ['name' => 'Huile Moteur', 'category' => 'vehicle_needs', 'unit_type' => 'liters', 'min_stock_level' => 20, 'unit_cost' => 60.00],
             ];
@@ -208,9 +210,17 @@ class StockSeeder extends Seeder
                 $employee = $farmEmployees->isNotEmpty() ? $farmEmployees->random() : null;
                 $isVehicleConsumable = in_array($product->category, ['fuel', 'vehicle_needs']);
                 $vehicle = $isVehicleConsumable && $vehicles->isNotEmpty() ? $vehicles->random() : null;
+
+                // Secteur/parcelle must actually belong to the chosen bloc — matching the
+                // cascading Bloc→Secteur→Parcelle selects in the UI, and mirroring how a real
+                // sortie is sometimes logged at just the bloc level, sometimes down to the
+                // parcelle.
                 $bloc = $farmBlocs->isNotEmpty() ? $farmBlocs->random() : null;
-                $sector = $farmSectors->isNotEmpty() ? $farmSectors->random() : null;
-                $parcelle = $farmParcelles->isNotEmpty() ? $farmParcelles->random() : null;
+                $blocSectors = $bloc ? $farmSectors->where('bloc_id', $bloc->id) : collect();
+                $sector = $blocSectors->isNotEmpty() && rand(0, 1) === 1 ? $blocSectors->random() : null;
+                $sectorParcelles = $sector ? $farmParcelles->where('sector_id', $sector->id) : collect();
+                $parcelle = $sectorParcelles->isNotEmpty() && rand(0, 1) === 1 ? $sectorParcelles->random() : null;
+
                 $operation = $farmOperations->isNotEmpty() ? $farmOperations->random() : null;
                 $enteredBy = $farmUsers->isNotEmpty() ? $farmUsers->random() : null;
                 $verifiedBy = $farmUsers->isNotEmpty() ? $farmUsers->random() : null;

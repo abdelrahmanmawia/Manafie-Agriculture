@@ -10,6 +10,7 @@ use App\Models\Parcelle;
 use App\Models\Product;
 use App\Models\Sector;
 use App\Models\Vehicle;
+use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
@@ -46,11 +47,13 @@ class ProductController extends Controller
             'products' => $products,
             'categories' => $categories,
             'unitTypes' => $unitTypes,
-            'employees' => Employee::when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))->get(['id', 'full_name']),
+            'employees' => Employee::where('is_active', true)
+                ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
+                ->get(['id', 'full_name']),
             'vehicles' => Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'type']),
             'blocs' => Bloc::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
-            'sectors' => Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']),
-            'parcelles' => Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name']),
+            'sectors' => Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id']),
+            'parcelles' => Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id', 'sector_id']),
             'operations' => Operation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
         ]);
     }
@@ -103,6 +106,10 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category' => 'required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
@@ -113,7 +120,7 @@ class ProductController extends Controller
             'image' => 'nullable|image|max:5120',
         ]);
 
-        Product::create([
+        $product = Product::create([
             'farm_id' => $this->resolveWriteFarmId($request),
             'name' => $validated['name'],
             'image' => $request->hasFile('image') ? $request->file('image')->store('products', 'public') : null,
@@ -124,6 +131,8 @@ class ProductController extends Controller
             'is_active' => $validated['is_active'] ?? true,
         ]);
 
+        StockAlertService::syncLowStock($product);
+
         return redirect()->back();
     }
 
@@ -133,19 +142,20 @@ class ProductController extends Controller
 
         return Inertia::render('Stock/Show', [
             'product' => $product,
+            'categories' => $this->categories()->original,
+            'unitTypes' => $this->unitTypes()->original,
         ]);
     }
 
-    public function edit(Product $product)
+    public function toggleActive(Request $request, Product $product)
     {
-        $categories = $this->categories()->original;
-        $unitTypes = $this->unitTypes()->original;
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
 
-        return Inertia::render('Stock/Edit', [
-            'product' => $product,
-            'categories' => $categories,
-            'unitTypes' => $unitTypes,
-        ]);
+        $product->update(['is_active' => !$product->is_active]);
+
+        return redirect()->back();
     }
 
     public function update(Request $request, Product $product)
@@ -169,11 +179,23 @@ class ProductController extends Controller
 
         $product->update($validated);
 
-        return redirect()->route('stock.products.show', $product);
+        // min_stock_level may have just changed, which can push the product above or below
+        // the low-stock threshold without any quantity actually moving.
+        StockAlertService::syncLowStock($product);
+
+        return redirect()->back();
     }
 
-    public function destroy(Product $product)
+    public function destroy(Request $request, Product $product)
     {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
+        // Archiving the product makes any open low-stock alert for it moot — resolve so it
+        // doesn't linger unactionable on the Alerts page.
+        $product->stockAlerts()->where('is_resolved', false)->get()->each->resolve();
+
         $product->delete();
 
         return redirect()->route('stock.products.index');

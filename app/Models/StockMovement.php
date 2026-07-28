@@ -29,9 +29,13 @@ class StockMovement extends Model
         'date' => 'date',
     ];
 
+    // withTrashed(): a movement is a permanent audit record and must still resolve its
+    // product even after the product is later archived (soft-deleted) — without this,
+    // whereHas('product', ...) farm-scoping silently drops every movement for a deleted
+    // product from history views.
     public function product()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(Product::class)->withTrashed();
     }
 
     public function performedBy()
