@@ -2,8 +2,33 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { t } from '@/Helpers/i18n';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import StatCard from '@/Components/StatCard';
+import { formatInt, formatNumber, formatMAD } from '@/utils/number';
 
-export default function FarmDashboard({ auth, farm, enterprises, stats, isSuperAdmin = false }) {
+const ALERT_LABELS = {
+    low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
+};
+
+const MOVEMENT_LABELS = {
+    in: { label: 'Entrée', className: 'bg-green-100 text-green-700', sign: '+' },
+    production: { label: 'Production', className: 'bg-green-100 text-green-700', sign: '+' },
+    out: { label: 'Sortie', className: 'bg-red-100 text-red-700', sign: '-' },
+    transfer: { label: 'Transfert', className: 'bg-purple-100 text-purple-700', sign: '-' },
+    loss: { label: 'Perte', className: 'bg-gray-200 text-gray-700', sign: '-' },
+    adjustment: { label: 'Ajustement', className: 'bg-blue-100 text-blue-700', sign: '' },
+};
+
+export default function FarmDashboard({
+    auth,
+    farm,
+    enterprises,
+    stats,
+    isSuperAdmin = false,
+    payrollTrend = [],
+    harvestSummary = { total_kg: 0, total_revenue: 0 },
+    stockSummary = { stats: { products: 0, lowStock: 0, vehicles: 0, alerts: 0 }, recentAlerts: [], recentMovements: [] },
+}) {
     const [showEntForm, setShowEntForm] = useState(false);
     
     const entForm = useForm({
@@ -77,6 +102,162 @@ export default function FarmDashboard({ auth, farm, enterprises, stats, isSuperA
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* POINTAGE & PAIE */}
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Pointage &amp; Paie</h3>
+                            <Link
+                                href={route('analytics.index')}
+                                className="text-sm font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                            >
+                                Voir l'Analyse Complète →
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4">Coût de la Main d'Œuvre par Quinzaine</h4>
+                                {payrollTrend.length === 0 ? (
+                                    <p className="text-sm text-gray-400 py-12 text-center">Aucune quinzaine enregistrée pour cette ferme.</p>
+                                ) : (
+                                    <div className="h-64 sm:h-80 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <LineChart data={payrollTrend}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                                <XAxis dataKey="label" tick={{ fontSize: 8, fontWeight: 'bold' }} />
+                                                <YAxis tick={{ fontSize: 10 }} />
+                                                <Tooltip formatter={(value) => formatMAD(value)} />
+                                                <Line type="monotone" dataKey="total_net" stroke="#10b981" strokeWidth={4} dot={{ r: 6 }} />
+                                            </LineChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="grid grid-cols-1 gap-6">
+                                <StatCard
+                                    label="Récolte (kg)"
+                                    value={formatNumber(harvestSummary.total_kg, 0)}
+                                    tone="green"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />}
+                                />
+                                <StatCard
+                                    label="Revenu de Récolte"
+                                    value={formatMAD(harvestSummary.total_revenue)}
+                                    tone="blue"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GESTION DE STOCK */}
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center">
+                            <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Gestion de Stock</h3>
+                            <Link
+                                href={route('stock.dashboard')}
+                                className="text-sm font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                            >
+                                Voir la Gestion de Stock →
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <StatCard
+                                label="Produits Actifs"
+                                value={formatInt(stockSummary.stats.products)}
+                                tone="blue"
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />}
+                            />
+                            <Link href={route('stock.alerts.index', { alert_type: 'low_stock' })}>
+                                <StatCard
+                                    label="Stock Faible"
+                                    value={formatInt(stockSummary.stats.lowStock)}
+                                    tone="red"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
+                                />
+                            </Link>
+                            <Link href={route('stock.vehicles.index')}>
+                                <StatCard
+                                    label="Véhicules"
+                                    value={formatInt(stockSummary.stats.vehicles)}
+                                    tone="gray"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />}
+                                />
+                            </Link>
+                            <Link href={route('stock.alerts.index')}>
+                                <StatCard
+                                    label="Alertes"
+                                    value={formatInt(stockSummary.stats.alerts)}
+                                    tone="orange"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
+                                />
+                            </Link>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                                    <h4 className="text-base font-bold text-gray-800">Alertes récentes</h4>
+                                    <Link href={route('stock.alerts.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                        Tout voir
+                                    </Link>
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {stockSummary.recentAlerts.length === 0 && (
+                                        <p className="p-5 text-sm text-gray-500">Aucune alerte non résolue.</p>
+                                    )}
+                                    {stockSummary.recentAlerts.map((alert) => {
+                                        const meta = ALERT_LABELS[alert.alert_type] ?? { label: alert.alert_type, className: 'bg-gray-100 text-gray-700' };
+                                        return (
+                                            <div key={alert.id} className="p-4 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-800">{alert.product?.name ?? 'Produit supprimé'}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        {new Date(alert.created_at).toLocaleDateString('fr-FR')}
+                                                    </p>
+                                                </div>
+                                                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+                                    <h4 className="text-base font-bold text-gray-800">Mouvements récents</h4>
+                                    <Link href={route('stock.movements.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                        Tout voir
+                                    </Link>
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {stockSummary.recentMovements.length === 0 && (
+                                        <p className="p-5 text-sm text-gray-500">Aucun mouvement enregistré.</p>
+                                    )}
+                                    {stockSummary.recentMovements.map((movement) => {
+                                        const meta = MOVEMENT_LABELS[movement.movement_type] ?? { label: movement.movement_type, className: 'bg-gray-100 text-gray-700', sign: '' };
+                                        return (
+                                            <div key={movement.id} className="p-4 flex items-center justify-between">
+                                                <div>
+                                                    <p className="text-sm font-medium text-gray-800">{movement.product?.name ?? 'Produit supprimé'}</p>
+                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                        {new Date(movement.date).toLocaleDateString('fr-FR')}
+                                                        {movement.performed_by?.name ? ` · ${movement.performed_by.name}` : ''}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
+                                                    <p className="text-sm font-semibold text-gray-700 mt-1">{meta.sign}{formatNumber(movement.quantity)}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -7,13 +7,11 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import PrimaryButton from '@/Components/PrimaryButton';
 import { t } from '@/Helpers/i18n';
 
-export default function Employees({ auth, employees, enterprises, farms, selectedEnterpriseId, selectedFarmId, searchQuery }) {
+export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery }) {
     const [isAddingEmployee, setIsAddingEmployee] = useState(false);
     const [isEditingEmployee, setIsEditingEmployee] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
-    const [selectedFarm, setSelectedFarm] = useState(selectedFarmId || '');
-    const [filteredEnterprises, setFilteredEnterprises] = useState(enterprises || []);
 
     const { data, setData, post, put, processing, reset, errors } = useForm({
         matricule: '',
@@ -29,7 +27,6 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
         type: 'persea',
         base_rate: '',
         complement: 0,
-        farm_id: '',
         enterprise_id: selectedEnterpriseId || (enterprises?.[0]?.id || ''),
         is_active: true,
     });
@@ -70,17 +67,10 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
             type: employee.type,
             base_rate: employee.base_rate,
             complement: employee.complement || 0,
-            farm_id: employee.enterprise?.farm_id || '',
             enterprise_id: employee.enterprise_id,
             is_active: employee.is_active,
         });
-        
-        // Set filtered enterprises based on employee's farm
-        if (employee.enterprise?.farm_id) {
-            const filtered = enterprises.filter(ent => ent.farm_id == employee.enterprise.farm_id);
-            setFilteredEnterprises(filtered);
-        }
-        
+
         setIsEditingEmployee(true);
     };
 
@@ -90,32 +80,17 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
 
     const handleFilterChange = (e) => {
         const id = e.target.value;
-        router.get(route('employees.index'), { farm_id: selectedFarm, enterprise_id: id, search: localSearch });
-    };
-
-    const handleFarmChange = (e) => {
-        const farmId = e.target.value;
-        setSelectedFarm(farmId);
-        
-        // Filter enterprises based on selected farm
-        if (farmId) {
-            const filtered = enterprises.filter(ent => ent.farm_id == farmId);
-            setFilteredEnterprises(filtered);
-        } else {
-            setFilteredEnterprises(enterprises);
-        }
-        
-        router.get(route('employees.index'), { farm_id: farmId, enterprise_id: '', search: localSearch });
+        router.get(route('employees.index'), { enterprise_id: id, search: localSearch });
     };
 
     const handleSearch = (e) => {
         e.preventDefault();
-        router.get(route('employees.index'), { farm_id: selectedFarm, enterprise_id: selectedEnterpriseId, search: localSearch });
+        router.get(route('employees.index'), { enterprise_id: selectedEnterpriseId, search: localSearch });
     };
 
     const clearSearch = () => {
         setLocalSearch('');
-        router.get(route('employees.index'), { farm_id: selectedFarm, enterprise_id: selectedEnterpriseId, search: '' });
+        router.get(route('employees.index'), { enterprise_id: selectedEnterpriseId, search: '' });
     };
 
     return (
@@ -152,24 +127,14 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
                                 <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{employees.length} {t('salaries_recorded')}</p>
                             </div>
                             <div className="flex gap-3 items-center flex-wrap">
-                                {auth.user.role === 'super_admin' && farms && farms.length > 0 && (
-                                    <select
-                                        className="rounded-lg border-gray-300 text-sm px-4 py-2"
-                                        value={selectedFarm || ''}
-                                        onChange={handleFarmChange}
-                                    >
-                                        <option value="">Toutes les fermes</option>
-                                        {farms.map(farm => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
-                                    </select>
-                                )}
-                                {filteredEnterprises && filteredEnterprises.length > 0 && (
+                                {enterprises && enterprises.length > 0 && (
                                     <select
                                         className="rounded-lg border-gray-300 text-sm px-4 py-2"
                                         value={selectedEnterpriseId || ''}
                                         onChange={handleFilterChange}
                                     >
-                                        <option value="">{selectedFarm ? 'Toutes les divisions' : t('all_fermes')}</option>
-                                        {filteredEnterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                                        <option value="">{t('all_fermes')}</option>
+                                        {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                                     </select>
                                 )}
                                 <form onSubmit={handleSearch} className="flex gap-2">
@@ -362,26 +327,6 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
                                 <input type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
                             </div>
 
-                            {/* Ferme Assignment (Super Admin Only) */}
-                            {auth.user.role === 'super_admin' && (
-                                <div>
-                                    <label className="block text-xs font-black uppercase text-blue-600 mb-1">Ferme</label>
-                                    <select
-                                        className="w-full rounded-lg border-blue-200 bg-blue-50"
-                                        value={data.farm_id}
-                                        onChange={(e) => {
-                                            setData('farm_id', e.target.value);
-                                            setData('enterprise_id', '');
-                                            const filtered = enterprises.filter(ent => ent.farm_id == e.target.value);
-                                            setFilteredEnterprises(filtered);
-                                        }}
-                                    >
-                                        <option value="">Sélectionner une ferme</option>
-                                        {farms.map(farm => <option key={farm.id} value={farm.id}>{farm.name}</option>)}
-                                    </select>
-                                </div>
-                            )}
-
                             {/* Enterprise Assignment */}
                             {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
                                 <div>
@@ -390,10 +335,9 @@ export default function Employees({ auth, employees, enterprises, farms, selecte
                                         className="w-full rounded-lg border-blue-200 bg-blue-50"
                                         value={data.enterprise_id}
                                         onChange={e => setData('enterprise_id', e.target.value)}
-                                        disabled={!data.farm_id && auth.user.role === 'super_admin'}
                                     >
-                                        <option value="">{data.farm_id ? 'Sélectionner une division' : 'Sélectionner d\'abord une ferme'}</option>
-                                        {filteredEnterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                                        <option value="">Sélectionner une division</option>
+                                        {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                                     </select>
                                     {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
                                 </div>

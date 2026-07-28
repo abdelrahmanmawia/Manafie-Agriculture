@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Operation;
 use App\Models\Bloc;
+use App\Models\Harvest;
+use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\Enterprise;
 use App\Models\Farm;
@@ -32,8 +34,8 @@ class EnterpriseController extends Controller
                 $farm = Farm::with(['enterprises' => function($q) {
                     $q->withCount(['employees', 'quinzaines']);
                 }])->findOrFail($farmId);
-                
-                return Inertia::render('Admin/FarmDashboard', [
+
+                return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                     'farm' => $farm,
                     'enterprises' => $farm->enterprises,
                     'stats' => [
@@ -41,7 +43,7 @@ class EnterpriseController extends Controller
                         'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
                     ],
                     'isSuperAdmin' => true
-                ]);
+                ]));
             }
 
             return Inertia::render('Admin/SuperDashboard', [
@@ -59,27 +61,27 @@ class EnterpriseController extends Controller
                 ]);
             }
             $farm = \App\Models\Farm::with('enterprises')->findOrFail($user->farm_id);
-            return Inertia::render('Admin/FarmDashboard', [
+            return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
                 'enterprises' => Enterprise::where('farm_id', $farm->id)->withCount(['employees', 'quinzaines'])->get(),
                 'stats' => [
                     'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
                     'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
                 ]
-            ]);
+            ]));
         }
 
         // Data Entry or other roles
         if ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id) {
             $farm = \App\Models\Farm::with('enterprises')->findOrFail($user->farm_id);
-            return Inertia::render('Admin/FarmDashboard', [
+            return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
                 'enterprises' => Enterprise::where('farm_id', $farm->id)->withCount(['employees', 'quinzaines'])->get(),
                 'stats' => [
                     'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
                     'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
                 ]
-            ]);
+            ]));
         }
 
         if (!$user->enterprise_id) {
@@ -102,6 +104,57 @@ class EnterpriseController extends Controller
                 'open_quinzaines' => Quinzaine::where('enterprise_id', $enterprise->id)->where('is_closed', false)->count(),
             ]
         ]);
+    }
+
+    /**
+     * Pointage + Stock data merged onto the farm-level Accueil dashboard: a payroll cost
+     * trend (last 6 quinzaine periods across every enterprise in the farm — Stock has no
+     * enterprise concept, so this view is deliberately farm-wide, not per-division), harvest
+     * totals over that same window, and the Stock dashboard's own KPIs (see
+     * StockController::summaryFor()).
+     */
+    private function farmDashboardExtras(Farm $farm): array
+    {
+        // Quinzaines for the same (start_date, label) period exist once per enterprise, so
+        // merge them into one point per period before summing — otherwise the farm-wide trend
+        // would show duplicate/fragmented points instead of one combined total per period.
+        $farmQuinzaines = Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))
+            ->orderByDesc('start_date')
+            ->get(['id', 'start_date', 'label']);
+
+        $payrollTrend = $farmQuinzaines
+            ->groupBy(fn ($q) => $q->start_date . '_' . $q->label)
+            ->map(function ($group) {
+                $totals = PointageRecord::whereIn('quinzaine_id', $group->pluck('id'))
+                    ->selectRaw('COALESCE(SUM(net),0) as total_net, COALESCE(SUM(hours),0) as total_hours')
+                    ->first();
+
+                return [
+                    'start_date' => $group->first()->start_date,
+                    'label' => $group->first()->label,
+                    'total_net' => (float) $totals->total_net,
+                    'cost_per_hour' => $totals->total_hours > 0 ? round($totals->total_net / $totals->total_hours, 2) : 0,
+                ];
+            })
+            ->sortByDesc('start_date')
+            ->take(6)
+            ->sortBy('start_date')
+            ->values();
+
+        // Harvest totals over the same window as the trend above (all-time if there are no
+        // quinzaines yet).
+        $periodStart = $payrollTrend->first()['start_date'] ?? null;
+        $harvestQuery = Harvest::where('farm_id', $farm->id)
+            ->when($periodStart, fn ($q) => $q->where('date', '>=', $periodStart));
+
+        return [
+            'payrollTrend' => $payrollTrend,
+            'harvestSummary' => [
+                'total_kg' => (float) (clone $harvestQuery)->sum('quantity_kg'),
+                'total_revenue' => (float) (clone $harvestQuery)->sum('total_revenue_dh'),
+            ],
+            'stockSummary' => StockController::summaryFor($farm->id),
+        ];
     }
 
     public function store(Request $request)

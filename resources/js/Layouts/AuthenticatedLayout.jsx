@@ -11,6 +11,12 @@ export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
     const { activeFarm } = usePage().props;
 
+    // A super_admin has no farm of their own — until they activate one (see FarmController),
+    // every farm-scoped module (Pointage, Stock, Employés) would either bounce them straight
+    // back here via the farm.selected middleware or, for Employés, silently show data across
+    // every farm at once. Hiding those entry points until a farm is active avoids both.
+    const needsFarmSelection = user.role === 'super_admin' && !activeFarm;
+
     const isStockZone = route().current('stock.*');
     const isPointageZone = !isStockZone && (
         route().current('pointage.*') ||
@@ -43,7 +49,9 @@ export default function Authenticated({ user, header, children }) {
 
     const hubItems = [
         { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home },
-        { label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees },
+        ...(needsFarmSelection
+            ? []
+            : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
         ...(user.farm_id
             ? [{ label: 'Structure Agricole', href: 'farms.settings', params: user.farm_id, match: 'farms.settings', icon: ICONS.map }]
             : []),
@@ -90,23 +98,32 @@ export default function Authenticated({ user, header, children }) {
                                 </Link>
                             </div>
 
-                            <div className="hidden space-x-6 sm:-my-px sm:ms-10 lg:flex">
+                            <div className="hidden space-x-6 sm:-my-px sm:ms-10 lg:flex items-center">
                                 <NavLink href={route('dashboard')} active={isHubZone}>
                                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
                                     Accueil
                                 </NavLink>
 
-                                <NavLink href={route('pointage.index')} active={isPointageZone}>
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    {t('pointage')}
-                                </NavLink>
+                                {needsFarmSelection ? (
+                                    <span className="flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                        Sélectionnez une ferme pour continuer
+                                    </span>
+                                ) : (
+                                    <>
+                                        <NavLink href={route('pointage.index')} active={isPointageZone}>
+                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            {t('pointage')}
+                                        </NavLink>
 
-                                <NavLink href={route('stock.dashboard')} active={isStockZone}>
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                    </svg>
-                                    Gestion de Stock
-                                </NavLink>
+                                        <NavLink href={route('stock.dashboard')} active={isStockZone}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                            </svg>
+                                            Gestion de Stock
+                                        </NavLink>
+                                    </>
+                                )}
                             </div>
                         </div>
 
@@ -197,21 +214,30 @@ export default function Authenticated({ user, header, children }) {
                             </div>
                         </ResponsiveNavLink>
 
-                        <ResponsiveNavLink href={route('pointage.index')} active={isPointageZone} onClick={() => setShowingNavigationDropdown(false)}>
-                            <div className="flex items-center">
-                                <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                Pointage
+                        {needsFarmSelection ? (
+                            <div className="mx-4 my-2 flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                <svg className="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                Sélectionnez une ferme pour continuer
                             </div>
-                        </ResponsiveNavLink>
+                        ) : (
+                            <>
+                                <ResponsiveNavLink href={route('pointage.index')} active={isPointageZone} onClick={() => setShowingNavigationDropdown(false)}>
+                                    <div className="flex items-center">
+                                        <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        Pointage
+                                    </div>
+                                </ResponsiveNavLink>
 
-                        <ResponsiveNavLink href={route('stock.dashboard')} active={isStockZone} onClick={() => setShowingNavigationDropdown(false)}>
-                            <div className="flex items-center">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                </svg>
-                                Gestion de Stock
-                            </div>
-                        </ResponsiveNavLink>
+                                <ResponsiveNavLink href={route('stock.dashboard')} active={isStockZone} onClick={() => setShowingNavigationDropdown(false)}>
+                                    <div className="flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                        </svg>
+                                        Gestion de Stock
+                                    </div>
+                                </ResponsiveNavLink>
+                            </>
+                        )}
 
                         {/* Contextual sub-items for the active zone */}
                         <div className="border-t border-gray-100 my-2 pt-2">

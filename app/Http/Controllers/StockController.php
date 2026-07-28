@@ -21,6 +21,15 @@ class StockController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
+        return Inertia::render('Stock/Dashboard', self::summaryFor($farmId));
+    }
+
+    /**
+     * Stock KPIs + recent activity for a farm — shared by the Stock dashboard itself and by
+     * the merged Accueil/FarmDashboard view (see EnterpriseController::farmDashboardExtras()).
+     */
+    public static function summaryFor(?int $farmId): array
+    {
         $products = Product::with('stockInventory')
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('is_active', true)
@@ -54,7 +63,7 @@ class StockController extends Controller
             ->where('is_verified', false)
             ->count();
 
-        return Inertia::render('Stock/Dashboard', [
+        return [
             'stats' => [
                 'products' => $products->count(),
                 'lowStock' => $lowStockCount,
@@ -64,6 +73,6 @@ class StockController extends Controller
             'recentAlerts' => $recentAlerts,
             'recentMovements' => $recentMovements,
             'pendingManualEntries' => $pendingManualEntries,
-        ]);
+        ];
     }
 }

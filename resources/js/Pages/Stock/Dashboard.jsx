@@ -1,6 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { formatInt, formatNumber } from '@/utils/number';
+import StatCard from '@/Components/StatCard';
 
 const ALERT_LABELS = {
     low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
@@ -14,31 +15,6 @@ const MOVEMENT_LABELS = {
     loss: { label: 'Perte', className: 'bg-gray-200 text-gray-700', sign: '-' },
     adjustment: { label: 'Ajustement', className: 'bg-blue-100 text-blue-700', sign: '' },
 };
-
-function StatCard({ label, value, icon, tone }) {
-    const tones = {
-        blue: { bg: 'bg-blue-100', text: 'text-blue-600' },
-        red: { bg: 'bg-red-100', text: 'text-red-600' },
-        gray: { bg: 'bg-gray-100', text: 'text-gray-600' },
-        orange: { bg: 'bg-orange-100', text: 'text-orange-600' },
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-            <div className="flex items-center justify-between">
-                <div>
-                    <p className="text-sm font-medium text-gray-500">{label}</p>
-                    <p className={`text-2xl font-bold ${tone === 'blue' || tone === 'gray' ? 'text-gray-900' : tones[tone].text}`}>{value}</p>
-                </div>
-                <div className={`${tones[tone].bg} p-3 rounded-full`}>
-                    <svg className={`w-6 h-6 ${tones[tone].text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        {icon}
-                    </svg>
-                </div>
-            </div>
-        </div>
-    );
-}
 
 export default function Dashboard({ auth, stats, recentAlerts, recentMovements, pendingManualEntries }) {
     return (
