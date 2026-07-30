@@ -14,14 +14,27 @@ class PayrollService
     const FIXED_CHARGE_2 = 3.22;   // + 3.07
     const TAX_ADJUSTMENT = 1.04;   // (...) * 1.04
     const HS_INVOICE_RATE = 1.04;  // h_sup_unit * 1.04
-    const SERVICE_TAX = 1.2;       // (...) * 1.2
-    const JF_INVOICE_RATE = 1.24;  // jfsal_net_j * 1.24
+    const SERVICE_TAX = 1.2;       // (...) * 1.2 — applies to the WHOLE invoice bracket (base +
+                                    // complement + hs/jf), not only the complement/hs portion; see
+                                    // calculate() below.
 
     /**
-     * Calculate worker pay and invoice details
+     * Calculate worker pay and invoice details.
+     *
+     * $invoicedToClient controls the client-invoice figures (net_factur_j/total_ttc)
+     * independently of $contractType: avec_contrat's CNSS-style worker deduction applies to any
+     * division regardless of whether a client is actually invoiced for it (e.g. a farm's own
+     * direct workforce still gets the deduction but has no client to bill, unlike an interim
+     * placement agency). Defaults to the legacy behavior (invoiced iff avec_contrat) when not
+     * passed explicitly, so any caller not yet updated to pass Enterprise::invoiced_to_client
+     * keeps working as before.
      */
-    public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false)
+    public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false, $invoicedToClient = null)
     {
+        if ($invoicedToClient === null) {
+            $invoicedToClient = $contractType === 'avec_contrat';
+        }
+
         // The overtime hourly rate is derived from this division's own standard daily net salary
         // (after the worker deduction, but before any complement/prime — never the raw brut rate,
         // and never inflated by a per-employee complement), divided by an 8h standard workday.
@@ -43,18 +56,30 @@ class PayrollService
 
             $totalWorkerNet = $salNetJ + $hsPay + $jfPay;
 
-            // 2. Invoicing Logic (AGRIPER only)
-            // net_factur_j = (sal_brut_j * 1.2109 + 5.37 + 3.07) * 1.04 + (comp + h_sup_unit * 1.04) * 1.2
-            // Note: We calculate this per day (per record)
-            $baseCharges = ($brutRate * self::CHARGE_RATE + self::FIXED_CHARGE_1 + self::FIXED_CHARGE_2) * self::TAX_ADJUSTMENT;
-            $variableCharges = ($complement + ($hs > 0 ? $hsHourlyRate : 0) * self::HS_INVOICE_RATE) * self::SERVICE_TAX;
+            // 2. Invoicing Logic — only for divisions that actually invoice a client (e.g. an
+            // interim placement agency), independent of the worker-side deduction above. Formula
+            // reverse-engineered from a real production spreadsheet (matched exactly against 85
+            // real employees, see PR discussion):
+            // net_factur_j = ((sal_brut_j * 1.2109 + 5.62 + 3.22 + comp * 1.0674) * 1.04
+            //                 + (jf_amount + h_sup_unit * sal_brut_j / 8) * 1.04) * 1.2
+            // Crucially, SERVICE_TAX (1.2) wraps the ENTIRE bracket — base charges included — not
+            // just the complement/hs portion. The complement multiplier (1.0674) is exactly
+            // (1 + DEDUCTION_RATE). The hs/jf invoice base rate uses the RAW brut hourly rate
+            // (brut/8), unlike the worker's own hs_pay which uses the post-deduction rate.
+            if ($invoicedToClient) {
+                $netFacturJ = ($brutRate * self::CHARGE_RATE + self::FIXED_CHARGE_1 + self::FIXED_CHARGE_2
+                    + $complement * (1 + self::DEDUCTION_RATE)) * self::TAX_ADJUSTMENT * self::SERVICE_TAX;
 
-            $netFacturJ = $baseCharges + $variableCharges;
+                $hsInvoiceCharge = $hs > 0
+                    ? $hs * ($brutRate / self::STANDARD_WORKDAY_HOURS) * self::HS_INVOICE_RATE * self::SERVICE_TAX
+                    : 0;
+                $jfInvoiceCharge = $isJf ? ($salNetJ * self::TAX_ADJUSTMENT * self::SERVICE_TAX) : 0;
 
-            // total_ttc for JF: jfsal_net_j * 1.24
-            $jfTtc = $isJf ? ($salNetJ * self::JF_INVOICE_RATE) : 0;
-
-            $totalTtc = $netFacturJ + $jfTtc;
+                $totalTtc = $netFacturJ + $hsInvoiceCharge + $jfInvoiceCharge;
+            } else {
+                $netFacturJ = 0;
+                $totalTtc = 0;
+            }
 
         } else {
             // HAFILATY logic
@@ -156,7 +181,8 @@ class PayrollService
                 $quinzaine->enterprise->default_brut_rate,
                 $record->hours,
                 $record->employee->complement,
-                $record->is_jf
+                $record->is_jf,
+                $quinzaine->enterprise->invoiced_to_client
             );
 
             $totalNet += $calc['total_net'];

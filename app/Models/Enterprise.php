@@ -9,10 +9,11 @@ class Enterprise extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['farm_id', 'name', 'contract_type', 'default_brut_rate', 'logo', 'settings'];
+    protected $fillable = ['farm_id', 'name', 'contract_type', 'default_brut_rate', 'invoiced_to_client', 'logo', 'settings'];
 
     protected $casts = [
         'settings' => 'array',
+        'invoiced_to_client' => 'boolean',
     ];
 
     public function farm()

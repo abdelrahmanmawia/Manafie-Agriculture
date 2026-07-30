@@ -75,7 +75,8 @@
                     $quinzaine->enterprise->default_brut_rate,
                     0,
                     $emp->complement,
-                    false
+                    false,
+                    $quinzaine->enterprise->invoiced_to_client
                 );
 
                 $quinzaineTotalNet = 0;
@@ -90,7 +91,8 @@
                         $quinzaine->enterprise->default_brut_rate,
                         $record->hours,
                         $emp->complement,
-                        $record->is_jf
+                        $record->is_jf,
+                        $quinzaine->enterprise->invoiced_to_client
                     );
                     $quinzaineTotalNet += $dayCalc['total_net'];
                     $quinzaineTotalTtc += $dayCalc['total_ttc'];
@@ -174,7 +176,8 @@
                             $quinzaine->enterprise->default_brut_rate,
                             0,
                             $emp->complement,
-                            false
+                            false,
+                            $quinzaine->enterprise->invoiced_to_client
                         );
                         $grandTotalSalNetJ += $calc['sal_net_j'];
                         $grandTotalBrut += $quinzaine->enterprise->default_brut_rate;
@@ -187,7 +190,8 @@
                                 $quinzaine->enterprise->default_brut_rate,
                                 $record->hours,
                                 $emp->complement,
-                                $record->is_jf
+                                $record->is_jf,
+                                $quinzaine->enterprise->invoiced_to_client
                             );
                             $grandTotalNet += $dayCalc['total_net'];
                             $grandTotalTtc += $dayCalc['total_ttc'];

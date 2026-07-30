@@ -179,7 +179,8 @@ class PointageController extends Controller
             $quinzaine->enterprise->default_brut_rate,
             $hs,
             $employee->complement,
-            $isJf
+            $isJf,
+            $quinzaine->enterprise->invoiced_to_client
         );
 
         PointageRecord::updateOrCreate(
@@ -245,7 +246,8 @@ class PointageController extends Controller
                 $quinzaine->enterprise->default_brut_rate,
                 $record->hours,
                 $record->complement,
-                $record->is_jf
+                $record->is_jf,
+                $quinzaine->enterprise->invoiced_to_client
             );
 
             $dateKey = $record->date->format('Y-m-d');

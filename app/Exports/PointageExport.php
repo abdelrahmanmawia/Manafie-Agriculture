@@ -67,7 +67,8 @@ class PointageExport implements FromView, ShouldAutoSize, WithTitle // Implement
                 $enterprise->default_brut_rate, // Use enterprise's default brut rate
                 $record->hours,
                 $record->employee->complement,
-                $record->is_jf
+                $record->is_jf,
+                $enterprise->invoiced_to_client
             );
             $dateKey = $record->date->format('Y-m-d');
             $blocMatrices[$record->bloc->name][$record->operation->abbreviation ?? $record->operation->name][$dateKey] += $calc['total_net'];

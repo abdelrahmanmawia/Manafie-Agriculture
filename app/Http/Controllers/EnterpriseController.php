@@ -184,6 +184,7 @@ class EnterpriseController extends Controller
             'name' => 'required|string|max:255',
             'contract_type' => 'required|in:avec_contrat,sans_contrat',
             'default_brut_rate' => 'required|numeric',
+            'invoiced_to_client' => 'nullable|boolean',
         ]);
 
         $this->assertEnterpriseManagerAccess($request, (int) $request->farm_id);
@@ -193,6 +194,7 @@ class EnterpriseController extends Controller
             'name' => $request->name,
             'contract_type' => $request->contract_type,
             'default_brut_rate' => $request->default_brut_rate,
+            'invoiced_to_client' => $request->boolean('invoiced_to_client'),
             'settings' => ['currency' => 'DH']
         ]);
 
@@ -238,12 +240,14 @@ class EnterpriseController extends Controller
             'name' => 'required|string|max:255',
             'default_brut_rate' => 'required|numeric',
             'contract_type' => 'required|in:avec_contrat,sans_contrat',
+            'invoiced_to_client' => 'nullable|boolean',
         ]);
 
         $enterprise->update([
             'name' => $request->name,
             'default_brut_rate' => $request->default_brut_rate,
             'contract_type' => $request->contract_type,
+            'invoiced_to_client' => $request->boolean('invoiced_to_client'),
         ]);
 
         // Keep already-entered pointage in still-open quinzaines in sync with the new rate/contract

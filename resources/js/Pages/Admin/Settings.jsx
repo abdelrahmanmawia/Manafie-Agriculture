@@ -7,6 +7,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
         name: enterprise.name,
         default_brut_rate: enterprise.default_brut_rate,
         contract_type: enterprise.contract_type,
+        invoiced_to_client: enterprise.invoiced_to_client,
     });
 
     const qForm = useForm({ start_date: '', end_date: '', enterprise_id: enterprise.id });
@@ -67,9 +68,21 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     <option value="sans_contrat">Sans Contrat</option>
                                 </select>
                             </div>
+                            <div className="md:col-span-3 flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="invoiced_to_client"
+                                    className="rounded border-gray-300"
+                                    checked={editForm.data.invoiced_to_client}
+                                    onChange={e => editForm.setData('invoiced_to_client', e.target.checked)}
+                                />
+                                <label htmlFor="invoiced_to_client" className="text-xs text-gray-600">
+                                    Cette division facture un client (ex: agence d'intérim) — à ne cocher que si elle émet une facture (net à facturer/TTC), pas juste le salaire des ouvriers
+                                </label>
+                            </div>
                             <div className="md:col-span-3">
-                                <button 
-                                    type="submit" 
+                                <button
+                                    type="submit"
                                     disabled={editForm.processing}
                                     className="bg-blue-600 text-white px-6 py-2 rounded font-bold uppercase text-xs tracking-widest"
                                 >

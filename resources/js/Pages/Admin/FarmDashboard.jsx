@@ -36,6 +36,7 @@ export default function FarmDashboard({
         name: '',
         contract_type: 'avec_contrat',
         default_brut_rate: 97.44,
+        invoiced_to_client: false,
     });
 
     const submitEnt = (e) => {
@@ -309,6 +310,18 @@ export default function FarmDashboard({
                                             <option value="avec_contrat">Avec Contrat</option>
                                             <option value="sans_contrat">Sans Contrat</option>
                                         </select>
+                                    </div>
+                                    <div className="md:col-span-3 flex items-center gap-2">
+                                        <input
+                                            type="checkbox"
+                                            id="invoiced_to_client"
+                                            className="rounded border-gray-300"
+                                            checked={entForm.data.invoiced_to_client}
+                                            onChange={e => entForm.setData('invoiced_to_client', e.target.checked)}
+                                        />
+                                        <label htmlFor="invoiced_to_client" className="text-xs text-gray-600">
+                                            Cette division facture un client (ex: agence d'intérim) — à ne cocher que si elle émet une facture (net à facturer/TTC), pas juste le salaire des ouvriers
+                                        </label>
                                     </div>
                                     <div className="md:col-span-3">
                                         <button type="submit" disabled={entForm.processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md">

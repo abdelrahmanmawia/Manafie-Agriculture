@@ -62,7 +62,8 @@
                             $quinzaine->enterprise->default_brut_rate,
                             $record->hours,
                             $emp->complement,
-                            $record->is_jf
+                            $record->is_jf,
+                            $quinzaine->enterprise->invoiced_to_client
                         );
                         $totalNet += $calc['total_net'];
                     }
