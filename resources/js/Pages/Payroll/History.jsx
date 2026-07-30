@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
 import { formatNumber } from '@/Helpers/formatNumber';
 
-export default function History({ auth, employees, quinzaines, history, selectedEnterpriseId, allEnterprises }) {
+export default function History({ auth, employees, periods, history, selectedEnterpriseId, allEnterprises }) {
 
     const handleEnterpriseChange = (e) => {
         router.get(route('payroll.history'), { enterprise_id: e.target.value });
@@ -17,7 +17,7 @@ export default function History({ auth, employees, quinzaines, history, selected
                         <h2 className="font-black text-xl sm:text-2xl text-gray-800 uppercase tracking-tighter leading-none">Historique des Salaires</h2>
                         <p className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Récapitulatif global par salarié et par période</p>
                     </div>
-                    {auth.user.role === 'super_admin' && (
+                    {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
                         <select
                             className="w-full md:w-auto rounded-xl border-gray-200 bg-white font-bold text-sm shadow-sm focus:ring-blue-500"
                             value={selectedEnterpriseId || ''}
@@ -57,12 +57,13 @@ export default function History({ auth, employees, quinzaines, history, selected
                                 <thead>
                                     <tr className="bg-gray-100">
                                         <th className="border border-gray-200 p-4 sticky left-0 z-20 bg-gray-100 min-w-[200px] text-left font-black uppercase tracking-widest text-gray-500 shadow-md">Salarié</th>
-                                        {quinzaines.map(q => (
-                                            <th key={q.id} className="border border-gray-200 p-3 min-w-[120px] text-center">
+                                        {periods.map(period => (
+                                            <th key={period.key} className="border border-gray-200 p-3 min-w-[120px] text-center">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] font-black text-blue-500 uppercase">{q.label || 'Période'}</span>
-                                                    <span className="font-black text-gray-800 leading-none">{new Date(q.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
-                                                    <span className="text-[7px] text-gray-400 font-bold italic">{q.enterprise?.name}</span>
+                                                    <span className="text-[8px] font-black text-blue-500 uppercase">{period.label}</span>
+                                                    <span className="font-black text-gray-800 leading-none">
+                                                        {new Date(period.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - {new Date(period.end_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                                                    </span>
                                                 </div>
                                             </th>
                                         ))}
@@ -82,24 +83,15 @@ export default function History({ auth, employees, quinzaines, history, selected
                                                         <span className="text-[8px] font-bold text-gray-400 tracking-tighter">{emp.matricule} • {emp.cin || 'PAS DE CIN'}</span>
                                                     </div>
                                                 </td>
-                                                {quinzaines.map(q => {
-                                                    const periodData = empHistory.find(h => h.quinzaine_id === q.id);
+                                                {periods.map(period => {
+                                                    const periodData = empHistory.find(h => h.period_key === period.key);
                                                     const amount = periodData ? parseFloat(periodData.total_net) : 0;
                                                     cumulativeRowTotal += amount;
 
                                                     return (
-                                                        <td key={q.id} className={`border border-gray-100 p-3 text-center transition-all ${amount > 0 ? 'bg-green-50/30' : ''}`}>
+                                                        <td key={period.key} className={`border border-gray-100 p-3 text-center transition-all ${amount > 0 ? 'bg-green-50/30' : ''}`}>
                                                             {amount > 0 ? (
-                                                                <div className="flex flex-col items-center gap-1">
-                                                                    <span className="font-black text-gray-700">{formatNumber(amount)}</span>
-                                                                    <a
-                                                                        href={route('payroll.payslip', [emp.id, q.id])}
-                                                                        target="_blank"
-                                                                        className="text-[7px] bg-red-600 text-white px-1.5 py-0.5 rounded font-black hover:bg-red-700"
-                                                                    >
-                                                                        PDF
-                                                                    </a>
-                                                                </div>
+                                                                <span className="font-black text-gray-700">{formatNumber(amount)}</span>
                                                             ) : (
                                                                 <span className="text-gray-200">-</span>
                                                             )}
@@ -114,7 +106,7 @@ export default function History({ auth, employees, quinzaines, history, selected
                                     })}
                                     {employees.length === 0 && (
                                         <tr>
-                                            <td colSpan={quinzaines.length + 2} className="p-20 text-center text-gray-400 italic">
+                                            <td colSpan={periods.length + 2} className="p-20 text-center text-gray-400 italic">
                                                 Aucun salarié trouvé. Assurez-vous d'avoir ajouté des salariés dans la gestion du personnel.
                                             </td>
                                         </tr>
@@ -123,14 +115,14 @@ export default function History({ auth, employees, quinzaines, history, selected
                                 <tfoot>
                                     <tr className="bg-gray-900 text-white font-black">
                                         <td className="p-4 sticky left-0 bg-gray-900 z-10 uppercase tracking-widest text-[9px] text-right border-t border-gray-800">TOTAL PÉRIODE</td>
-                                        {quinzaines.map(q => {
+                                        {periods.map(period => {
                                             let periodTotal = 0;
                                             employees.forEach(emp => {
-                                                const pData = (history[emp.id] || []).find(h => h.quinzaine_id === q.id);
+                                                const pData = (history[emp.id] || []).find(h => h.period_key === period.key);
                                                 periodTotal += pData ? parseFloat(pData.total_net) : 0;
                                             });
                                             return (
-                                                <td key={q.id} className="p-3 text-center text-green-400 border-t border-gray-800 border-l border-gray-800">
+                                                <td key={period.key} className="p-3 text-center text-green-400 border-t border-gray-800 border-l border-gray-800">
                                                     {formatNumber(periodTotal)}
                                                 </td>
                                             );

@@ -13,6 +13,11 @@ class Bloc extends Model
         'farm_id', 'name', 'area_m2', 'area_ha'
     ];
 
+    protected $casts = [
+        'area_m2' => 'decimal:2',
+        'area_ha' => 'decimal:4',
+    ];
+
     public function farm()
     {
         return $this->belongsTo(Farm::class);

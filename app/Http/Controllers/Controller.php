@@ -40,4 +40,29 @@ class Controller extends BaseController
 
         return $request->user()->farm_id;
     }
+
+    /**
+     * Validate a requested ?enterprise_id against the resolved farm scope before trusting it.
+     * Several Pointage/Analytics/Payroll queries only apply their farm_id filter "when no
+     * enterprise_id is given" — without this check, an unvalidated enterprise_id belonging to a
+     * different farm would bypass that filter entirely and leak the other farm's data straight
+     * through. A user with their own fixed enterprise_id is always confined to it regardless of
+     * what the query string says.
+     */
+    protected function scopedEnterpriseId(Request $request, ?int $farmId): ?int
+    {
+        if ($request->user()->enterprise_id) {
+            return $request->user()->enterprise_id;
+        }
+
+        $enterpriseId = $request->query('enterprise_id');
+        if (!$enterpriseId) {
+            return null;
+        }
+
+        $enterprise = \App\Models\Enterprise::find($enterpriseId);
+        abort_unless($enterprise && $enterprise->farm_id === $farmId, 403);
+
+        return (int) $enterpriseId;
+    }
 }

@@ -8,7 +8,7 @@ class PayrollService
      * Constants based on user Excel formulas
      */
     const DEDUCTION_RATE = 0.0674; // (1 - 0.0674)
-    const HS_HOURLY_RATE = 11.36;  // h_sup * 11.36
+    const STANDARD_WORKDAY_HOURS = 8; // hs_hourly_rate = sal_brut_j / 8
     const CHARGE_RATE = 1.2109;    // sal_brut_j * 1.2109
     const FIXED_CHARGE_1 = 5.62;   // + 5.37
     const FIXED_CHARGE_2 = 3.22;   // + 3.07
@@ -22,14 +22,22 @@ class PayrollService
      */
     public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false)
     {
+        // The overtime hourly rate is derived from this division's own standard daily net salary
+        // (after the worker deduction, but before any complement/prime — never the raw brut rate,
+        // and never inflated by a per-employee complement), divided by an 8h standard workday.
+        $standardNetJ = $contractType === 'avec_contrat'
+            ? $brutRate * (1 - self::DEDUCTION_RATE)
+            : $brutRate;
+        $hsHourlyRate = $standardNetJ / self::STANDARD_WORKDAY_HOURS;
+
         // 1. Worker Pay Calculation
         if ($contractType === 'avec_contrat') {
             // AGRIPER logic
-            $salNetJ = ($brutRate * (1 - self::DEDUCTION_RATE)) + $complement;
-            
+            $salNetJ = $standardNetJ + $complement;
+
             // HS Pay
-            $hsPay = $hs * self::HS_HOURLY_RATE;
-            
+            $hsPay = $hs * $hsHourlyRate;
+
             // JF Pay (Jour Férié) - if active, worker gets another salNetJ
             $jfPay = $isJf ? $salNetJ : 0;
 
@@ -39,22 +47,22 @@ class PayrollService
             // net_factur_j = (sal_brut_j * 1.2109 + 5.37 + 3.07) * 1.04 + (comp + h_sup_unit * 1.04) * 1.2
             // Note: We calculate this per day (per record)
             $baseCharges = ($brutRate * self::CHARGE_RATE + self::FIXED_CHARGE_1 + self::FIXED_CHARGE_2) * self::TAX_ADJUSTMENT;
-            $variableCharges = ($complement + ($hs > 0 ? self::HS_HOURLY_RATE : 0) * self::HS_INVOICE_RATE) * self::SERVICE_TAX;
-            
+            $variableCharges = ($complement + ($hs > 0 ? $hsHourlyRate : 0) * self::HS_INVOICE_RATE) * self::SERVICE_TAX;
+
             $netFacturJ = $baseCharges + $variableCharges;
-            
+
             // total_ttc for JF: jfsal_net_j * 1.24
             $jfTtc = $isJf ? ($salNetJ * self::JF_INVOICE_RATE) : 0;
-            
+
             $totalTtc = $netFacturJ + $jfTtc;
 
         } else {
             // HAFILATY logic
-            $salNetJ = $brutRate; // sal_net_j = sal_brut_j
-            $hsPay = $hs * self::HS_HOURLY_RATE;
-            
+            $salNetJ = $standardNetJ; // sal_net_j = sal_brut_j (no deduction for this contract type)
+            $hsPay = $hs * $hsHourlyRate;
+
             $totalWorkerNet = $salNetJ + $hsPay;
-            
+
             $netFacturJ = 0; // No client invoicing mentioned for HAFILATY
             $totalTtc = 0;
         }
@@ -72,6 +80,63 @@ class PayrollService
     /**
      * Generate a snapshot of totals for a closed quinzaine
      */
+    /**
+     * PointageRecord.rate/brut/net are a denormalized snapshot of calculate()'s output, written
+     * once by PointageController::updateCell() at the moment a cell is entered. If the
+     * enterprise's default_brut_rate or contract_type changes afterward, every record entered
+     * before that change is left stale — invisible until compared against a fresh calculate()
+     * call (e.g. in a payslip PDF, which always recomputes live). Closed quinzaines are excluded:
+     * their numbers are historically frozen in QuinzaineSummary and must not be rewritten.
+     */
+    public function recalculateOpenRecordsForEnterprise(\App\Models\Enterprise $enterprise): void
+    {
+        \App\Models\PointageRecord::whereHas('quinzaine', function ($q) use ($enterprise) {
+            $q->where('enterprise_id', $enterprise->id)->where('is_closed', false);
+        })->with('employee')->get()->each(function ($record) use ($enterprise) {
+            $calc = $this->calculate(
+                $enterprise->contract_type,
+                $enterprise->default_brut_rate,
+                $record->hours,
+                $record->employee->complement,
+                $record->is_jf
+            );
+
+            $record->update([
+                'rate' => $enterprise->default_brut_rate,
+                'brut' => $calc['brut'],
+                'net' => $calc['total_net'],
+            ]);
+        });
+    }
+
+    /**
+     * Same staleness problem as recalculateOpenRecordsForEnterprise(), triggered by an edit to
+     * a single employee's complement instead of the enterprise's rate.
+     */
+    public function recalculateOpenRecordsForEmployee(\App\Models\Employee $employee): void
+    {
+        $employee->loadMissing('enterprise');
+
+        \App\Models\PointageRecord::where('employee_id', $employee->id)
+            ->whereHas('quinzaine', fn($q) => $q->where('is_closed', false))
+            ->get()
+            ->each(function ($record) use ($employee) {
+                $calc = $this->calculate(
+                    $employee->enterprise->contract_type,
+                    $employee->enterprise->default_brut_rate,
+                    $record->hours,
+                    $employee->complement,
+                    $record->is_jf
+                );
+
+                $record->update([
+                    'rate' => $employee->enterprise->default_brut_rate,
+                    'brut' => $calc['brut'],
+                    'net' => $calc['total_net'],
+                ]);
+            });
+    }
+
     public function generateSnapshot(\App\Models\Quinzaine $quinzaine)
     {
         $quinzaine->load(['enterprise', 'pointageRecords.employee', 'pointageRecords.operation', 'pointageRecords.bloc']);

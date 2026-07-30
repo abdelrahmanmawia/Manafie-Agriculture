@@ -83,6 +83,23 @@ class HarvestController extends Controller
             'comments' => 'nullable|string',
         ]);
 
+        // The bloc/sector/parcelle IDs are only checked for existence anywhere in the system by
+        // the validation above, not that they belong to this actor's own farm — without this,
+        // a harvest could be filed against another farm's bloc while still being farm_id-scoped
+        // to this actor's own farm, corrupting per-bloc/per-farm harvest reports.
+        $bloc = Bloc::find($validated['bloc_id']);
+        abort_unless($bloc && $bloc->farm_id === $farmId, 403);
+
+        if (!empty($validated['sector_id'])) {
+            $sector = \App\Models\Sector::find($validated['sector_id']);
+            abort_unless($sector && $sector->bloc_id === $bloc->id, 403);
+        }
+
+        if (!empty($validated['parcelle_id'])) {
+            $parcelle = Parcelle::find($validated['parcelle_id']);
+            abort_unless($parcelle && $parcelle->bloc_id === $bloc->id, 403);
+        }
+
         // Calculate estimated_kg based on boxes and farm's box weight
         $boxesCount = $validated['boxes_count'] ?? 0;
         $farm = \App\Models\Farm::find($farmId);

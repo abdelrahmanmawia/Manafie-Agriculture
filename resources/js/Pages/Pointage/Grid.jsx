@@ -300,18 +300,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <td className="border border-gray-200 p-2 text-right font-bold text-gray-500 bg-gray-50 sticky right-[160px] z-10 shadow-sm">{formatNumber(salNetJ)}</td>
                                                 <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[100px] z-10 shadow-sm">{totalJours}</td>
                                                 <td className="border border-gray-200 p-2 text-right font-black text-blue-900 bg-blue-100 sticky right-0 z-10 shadow-sm">
-                                                <div className="flex flex-col items-end">
-                                                    <span>{formatNumber(totalNet)}</span>
-                                                    {totalJours > 0 && (
-                                                        <a
-                                                            href={route('payroll.payslip', [emp.id, quinzaine.id])}
-                                                            target="_blank"
-                                                            className="text-[6px] bg-red-600 text-white px-2 py-0.5 rounded font-black hover:bg-red-700 mt-1 uppercase"
-                                                        >
-                                                            Bulletin PDF
-                                                        </a>
-                                                    )}
-                                                </div>
+                                                    {formatNumber(totalNet)}
                                             </td>
                                             </tr>
                                         );

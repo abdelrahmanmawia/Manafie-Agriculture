@@ -22,11 +22,32 @@ class PayrollController extends Controller
         $this->payrollService = $payrollService;
     }
 
-    public function downloadGeneralPayslip($quinzaineId)
+    /**
+     * A quinzaine belongs to exactly one enterprise; confirm the requesting user is actually
+     * scoped to it before handing back any of its payroll data — same check as
+     * PointageController::grid, since payslips are at least as sensitive as the grid itself.
+     */
+    private function assertQuinzaineInScope(Request $request, Quinzaine $quinzaine): void
+    {
+        $user = $request->user();
+        if ($user->enterprise_id) {
+            abort_unless($quinzaine->enterprise_id === $user->enterprise_id, 403);
+        } elseif ($user->farm_id) {
+            abort_unless($quinzaine->enterprise->farm_id === $user->farm_id, 403);
+        } elseif ($user->role === 'super_admin') {
+            abort_unless($quinzaine->enterprise->farm_id === (int) session('active_farm_id'), 403);
+        } else {
+            abort(403);
+        }
+    }
+
+    public function downloadGeneralPayslip(Request $request, $quinzaineId)
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
         $employees = Employee::where('enterprise_id', $quinzaine->enterprise_id)->orderBy('full_name')->get();
-        
+
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
             ->get()
             ->groupBy('employee_id');
@@ -41,10 +62,13 @@ class PayrollController extends Controller
         return $pdf->download('Etat_Global_' . ($quinzaine->label ?: 'Pointage') . '.pdf');
     }
 
-    public function downloadPayslip($employeeId, $quinzaineId)
+    public function downloadPayslip(Request $request, $employeeId, $quinzaineId)
     {
         $employee = Employee::findOrFail($employeeId);
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+        abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
+
         $records = PointageRecord::where('employee_id', $employeeId)
             ->where('quinzaine_id', $quinzaineId)
             ->get();
@@ -67,14 +91,28 @@ class PayrollController extends Controller
                 $record->is_jf
             );
             $totalNet += $calc['total_net'];
-            
-            // Simplified Gain/Deduction math for the PDF view
-            $brutDay = $calc['brut'] + ($record->hours * 11.36) + ($record->is_jf ? $calc['sal_net_j'] : 0) + $employee->complement;
+
+            // Simplified Gain/Deduction math for the PDF view — reuse the service's own hs_pay
+            // rather than re-deriving the HS rate here, so this always matches PayrollService::calculate().
+            // Complement/prime only exists for avec_contrat in PayrollService::calculate() (sans_contrat's
+            // total_net never includes it), so mirror that here too or totalGains/totalRetenues drift from
+            // the real net pay. On a JF day for avec_contrat, $calc['sal_net_j'] already folds it in, so
+            // it's only added as its own line the rest of the time.
+            $isAvecContrat = $quinzaine->enterprise->contract_type === 'avec_contrat';
+            $brutDay = $calc['brut'] + $calc['hs_pay'] + ($record->is_jf ? $calc['sal_net_j'] : 0)
+                + ($isAvecContrat && !$record->is_jf ? $employee->complement : 0);
             $totalGains += $brutDay;
             $totalRetenues += ($brutDay - $calc['total_net']);
         }
 
-        $baseNetJ = ($quinzaine->enterprise->default_brut_rate * (1 - 0.0674)) + $employee->complement;
+        // Same standard-net-per-day basis as the JF bonus in PayrollService::calculate(): the
+        // 6.74% deduction only applies to avec_contrat; sans_contrat passes brut through untouched.
+        $standardNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
+            ? $quinzaine->enterprise->default_brut_rate * (1 - 0.0674)
+            : $quinzaine->enterprise->default_brut_rate;
+        $baseNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
+            ? $standardNetJ + $employee->complement
+            : $standardNetJ;
 
         $pdf = Pdf::loadView('exports.payslip', [
             'employee' => $employee,
@@ -91,8 +129,8 @@ class PayrollController extends Controller
 
     public function history(Request $request)
     {
-        $enterpriseId = $request->user()->enterprise_id ?? $request->query('enterprise_id');
-        $farmId = $request->user()->role === 'super_admin' ? session('active_farm_id') : $request->user()->farm_id;
+        $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
 
         if (!$enterpriseId && $request->user()->role !== 'super_admin' && !$farmId) {
             abort(403);
@@ -104,6 +142,34 @@ class PayrollController extends Controller
             ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
             ->orderBy('start_date', 'desc')
             ->get();
+
+        // Each division opens its own Quinzaine row for the same real-world pay period, so without
+        // grouping the matrix would show one duplicate (mostly empty) column per division. Merge
+        // quinzaines that share the same start/end date into a single period column, labeled
+        // "1QZ/2QZ Mois Année" the same way the Pointage export picker and Analytics range picker do.
+        $frenchMonths = [1 => 'Janvier', 2 => 'Février', 3 => 'Mars', 4 => 'Avril', 5 => 'Mai', 6 => 'Juin', 7 => 'Juillet', 8 => 'Août', 9 => 'Septembre', 10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre'];
+        $periods = $quinzaines
+            ->groupBy(fn($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
+            ->map(function ($group) use ($frenchMonths) {
+                $first = $group->first();
+                $qzNum = ((int) $first->start_date->format('j')) <= 15 ? '1' : '2';
+                return (object) [
+                    'key' => $first->start_date->format('Y-m-d') . '_' . $first->end_date->format('Y-m-d'),
+                    'label' => $qzNum . 'QZ ' . $frenchMonths[(int) $first->start_date->format('n')] . ' ' . $first->start_date->format('Y'),
+                    'start_date' => $first->start_date,
+                    'end_date' => $first->end_date,
+                    'quinzaine_ids' => $group->pluck('id')->all(),
+                ];
+            })
+            ->sortByDesc('start_date')
+            ->values();
+
+        $quinzaineIdToPeriodKey = [];
+        foreach ($periods as $period) {
+            foreach ($period->quinzaine_ids as $qid) {
+                $quinzaineIdToPeriodKey[$qid] = $period->key;
+            }
+        }
 
         // Get all employees
         $employees = Employee::query()
@@ -160,19 +226,40 @@ class PayrollController extends Controller
             }
         }
 
+        // Roll each employee's per-quinzaine totals up to the merged period they belong to
+        // (an employee only ever has data in their own division's quinzaine, so this is a
+        // straight regroup, never a double-count).
+        $periodHistoryData = [];
+        foreach ($historyData as $empId => $perQuinzaine) {
+            foreach ($perQuinzaine as $qid => $data) {
+                $periodKey = $quinzaineIdToPeriodKey[$qid] ?? null;
+                if (!$periodKey) {
+                    continue;
+                }
+                if (!isset($periodHistoryData[$empId][$periodKey])) {
+                    $periodHistoryData[$empId][$periodKey] = [
+                        'employee_id' => $empId,
+                        'period_key' => $periodKey,
+                        'total_net' => 0,
+                    ];
+                }
+                $periodHistoryData[$empId][$periodKey]['total_net'] += $data['total_net'];
+            }
+        }
+
         // Convert to indexed arrays for frontend compatibility
         // Use string keys to force JSON object instead of array
         $formattedHistory = [];
-        foreach ($historyData as $empId => $data) {
+        foreach ($periodHistoryData as $empId => $data) {
             $formattedHistory[(string)$empId] = array_values($data);
         }
 
         return Inertia::render('Payroll/History', [
             'employees' => $employees,
-            'quinzaines' => $quinzaines,
+            'periods' => $periods,
             'history' => (object)$formattedHistory,
             'selectedEnterpriseId' => $enterpriseId,
-            'allEnterprises' => $request->user()->role === 'super_admin' ? Enterprise::where('farm_id', $farmId)->get() : []
+            'allEnterprises' => in_array($request->user()->role, ['super_admin', 'farm_manager']) ? Enterprise::where('farm_id', $farmId)->get() : []
         ]);
     }
 }

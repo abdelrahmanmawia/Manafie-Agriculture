@@ -39,6 +39,8 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
+        abort_unless($request->user()->role === 'super_admin', 403);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -60,8 +62,10 @@ class UserController extends Controller
         return redirect()->back()->with('success', 'User created successfully.');
     }
 
-    public function destroy(User $user)
+    public function destroy(Request $request, User $user)
     {
+        abort_unless($request->user()->role === 'super_admin', 403);
+
         if ($user->role === 'super_admin') {
             return redirect()->back()->with('error', 'Cannot delete super admin.');
         }

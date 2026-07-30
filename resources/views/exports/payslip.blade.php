@@ -72,12 +72,20 @@
             </tr>
 
             {{-- 2. Heures Supplémentaires --}}
+            @php
+                // Overtime hourly rate = the standard daily net salary (after the worker deduction for
+                // "avec contrat", before any complement/prime) ÷ 8 — never the raw brut rate.
+                $standardNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
+                    ? $quinzaine->enterprise->default_brut_rate * (1 - 0.0674)
+                    : $quinzaine->enterprise->default_brut_rate;
+                $hsHourlyRate = $standardNetJ / 8;
+            @endphp
             @if($records->sum('hours') > 0)
             <tr>
                 <td>Heures Supplémentaires (H.S)</td>
                 <td style="text-align: center;">{{ $records->sum('hours') }} H</td>
-                <td style="text-align: right;">11.36</td>
-                <td style="text-align: right;">{{ number_format($records->sum('hours') * 11.36, 2) }}</td>
+                <td style="text-align: right;">{{ number_format($hsHourlyRate, 2) }}</td>
+                <td style="text-align: right;">{{ number_format($records->sum('hours') * $hsHourlyRate, 2) }}</td>
                 <td></td>
             </tr>
             @endif
@@ -93,8 +101,10 @@
             </tr>
             @endif
 
-            {{-- 4. Complément / Primes --}}
-            @if($employee->complement > 0)
+            {{-- 4. Complément / Primes — avec_contrat only: PayrollService::calculate() never folds
+                 complement into sans_contrat's net pay, so showing it here for HAFILATY employees
+                 would imply a bonus that isn't actually paid. --}}
+            @if($quinzaine->enterprise->contract_type === 'avec_contrat' && $employee->complement > 0)
             <tr>
                 <td>Complément / Prime de rendement</td>
                 <td style="text-align: center;">{{ $records->count() }} J</td>
@@ -107,7 +117,7 @@
             {{-- 5. Deductions (CNSS / AMO) --}}
             @if($quinzaine->enterprise->contract_type === 'avec_contrat')
                 @php
-                    $totalBrut = ($records->count() * $quinzaine->enterprise->default_brut_rate) + ($records->sum('hours') * 11.36);
+                    $totalBrut = ($records->count() * $quinzaine->enterprise->default_brut_rate) + ($records->sum('hours') * $hsHourlyRate);
                     $cnss = min($totalBrut, 6000) * 0.0448;
                     $amo = $totalBrut * 0.0226;
                 @endphp

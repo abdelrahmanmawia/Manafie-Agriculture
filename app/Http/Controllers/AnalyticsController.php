@@ -18,10 +18,8 @@ class AnalyticsController extends Controller
 {
     public function index(Request $request)
     {
-        $farmId = $request->user()->role === 'super_admin'
-            ? session('active_farm_id')
-            : $request->user()->farm_id;
-        $enterpriseId = $request->query('enterprise_id');
+        $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
         $blocId = $request->query('bloc_id');
         $sectorId = $request->query('sector_id');
         $selectedQuinzaineId = $request->query('quinzaine_id');
@@ -77,11 +75,11 @@ class AnalyticsController extends Controller
             }
         } else {
             $filteredQuinzaineIds = $availableQuinzaines->pluck('id')->toArray();
-            if ($availableQuinzaines->isNotEmpty()) {
-                $minQuinzaineStartDate = $availableQuinzaines->min('start_date');
-                $maxQuinzaineEndDate = $availableQuinzaines->max('end_date');
-            }
         }
+
+        // Harvests are only period-filtered when the user explicitly picks a quinzaine/range —
+        // otherwise recent harvests dated outside the (often old) pay-period window would silently disappear.
+        $hasExplicitPeriodFilter = $minQuinzaineStartDate && $maxQuinzaineEndDate;
 
         // 1. Cost by Operation
         $opCosts = PointageRecord::query()
@@ -120,7 +118,7 @@ class AnalyticsController extends Controller
         // 3. Trend
         $trend = Quinzaine::query()
             ->whereIn('id', $filteredQuinzaineIds)
-            ->select('id', 'start_date', 'label')
+            ->select('id', 'start_date', 'end_date', 'label')
             ->get()
             ->map(function($q) use ($blocId, $sectorId, $farmId) {
                 $totals = PointageRecord::where('quinzaine_id', $q->id)
@@ -141,7 +139,10 @@ class AnalyticsController extends Controller
 
                 return $q;
             })
-            ->groupBy(fn($q) => $q->start_date . '_' . $q->label)
+            // Group by the actual date range, not the free-text label — different divisions can
+            // enter slightly different labels for what is otherwise the same real-world period,
+            // which would otherwise fragment one period into multiple trend points.
+            ->groupBy(fn($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
             ->map(function($group) {
                 $first = $group->first();
                 return (object)[
@@ -191,8 +192,9 @@ class AnalyticsController extends Controller
             ->where('harvests.farm_id', $farmId)
             ->when($blocId, fn($q) => $q->where('harvests.bloc_id', $blocId))
             ->when($sectorId, fn($q) => $q->where('harvests.sector_id', $sectorId))
-            // Add date filtering for harvests based on the determined quinzaine date range
-            ->when($minQuinzaineStartDate && $maxQuinzaineEndDate, function ($q) use ($minQuinzaineStartDate, $maxQuinzaineEndDate) {
+            // Only narrow to a date range when the user explicitly picked a quinzaine/period —
+            // otherwise harvests recorded outside the pay-period window would be silently hidden.
+            ->when($hasExplicitPeriodFilter, function ($q) use ($minQuinzaineStartDate, $maxQuinzaineEndDate) {
                 $q->whereBetween('harvests.date', [$minQuinzaineStartDate, $maxQuinzaineEndDate]);
             });
 

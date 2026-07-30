@@ -24,6 +24,24 @@ class EnterpriseController extends Controller
         $this->payrollService = $payrollService;
     }
 
+    /**
+     * Division-level mutations (create/edit a division, open/close its pay periods, manage its
+     * operations/blocs) are for that division's own farm_manager (or a super_admin working
+     * within that farm) only — never data_entry, and never another farm's manager.
+     */
+    private function assertEnterpriseManagerAccess(Request $request, int $farmId): void
+    {
+        $user = $request->user();
+        abort_if($user->role === 'data_entry', 403);
+
+        if ($user->role === 'super_admin') {
+            abort_unless((int) session('active_farm_id') === $farmId, 403);
+            return;
+        }
+
+        abort_unless($user->farm_id === $farmId, 403);
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -115,15 +133,17 @@ class EnterpriseController extends Controller
      */
     private function farmDashboardExtras(Farm $farm): array
     {
-        // Quinzaines for the same (start_date, label) period exist once per enterprise, so
+        // Quinzaines for the same (start_date, end_date) period exist once per enterprise, so
         // merge them into one point per period before summing — otherwise the farm-wide trend
-        // would show duplicate/fragmented points instead of one combined total per period.
+        // would show duplicate/fragmented points instead of one combined total per period. Grouped
+        // by actual date range rather than the free-text label, which different divisions can
+        // enter slightly differently for what is otherwise the same real-world period.
         $farmQuinzaines = Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))
             ->orderByDesc('start_date')
-            ->get(['id', 'start_date', 'label']);
+            ->get(['id', 'start_date', 'end_date', 'label']);
 
         $payrollTrend = $farmQuinzaines
-            ->groupBy(fn ($q) => $q->start_date . '_' . $q->label)
+            ->groupBy(fn ($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
             ->map(function ($group) {
                 $totals = PointageRecord::whereIn('quinzaine_id', $group->pluck('id'))
                     ->selectRaw('COALESCE(SUM(net),0) as total_net, COALESCE(SUM(hours),0) as total_hours')
@@ -165,7 +185,9 @@ class EnterpriseController extends Controller
             'contract_type' => 'required|in:avec_contrat,sans_contrat',
             'default_brut_rate' => 'required|numeric',
         ]);
-        
+
+        $this->assertEnterpriseManagerAccess($request, (int) $request->farm_id);
+
         Enterprise::create([
             'farm_id' => $request->farm_id,
             'name' => $request->name,
@@ -210,6 +232,8 @@ class EnterpriseController extends Controller
 
     public function update(Request $request, Enterprise $enterprise)
     {
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'default_brut_rate' => 'required|numeric',
@@ -222,13 +246,22 @@ class EnterpriseController extends Controller
             'contract_type' => $request->contract_type,
         ]);
 
+        // Keep already-entered pointage in still-open quinzaines in sync with the new rate/contract
+        // type — otherwise their stored net/brut stay priced at whatever was in effect when each
+        // cell was entered, silently diverging from what a payslip would compute for the same day.
+        if ($enterprise->wasChanged(['default_brut_rate', 'contract_type'])) {
+            $this->payrollService->recalculateOpenRecordsForEnterprise($enterprise);
+        }
+
         return redirect()->back()->with('success', 'Division mise à jour.');
     }
 
-    public function closeQuinzaine(Quinzaine $quinzaine)
+    public function closeQuinzaine(Request $request, Quinzaine $quinzaine)
     {
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+
         $quinzaine->update(['is_closed' => true]);
-        
+
         // Generate Snapshot for performance
         $this->payrollService->generateSnapshot($quinzaine);
 
@@ -239,7 +272,8 @@ class EnterpriseController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255', 'abbreviation' => 'nullable|string|max:50', 'enterprise_id' => 'required']);
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+
         Operation::create([
             'name' => $request->name,
             'abbreviation' => $request->abbreviation,
@@ -252,7 +286,8 @@ class EnterpriseController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255', 'enterprise_id' => 'required']);
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+
         Bloc::create([
             'name' => $request->name,
             'farm_id' => $enterprise->farm_id
@@ -269,6 +304,19 @@ class EnterpriseController extends Controller
             'end_date' => 'required|date|after:start_date',
         ]);
 
+        $enterprise = Enterprise::findOrFail($request->enterprise_id);
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+
+        // Guard against a double-submit opening two overlapping pay periods for the same division.
+        // start_date/end_date are stored with a time component (e.g. "2026-02-01 00:00:00"), so a
+        // plain string match against the submitted date-only value would never hit — whereDate()
+        // compares the date part only.
+        $duplicate = Quinzaine::where('enterprise_id', $request->enterprise_id)
+            ->whereDate('start_date', $request->start_date)
+            ->whereDate('end_date', $request->end_date)
+            ->exists();
+        abort_if($duplicate, 422, 'Une période existe déjà pour ces dates dans cette division.');
+
         Quinzaine::create([
             'enterprise_id' => $request->enterprise_id,
             'label' => $request->label,
@@ -280,14 +328,18 @@ class EnterpriseController extends Controller
         return redirect()->back();
     }
 
-    public function deleteOperation(Operation $operation)
+    public function deleteOperation(Request $request, Operation $operation)
     {
+        $this->assertEnterpriseManagerAccess($request, $operation->farm_id);
+
         $operation->delete();
         return redirect()->back();
     }
 
-    public function deleteBloc(Bloc $bloc)
+    public function deleteBloc(Request $request, Bloc $bloc)
     {
+        $this->assertEnterpriseManagerAccess($request, $bloc->farm_id);
+
         $bloc->delete();
         return redirect()->back();
     }

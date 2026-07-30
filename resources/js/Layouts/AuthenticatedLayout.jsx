@@ -53,7 +53,7 @@ export default function Authenticated({ user, header, children }) {
             ? []
             : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
         ...(user.farm_id
-            ? [{ label: 'Structure Agricole', href: 'farms.settings', params: user.farm_id, match: 'farms.settings', icon: ICONS.map }]
+            ? [{ label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: user.farm_id, match: 'farms.settings', icon: ICONS.sliders }]
             : []),
         ...(user.role === 'super_admin'
             ? [{ label: t('users') || 'Utilisateurs', href: 'users.index', match: 'users.*', icon: ICONS.shield }]
@@ -65,7 +65,6 @@ export default function Authenticated({ user, header, children }) {
         { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
-        { label: t('system_settings') || 'Paramètres', href: 'settings.index', match: 'settings.*', icon: ICONS.sliders },
     ];
 
     const stockItems = [

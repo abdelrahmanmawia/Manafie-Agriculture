@@ -13,6 +13,25 @@ use Inertia\Inertia;
 
 class FarmController extends Controller
 {
+    /**
+     * Every farm-structure action here is either a super_admin-only, whole-app-scope action
+     * (creating/deleting a farm), or a farm-scoped one that only that farm's own farm_manager
+     * (or a super_admin working within it) may touch — never data_entry, and never another
+     * farm's manager.
+     */
+    private function assertFarmManagerAccess(Request $request, int $farmId): void
+    {
+        $user = $request->user();
+        abort_if($user->role === 'data_entry', 403);
+
+        if ($user->role === 'super_admin') {
+            abort_unless((int) session('active_farm_id') === $farmId, 403);
+            return;
+        }
+
+        abort_unless($user->farm_id === $farmId, 403);
+    }
+
     public function index()
     {
         return Inertia::render('Admin/SuperDashboard', [
@@ -23,6 +42,8 @@ class FarmController extends Controller
 
     public function store(Request $request)
     {
+        abort_unless($request->user()->role === 'super_admin', 403);
+
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
@@ -56,8 +77,10 @@ class FarmController extends Controller
         return redirect()->route('dashboard');
     }
 
-    public function settings(Farm $farm)
+    public function settings(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         return Inertia::render('Admin/FarmSettings', [
             'farm' => $farm->load(['sectors.parcelles', 'parcelles']),
             'operations' => Operation::where('farm_id', $farm->id)->get(),
@@ -67,6 +90,8 @@ class FarmController extends Controller
 
     public function updateSettings(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'box_weight_kg' => 'required|numeric|min:1|max:1000',
@@ -82,8 +107,10 @@ class FarmController extends Controller
 
     public function addOperation(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         $request->validate(['name' => 'required|string|max:255', 'abbreviation' => 'nullable|string|max:50']);
-        
+
         Operation::create([
             'name' => $request->name,
             'abbreviation' => $request->abbreviation,
@@ -95,6 +122,8 @@ class FarmController extends Controller
 
     public function addBloc(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         $request->validate([
             'name' => 'required|string|max:255',
         ]);
@@ -109,6 +138,8 @@ class FarmController extends Controller
 
     public function addSector(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         $request->validate([
             'bloc_id' => 'required|exists:blocs,id',
             'name' => 'required|string|max:255',
@@ -134,6 +165,8 @@ class FarmController extends Controller
 
     public function addParcelle(Request $request, Farm $farm)
     {
+        $this->assertFarmManagerAccess($request, $farm->id);
+
         $request->validate([
             'bloc_id' => 'required|exists:blocs,id',
             'sector_id' => 'required|exists:sectors,id',
@@ -165,33 +198,56 @@ class FarmController extends Controller
         return redirect()->back()->with('success', 'Parcelle ajoutée.');
     }
 
-    public function deleteSector(Sector $sector)
+    public function deleteSector(Request $request, Sector $sector)
     {
+        $this->assertFarmManagerAccess($request, $sector->bloc->farm_id);
+
         $sector->delete();
         return redirect()->back()->with('success', 'Secteur supprimé.');
     }
 
-    public function deleteParcelle(Parcelle $parcelle)
+    public function deleteParcelle(Request $request, Parcelle $parcelle)
     {
+        $this->assertFarmManagerAccess($request, $parcelle->bloc->farm_id);
+
         $parcelle->delete();
         return redirect()->back()->with('success', 'Parcelle supprimée.');
     }
 
-    public function deleteOperation(Operation $operation)
+    public function deleteOperation(Request $request, Operation $operation)
     {
+        $this->assertFarmManagerAccess($request, $operation->farm_id);
+
         $operation->delete();
         return redirect()->back()->with('success', 'Opération supprimée.');
     }
 
-    public function deleteBloc(Bloc $bloc)
+    public function deleteBloc(Request $request, Bloc $bloc)
     {
+        $this->assertFarmManagerAccess($request, $bloc->farm_id);
+
         $bloc->delete();
         return redirect()->back()->with('success', 'Bloc supprimé.');
     }
 
-    public function destroy(Farm $farm)
+    public function destroy(Request $request, Farm $farm)
     {
-        $farm->delete();
+        abort_unless($request->user()->role === 'super_admin', 403);
+
+        // Several stock-domain foreign keys (manual_stock_entries, fuel_transactions,
+        // vehicles.default_driver_id) have no cascade behavior defined, so deleting a farm with
+        // any stock activity throws a raw QueryException instead of the full cascade the UI
+        // promises. Surface a clear, actionable error instead of a 500 until that's addressed
+        // with a proper migration.
+        try {
+            $farm->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer cette ferme : des données liées (mouvements de stock, véhicules, carburant...) l\'en empêchent. Videz d\'abord l\'activité de stock de cette ferme.'
+            );
+        }
+
         return redirect()->route('dashboard')->with('success', 'Ferme et toutes les données associées supprimées.');
     }
 }
