@@ -34,7 +34,7 @@ class PayrollRecalculationTest extends TestCase
         ]);
         $manager = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $farm->id]);
         $employee = Employee::create([
-            'enterprise_id' => $enterprise->id, 'matricule' => 'A-1', 'full_name' => 'Employee A',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterprise->id, 'matricule' => 'A-1', 'full_name' => 'Employee A',
             'type' => 'persea', 'base_rate' => 100, 'complement' => 0, 'is_active' => true,
         ]);
         $bloc = Bloc::create(['farm_id' => $farm->id, 'name' => 'Bloc A']);
@@ -92,7 +92,7 @@ class PayrollRecalculationTest extends TestCase
         ]);
         $manager = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $farm->id]);
         $employee = Employee::create([
-            'enterprise_id' => $enterprise->id, 'matricule' => 'A-1', 'full_name' => 'Employee A',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterprise->id, 'matricule' => 'A-1', 'full_name' => 'Employee A',
             'type' => 'persea', 'base_rate' => 97.44, 'complement' => 0, 'is_active' => true,
         ]);
         $bloc = Bloc::create(['farm_id' => $farm->id, 'name' => 'Bloc A']);

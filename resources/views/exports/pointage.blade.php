@@ -56,7 +56,12 @@
         <tbody>
         @foreach($employees as $emp)
             @php
-                $employeeRecords = $records[$emp->id] ?? collect();
+                // Piece-rate (quantity) days are pulled out entirely and shown in their own
+                // "Pointage à la Quantité" table below — they don't have HS/JF and their net
+                // isn't derived from the enterprise rate/complement, so mixing them into this
+                // table's per-day cells and totals would misrepresent both tables.
+                $allEmployeeRecords = $records[$emp->id] ?? collect();
+                $employeeRecords = $allEmployeeRecords->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
                 $totalJours = $employeeRecords->count();
                 $totalHs = 0;
                 $totalJf = 0;
@@ -70,39 +75,63 @@
                     }
                 }
 
+                // SAL NET/J and SAL BRUT/J are a per-employee "typical rate" display, not a sum.
+                // Prefer this quinzaine's own records' rate (historically accurate for THIS
+                // specific period) over emp->base_rate, which reflects whichever period was
+                // chronologically latest across ALL of this employee's imported periods and can
+                // differ from the one being exported here.
+                $employeeRate = $employeeRecords->isNotEmpty()
+                    ? $employeeRecords->first()[0]->rate
+                    : ($emp->base_rate ?: $quinzaine->enterprise->default_brut_rate);
                 $calc = $payrollService->calculate(
                     $quinzaine->enterprise->contract_type,
-                    $quinzaine->enterprise->default_brut_rate,
+                    $employeeRate,
                     0,
                     $emp->complement,
                     false,
                     $quinzaine->enterprise->invoiced_to_client
                 );
 
+                // TOTAL NET is summed directly from each PointageRecord's own stored net — that
+                // value was computed and frozen at entry/import time and must not be silently
+                // recomputed from today's rate. NET FACTUR J / TOTAL TTC (client invoicing) are
+                // period-level (see PayrollService::calculateInvoicing()) — computed once per
+                // employee from this quinzaine's own totals, not per day.
                 $quinzaineTotalNet = 0;
-                $quinzaineTotalTtc = 0;
-                $quinzaineNetFacturJ = 0;
+                foreach($employeeRecords as $recordList) {
+                    $quinzaineTotalNet += $recordList[0]->net;
+                }
+
+                $invoicing = $payrollService->calculateInvoicing(
+                    $quinzaine->enterprise->contract_type,
+                    $employeeRate,
+                    $emp->complement,
+                    $totalJours,
+                    $totalJf,
+                    $totalHs,
+                    $quinzaine->enterprise->invoiced_to_client
+                );
+                $quinzaineNetFacturJ = $invoicing['net_factur_j'];
+                $quinzaineTotalTtc = $invoicing['total_ttc'];
                 $totalJfAmount = $totalJf * $calc['sal_net_j'];
 
-                foreach($employeeRecords as $recordList) {
-                    $record = $recordList[0];
-                    $dayCalc = $payrollService->calculate(
-                        $quinzaine->enterprise->contract_type,
-                        $quinzaine->enterprise->default_brut_rate,
-                        $record->hours,
-                        $emp->complement,
-                        $record->is_jf,
-                        $quinzaine->enterprise->invoiced_to_client
-                    );
-                    $quinzaineTotalNet += $dayCalc['total_net'];
-                    $quinzaineTotalTtc += $dayCalc['total_ttc'];
-                    $quinzaineNetFacturJ = $dayCalc['net_factur_j'];
+                // last_name/first_name are set directly from the source file's own NOM/PRENOM
+                // columns wherever available (the PRS import). For employees created manually
+                // (no separate fields), fall back to a best-effort split of full_name — imperfect
+                // for multi-word names, but at least NOM/PRENOM land in the right column now.
+                if ($emp->last_name || $emp->first_name) {
+                    $nomDisplay = $emp->last_name ?? '';
+                    $prenomDisplay = $emp->first_name ?? '';
+                } else {
+                    $nameParts = explode(' ', $emp->full_name, 2);
+                    $nomDisplay = $nameParts[0] ?? $emp->full_name;
+                    $prenomDisplay = $nameParts[1] ?? '';
                 }
             @endphp
             <tr>
                 <td style="border: 1px solid #000;">{{ $emp->matricule }}</td>
-                <td style="border: 1px solid #000;">{{ explode(' ', $emp->full_name)[1] ?? $emp->full_name }}</td>
-                <td style="border: 1px solid #000;">{{ explode(' ', $emp->full_name)[0] ?? '' }}</td>
+                <td style="border: 1px solid #000;">{{ $nomDisplay }}</td>
+                <td style="border: 1px solid #000;">{{ $prenomDisplay }}</td>
                 <td style="border: 1px solid #000;">{{ $emp->cin }}</td>
                 <td style="border: 1px solid #000; white-space: nowrap; overflow: visible; min-width: 150px;">{{ $emp->rib ?? '-' }}</td>
                 @foreach($days as $day)
@@ -115,7 +144,7 @@
                 @endforeach
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($calc['sal_net_j'], 2, ',', ' ') }}</td>
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($emp->complement, 2, ',', ' ') }}</td>
-                <td style="border: 1px solid #000; text-align: right;">{{ number_format($quinzaine->enterprise->default_brut_rate, 2, ',', ' ') }}</td>
+                <td style="border: 1px solid #000; text-align: right;">{{ number_format($employeeRate, 2, ',', ' ') }}</td>
                 <td style="border: 1px solid #000; text-align: right;">0,00</td>
                 <td style="border: 1px solid #000; text-align: center;">{{ $totalJours }}</td>
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($totalJfAmount, 2, ',', ' ') }}</td>
@@ -133,7 +162,7 @@
                     @php
                         $dayEmployeeCount = 0;
                         foreach($employees as $emp) {
-                            $empRecords = $records[$emp->id] ?? collect();
+                            $empRecords = ($records[$emp->id] ?? collect())->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
                             if(isset($empRecords[$day])) {
                                 $dayEmployeeCount++;
                             }
@@ -156,7 +185,7 @@
                     $grandTotalTtc = 0;
 
                     foreach($employees as $emp) {
-                        $empRecords = $records[$emp->id] ?? collect();
+                        $empRecords = ($records[$emp->id] ?? collect())->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
                         $grandTotalJours += $empRecords->count();
                         $empJfCount = 0;
                         foreach($empRecords as $recordList) {
@@ -171,32 +200,40 @@
                         $grandTotalJf += $empJfCount;
                         $grandTotalComp += $emp->complement;
 
+                        // Same fix as the per-employee row above: use this quinzaine's own record
+                        // rate (historically accurate for THIS period), and compute NET FACTUR J /
+                        // TOTAL TTC once per employee from their period totals via
+                        // calculateInvoicing(), not per day.
+                        $empRate = $empRecords->isNotEmpty()
+                            ? $empRecords->first()[0]->rate
+                            : ($emp->base_rate ?: $quinzaine->enterprise->default_brut_rate);
                         $calc = $payrollService->calculate(
                             $quinzaine->enterprise->contract_type,
-                            $quinzaine->enterprise->default_brut_rate,
+                            $empRate,
                             0,
                             $emp->complement,
                             false,
                             $quinzaine->enterprise->invoiced_to_client
                         );
                         $grandTotalSalNetJ += $calc['sal_net_j'];
-                        $grandTotalBrut += $quinzaine->enterprise->default_brut_rate;
+                        $grandTotalBrut += $empRate;
                         $grandTotalJfAmount += $empJfCount * $calc['sal_net_j'];
 
                         foreach($empRecords as $recordList) {
-                            $record = $recordList[0];
-                            $dayCalc = $payrollService->calculate(
-                                $quinzaine->enterprise->contract_type,
-                                $quinzaine->enterprise->default_brut_rate,
-                                $record->hours,
-                                $emp->complement,
-                                $record->is_jf,
-                                $quinzaine->enterprise->invoiced_to_client
-                            );
-                            $grandTotalNet += $dayCalc['total_net'];
-                            $grandTotalTtc += $dayCalc['total_ttc'];
-                            $grandTotalFacturJ = $dayCalc['net_factur_j'];
+                            $grandTotalNet += $recordList[0]->net;
                         }
+
+                        $empInvoicing = $payrollService->calculateInvoicing(
+                            $quinzaine->enterprise->contract_type,
+                            $empRate,
+                            $emp->complement,
+                            $empRecords->count(),
+                            $empJfCount,
+                            $empRecords->sum(fn($r) => $r[0]->hours),
+                            $quinzaine->enterprise->invoiced_to_client
+                        );
+                        $grandTotalTtc += $empInvoicing['total_ttc'];
+                        $grandTotalFacturJ = $empInvoicing['net_factur_j'];
                     }
                 @endphp
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalSalNetJ, 2, ',', ' ') }}</td>
@@ -215,6 +252,118 @@
 
     {{-- SPACE BETWEEN TABLES --}}
     <table><tr><td></td></tr><tr><td></td></tr></table>
+
+    {{-- POINTAGE À LA QUANTITÉ (piece-rate: quantity × the operation's own rate — e.g. meterage
+         for Fixation Brise Vent) — kept entirely separate from the normal table above since these
+         days have no HS/JF and their net isn't derived from the enterprise rate/complement. --}}
+    @php
+        $quantityByEmployee = [];
+        foreach ($employees as $emp) {
+            $qRecords = ($records[$emp->id] ?? collect())->filter(fn($dayList) => !is_null($dayList[0]->quantity ?? null));
+            if ($qRecords->isNotEmpty()) {
+                $quantityByEmployee[$emp->id] = $qRecords;
+            }
+        }
+    @endphp
+    @if(count($quantityByEmployee) > 0)
+        <table>
+            <thead>
+            <tr>
+                <th colspan="32" style="font-weight: bold; text-align: center; font-size: 16px; color: #047857;">
+                    POINTAGE À LA QUANTITÉ
+                </th>
+            </tr>
+            <tr><td></td></tr> {{-- SPACING --}}
+            <tr>
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">N° (Matricule)</th>
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">NOM</th>
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">PRENOM</th>
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">CIN</th>
+                @foreach($days as $day)
+                    <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000; text-align: center;">{{ date('d', strtotime($day)) }}</th>
+                @endforeach
+                <th style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000;">TOTAL QUANTITÉ</th>
+                <th style="font-weight: bold; background-color: #059669; color: #ffffff; border: 1px solid #000;">TOTAL NET</th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach($quantityByEmployee as $empId => $qRecords)
+                @php
+                    $emp = $employees->firstWhere('id', $empId);
+                    $totalQuantity = 0;
+                    $totalNetQty = 0;
+                    // A day can hold MORE than one entry — the same employee can genuinely do
+                    // piece-rate meterage in more than one Bloc on the same calendar day (confirmed
+                    // against real source data) — so every entry for the day must be summed/shown,
+                    // not just the first.
+                    foreach ($qRecords as $dayEntries) {
+                        foreach ($dayEntries as $entry) {
+                            $totalQuantity += $entry->quantity;
+                            $totalNetQty += $entry->net;
+                        }
+                    }
+                    if ($emp->last_name || $emp->first_name) {
+                        $nomDisplay = $emp->last_name ?? '';
+                        $prenomDisplay = $emp->first_name ?? '';
+                    } else {
+                        $nameParts = explode(' ', $emp->full_name, 2);
+                        $nomDisplay = $nameParts[0] ?? $emp->full_name;
+                        $prenomDisplay = $nameParts[1] ?? '';
+                    }
+                @endphp
+                <tr>
+                    <td style="border: 1px solid #000;">{{ $emp->matricule }}</td>
+                    <td style="border: 1px solid #000;">{{ $nomDisplay }}</td>
+                    <td style="border: 1px solid #000;">{{ $prenomDisplay }}</td>
+                    <td style="border: 1px solid #000;">{{ $emp->cin }}</td>
+                    @foreach($days as $day)
+                        @php $dayEntries = $qRecords[$day] ?? collect(); @endphp
+                        <td style="border: 1px solid #000; text-align: center; font-size: 8px; @if($dayEntries->isNotEmpty()) background-color: #d1fae5; @endif">
+                            @foreach($dayEntries as $entry)
+                                {{ $entry->quantity }} ({{ $entry->operation->abbreviation ?? $entry->operation->name }}) {{ $entry->bloc->name }}@if(!$loop->last)<br>@endif
+                            @endforeach
+                        </td>
+                    @endforeach
+                    <td style="border: 1px solid #000; text-align: center; font-weight: bold;">{{ number_format($totalQuantity, 2, ',', ' ') }}</td>
+                    <td style="border: 1px solid #000; text-align: right; font-weight: bold;">{{ number_format($totalNetQty, 2, ',', ' ') }}</td>
+                </tr>
+            @endforeach
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="4" style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000;">TOTAL GÉNÉRAL</td>
+                    @foreach($days as $day)
+                        @php
+                            $dayNetTotal = 0;
+                            foreach ($quantityByEmployee as $qRecords) {
+                                foreach (($qRecords[$day] ?? collect()) as $entry) {
+                                    $dayNetTotal += $entry->net;
+                                }
+                            }
+                        @endphp
+                        <td style="border: 1px solid #000; text-align: center; font-size: 8px; font-weight: bold; background-color: #1e293b; color: #ffffff;">
+                            {{ $dayNetTotal > 0 ? number_format($dayNetTotal, 1, ',', ' ') : '-' }}
+                        </td>
+                    @endforeach
+                    @php
+                        $grandTotalQty = 0;
+                        $grandTotalNetQty = 0;
+                        foreach ($quantityByEmployee as $qRecords) {
+                            foreach ($qRecords as $dayEntries) {
+                                foreach ($dayEntries as $entry) {
+                                    $grandTotalQty += $entry->quantity;
+                                    $grandTotalNetQty += $entry->net;
+                                }
+                            }
+                        }
+                    @endphp
+                    <td style="border: 1px solid #000; text-align: center; font-weight: bold; background-color: #10b981; color: #ffffff;">{{ number_format($grandTotalQty, 2, ',', ' ') }}</td>
+                    <td style="border: 1px solid #000; text-align: right; font-weight: bold; background-color: #059669; color: #ffffff;">{{ number_format($grandTotalNetQty, 2, ',', ' ') }}</td>
+                </tr>
+            </tfoot>
+        </table>
+        <table><tr><td></td></tr><tr><td></td></tr></table>
+    @endif
 
     @foreach($blocs as $bloc)
         @php

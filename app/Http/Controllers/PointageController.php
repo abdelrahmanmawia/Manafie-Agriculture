@@ -152,6 +152,7 @@ class PointageController extends Controller
             'bloc_id' => 'nullable|exists:blocs,id',
             'date' => 'required|date',
             'hours' => 'nullable|numeric|min:0',
+            'quantity' => 'nullable|numeric|min:0',
             'is_jf' => 'nullable|boolean',
         ]);
 
@@ -171,6 +172,33 @@ class PointageController extends Controller
         }
 
         $employee = Employee::find($validated['employee_id']);
+        $operation = Operation::find($validated['operation_id']);
+        $quantity = $validated['quantity'] ?? null;
+
+        if ($operation->unit_rate && $quantity > 0) {
+            // Piece-rate: pay = quantity * the operation's own rate, independent of the
+            // enterprise's rate/employee's complement — no HS/JF concept for piece-rate work.
+            PointageRecord::updateOrCreate(
+                [
+                    'employee_id' => $validated['employee_id'],
+                    'quinzaine_id' => $validated['quinzaine_id'],
+                    'date' => Carbon::parse($validated['date'])->format('Y-m-d')
+                ],
+                [
+                    'operation_id' => $validated['operation_id'],
+                    'bloc_id' => $validated['bloc_id'],
+                    'hours' => 0,
+                    'quantity' => $quantity,
+                    'is_jf' => false,
+                    'rate' => $operation->unit_rate,
+                    'brut' => $operation->unit_rate,
+                    'net' => $quantity * $operation->unit_rate,
+                ]
+            );
+
+            return redirect()->back();
+        }
+
         $hs = $validated['hours'] ?? 0;
         $isJf = $validated['is_jf'] ?? false;
 
@@ -193,6 +221,7 @@ class PointageController extends Controller
                 'operation_id' => $validated['operation_id'],
                 'bloc_id' => $validated['bloc_id'],
                 'hours' => $hs,
+                'quantity' => null,
                 'is_jf' => $isJf,
                 'rate' => $quinzaine->enterprise->default_brut_rate,
                 'brut' => $calc['brut'],
@@ -241,19 +270,13 @@ class PointageController extends Controller
         $dailyTotals = array_fill_keys($days, 0);
 
         foreach ($records as $record) {
-            $calc = $this->payrollService->calculate(
-                $quinzaine->enterprise->contract_type,
-                $quinzaine->enterprise->default_brut_rate,
-                $record->hours,
-                $record->complement,
-                $record->is_jf,
-                $quinzaine->enterprise->invoiced_to_client
-            );
-
+            // Read the record's own stored net directly rather than recomputing via
+            // calculate() — piece-rate records (quantity set) were computed from the
+            // Operation's unit_rate, not the enterprise's rate/employee's complement, so
+            // recomputing here would silently show the wrong total for them.
             $dateKey = $record->date->format('Y-m-d');
-            // Use worker net pay as requested
-            $blocMatrices[$record->bloc_name][$record->op_name][$dateKey] += $calc['total_net'];
-            $dailyTotals[$dateKey] += $calc['total_net'];
+            $blocMatrices[$record->bloc_name][$record->op_name][$dateKey] += $record->net;
+            $dailyTotals[$dateKey] += $record->net;
         }
 
         return response()->json([

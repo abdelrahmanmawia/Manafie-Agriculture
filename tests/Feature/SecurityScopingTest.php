@@ -69,6 +69,7 @@ class SecurityScopingTest extends TestCase
         ]);
 
         $this->employeeA = Employee::create([
+            'farm_id' => $this->farmA->id,
             'enterprise_id' => $this->enterpriseA->id,
             'matricule' => 'A-1',
             'full_name' => 'Employee A',
@@ -78,6 +79,7 @@ class SecurityScopingTest extends TestCase
         ]);
 
         $this->employeeB = Employee::create([
+            'farm_id' => $this->farmB->id,
             'enterprise_id' => $this->enterpriseB->id,
             'matricule' => 'B-1',
             'full_name' => 'Employee B',

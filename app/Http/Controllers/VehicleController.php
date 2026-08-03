@@ -80,6 +80,8 @@ class VehicleController extends Controller
             'fuel_type' => 'nullable|string|max:50',
             'default_driver_id' => 'nullable|exists:employees,id',
             'is_active' => 'boolean',
+            'is_location' => 'boolean',
+            'default_daily_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
 
@@ -92,6 +94,8 @@ class VehicleController extends Controller
             'fuel_type' => $validated['fuel_type'] ?? 'diesel',
             'default_driver_id' => $validated['default_driver_id'] ?? null,
             'is_active' => $validated['is_active'] ?? true,
+            'is_location' => $validated['is_location'] ?? false,
+            'default_daily_rate' => $validated['default_daily_rate'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ]);
 
@@ -149,6 +153,8 @@ class VehicleController extends Controller
             'fuel_type' => 'nullable|string|max:50',
             'default_driver_id' => 'nullable|exists:employees,id',
             'is_active' => 'boolean',
+            'is_location' => 'boolean',
+            'default_daily_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
 

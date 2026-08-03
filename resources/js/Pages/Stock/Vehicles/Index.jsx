@@ -43,6 +43,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
         fuel_type: fuelTypes.length > 0 ? fuelTypes[0] : '',
         default_driver_id: '',
         is_active: true,
+        is_location: false,
+        default_daily_rate: '',
         notes: '',
     });
 
@@ -64,6 +66,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
             fuel_type: vehicle.fuel_type,
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
+            is_location: vehicle.is_location,
+            default_daily_rate: vehicle.default_daily_rate ?? '',
             notes: vehicle.notes || '',
         });
         setIsCreating(true);
@@ -431,6 +435,35 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 />
                             </div>
                         )}
+
+                        <div className="bg-purple-50 rounded-xl p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <InputLabel htmlFor="is_location" value="Disponible en Location" className="mb-0" />
+                                    <p className="text-xs text-gray-500">Seuls les véhicules marqués ici apparaissent dans la grille "Location"</p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={data.is_location}
+                                    onChange={(e) => setData('is_location', e.target.checked)}
+                                />
+                            </div>
+                            {data.is_location && (
+                                <div>
+                                    <InputLabel htmlFor="default_daily_rate" value="Tarif Journalier par Défaut (DH)" />
+                                    <TextInput
+                                        id="default_daily_rate"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="mt-1 block w-full"
+                                        value={data.default_daily_rate}
+                                        onChange={(e) => setData('default_daily_rate', e.target.value)}
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Utilisé automatiquement dans la grille Location — modifiable ici à tout moment.</p>
+                                    <InputError message={errors.default_daily_rate} className="mt-2" />
+                                </div>
+                            )}
+                        </div>
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeVehicleModal}>Annuler</SecondaryButton>

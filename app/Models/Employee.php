@@ -10,7 +10,7 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
-        'enterprise_id', 'matricule', 'full_name', 'complement', 'cin', 'cnss_number',
+        'farm_id', 'enterprise_id', 'matricule', 'full_name', 'last_name', 'first_name', 'complement', 'cin', 'cnss_number',
         'dob', 'hire_date', 'phone', 'address', 'bank_name', 'rib',
         'type', 'base_rate', 'is_active'
     ];
@@ -23,6 +23,11 @@ class Employee extends Model
         'hire_date' => 'date:Y-m-d',
         'is_active' => 'boolean',
     ];
+
+    public function farm()
+    {
+        return $this->belongsTo(Farm::class);
+    }
 
     public function enterprise()
     {

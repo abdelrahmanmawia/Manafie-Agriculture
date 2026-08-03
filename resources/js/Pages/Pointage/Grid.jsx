@@ -28,8 +28,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         bloc_id: '',
         date: '',
         hours: 0, // This is H.S
+        quantity: '',
         is_jf: false,
     });
+
+    // The selected Operation's unit_rate decides whether this cell asks for a quantity
+    // (piece-rate, e.g. meters) instead of hours/JF.
+    const selectedOperation = operations.find(o => String(o.id) === String(data.operation_id));
+    const isPieceRate = !!selectedOperation?.unit_rate;
 
     const openForm = (employeeId, date) => {
         if (quinzaine.is_closed) return; // Prevent editing if closed
@@ -43,6 +49,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             bloc_id: record?.bloc_id || '',
             date: date,
             hours: record?.hours || 0,
+            quantity: record?.quantity || '',
             is_jf: record?.is_jf || false,
         });
     };
@@ -291,6 +298,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                     <div className="text-[7px] text-gray-400">
                                                                         {blocs.find(b => b.id === record.bloc_id)?.name}
                                                                     </div>
+                                                                    {record.quantity > 0 && <div className="text-emerald-600 text-[8px]">{record.quantity}u</div>}
                                                                     {record.hours > 0 && <div className="text-blue-600 text-[8px]">+{record.hours}h</div>}
                                                                 </div>
                                                             ) : '-'}
@@ -436,22 +444,38 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             </select>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-6">
+                                        {isPieceRate ? (
                                             <div className="group">
-                                                <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
+                                                <label className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.2em] mb-2 block ml-1">
+                                                    Quantité ({Number(selectedOperation.unit_rate).toFixed(2)} DH/unité)
+                                                </label>
                                                 <div className="relative">
-                                                    <input type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
-                                                    <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
+                                                    <input type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 font-black text-emerald-900 text-2xl focus:border-emerald-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.quantity} onChange={e => setData('quantity', e.target.value)} />
+                                                </div>
+                                                {data.quantity > 0 && (
+                                                    <p className="text-xs font-bold text-emerald-600 mt-2 ml-1">
+                                                        = {(data.quantity * selectedOperation.unit_rate).toFixed(2)} DH
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-6">
+                                                <div className="group">
+                                                    <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
+                                                    <div className="relative">
+                                                        <input type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                        <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col">
+                                                    <label className="text-[10px] font-black uppercase text-purple-500 tracking-[0.2em] mb-2 block ml-1 text-center">Statut Spécial</label>
+                                                    <button type="button" onClick={() => setData('is_jf', !data.is_jf)} className={`flex-1 rounded-2xl border-2 font-black text-xs uppercase tracking-widest transition-all ${data.is_jf ? 'bg-purple-600 border-purple-700 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 border-gray-100 text-gray-300 hover:text-gray-400 hover:bg-gray-100'}`}>
+                                                        {data.is_jf ? 'JOUR FÉRIÉ' : 'Standard'}
+                                                    </button>
                                                 </div>
                                             </div>
-
-                                            <div className="flex flex-col">
-                                                <label className="text-[10px] font-black uppercase text-purple-500 tracking-[0.2em] mb-2 block ml-1 text-center">Statut Spécial</label>
-                                                <button type="button" onClick={() => setData('is_jf', !data.is_jf)} className={`flex-1 rounded-2xl border-2 font-black text-xs uppercase tracking-widest transition-all ${data.is_jf ? 'bg-purple-600 border-purple-700 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 border-gray-100 text-gray-300 hover:text-gray-400 hover:bg-gray-100'}`}>
-                                                    {data.is_jf ? 'JOUR FÉRIÉ' : 'Standard'}
-                                                </button>
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
 
                                     <div className="flex flex-col gap-4 pt-6">

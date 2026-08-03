@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Services\PayrollService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class EmployeeController extends Controller
@@ -45,7 +46,7 @@ class EmployeeController extends Controller
         $user = $request->user();
         $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
 
-        abort_unless($farmId && $employee->enterprise->farm_id === (int) $farmId, 403);
+        abort_unless($farmId && $employee->farm_id === (int) $farmId, 403);
 
         if ($user->enterprise_id) {
             abort_unless($employee->enterprise_id === $user->enterprise_id, 403);
@@ -75,28 +76,25 @@ class EmployeeController extends Controller
         $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
         $searchQuery = $request->query('search');
 
+        // Employee is farm-scoped (the same real person can have pointage under several
+        // enterprises of the farm over time); enterprise_id here only narrows which division's
+        // employees to show, it's never the scoping boundary itself.
         $query = Employee::with('enterprise');
 
         if ($user->role === 'super_admin') {
-            $query->whereHas('enterprise', function ($q) {
-                $q->where('farm_id', session('active_farm_id'));
-            });
+            $query->where('farm_id', session('active_farm_id'));
             if ($enterpriseId) {
                 $query->where('enterprise_id', $enterpriseId);
             }
         } elseif ($user->role === 'farm_manager') {
-            $query->whereHas('enterprise', function($q) use ($user) {
-                $q->where('farm_id', $user->farm_id);
-            });
+            $query->where('farm_id', $user->farm_id);
             if ($enterpriseId) {
                 $query->where('enterprise_id', $enterpriseId);
             }
         } elseif ($enterpriseId) {
             $query->where('enterprise_id', $enterpriseId);
         } elseif ($user->farm_id) {
-            $query->whereHas('enterprise', function($q) use ($user) {
-                $q->where('farm_id', $user->farm_id);
-            });
+            $query->where('farm_id', $user->farm_id);
         }
 
         if ($searchQuery) {
@@ -124,10 +122,23 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
+        $this->assertEnterpriseAssignable($request, (int) $request->enterprise_id);
+        abort_if($request->user()->role === 'data_entry', 403);
+
+        $farmId = \App\Models\Enterprise::findOrFail($request->enterprise_id)->farm_id;
+
         $validated = $request->validate([
-            'matricule' => 'required|string|unique:employees,matricule',
+            // matricule is only unique within a farm — the same real person keeps ONE Employee
+            // row as they move between the farm's divisions over time.
+            'matricule' => ['required', 'string', Rule::unique('employees')->where(
+                fn ($query) => $query->where('farm_id', $farmId)
+            )],
+            // CIN is the real dedup identity (matches the DB's unique(farm_id, cin)) — validated
+            // here too so a collision surfaces as a normal form error, not a raw DB exception.
+            'cin' => ['nullable', 'string', 'max:50', Rule::unique('employees')->where(
+                fn ($query) => $query->where('farm_id', $farmId)
+            )],
             'full_name' => 'required|string|max:255',
-            'cin' => 'nullable|string|max:50',
             'cnss_number' => 'nullable|string|max:50',
             'dob' => 'nullable|date',
             'hire_date' => 'nullable|date',
@@ -140,10 +151,8 @@ class EmployeeController extends Controller
             'enterprise_id' => 'required|exists:enterprises,id'
         ]);
 
-        $this->assertEnterpriseAssignable($request, (int) $validated['enterprise_id']);
-        abort_if($request->user()->role === 'data_entry', 403);
-
         Employee::create(array_merge($validated, [
+            'farm_id' => $farmId,
             'is_active' => true
         ]));
 
@@ -155,9 +164,15 @@ class EmployeeController extends Controller
         $this->assertEmployeeInScope($request, $employee);
 
         $validated = $request->validate([
-            'matricule' => 'required|string|unique:employees,matricule,' . $employee->id,
+            // Employee's farm_id is fixed (set once at creation) — matricule/CIN uniqueness is
+            // scoped to it, not to whichever enterprise they're being reassigned to.
+            'matricule' => ['required', 'string', Rule::unique('employees')->where(
+                fn ($query) => $query->where('farm_id', $employee->farm_id)
+            )->ignore($employee->id)],
             'full_name' => 'required|string|max:255',
-            'cin' => 'nullable|string|max:50',
+            'cin' => ['nullable', 'string', 'max:50', Rule::unique('employees')->where(
+                fn ($query) => $query->where('farm_id', $employee->farm_id)
+            )->ignore($employee->id)],
             'cnss_number' => 'nullable|string|max:50',
             'dob' => 'nullable|date',
             'hire_date' => 'nullable|date',
@@ -188,7 +203,7 @@ class EmployeeController extends Controller
 
     public function toggleActive(Request $request, Employee $employee)
     {
-        $this->assertEmployeeManagerAccess($request, $employee->enterprise->farm_id);
+        $this->assertEmployeeManagerAccess($request, $employee->farm_id);
 
         $employee->update(['is_active' => !$employee->is_active]);
         return redirect()->back();
@@ -196,7 +211,7 @@ class EmployeeController extends Controller
 
     public function destroy(Request $request, Employee $employee)
     {
-        $this->assertEmployeeManagerAccess($request, $employee->enterprise->farm_id);
+        $this->assertEmployeeManagerAccess($request, $employee->farm_id);
 
         $employee->delete();
         return redirect()->back();

@@ -16,7 +16,9 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
         setExpandedSectors(prev => ({ ...prev, [sectorId]: !prev[sectorId] }));
     };
 
-    const opForm = useForm({ name: '', abbreviation: '' });
+    const opForm = useForm({ name: '', abbreviation: '', unit_rate: '' });
+    const editOpForm = useForm({ name: '', abbreviation: '', unit_rate: '' });
+    const [editingOpId, setEditingOpId] = useState(null);
     const blocForm = useForm({ name: '' });
     const sectorForm = useForm({ bloc_id: '', name: '', description: '', area_m2: '', area_ha: '', total_trees: '', spacing: '' });
     const parcelleForm = useForm({ bloc_id: '', sector_id: '', name: '', hass_trees: '', fuerte_trees: '', lambhass_trees: '', zutano_trees: '', area_m2: '', area_ha: '', spacing: '', total_trees: '' });
@@ -26,6 +28,22 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
         e.preventDefault();
         opForm.post(route('farms.operations.store', farm.id), {
             onSuccess: () => opForm.reset(),
+        });
+    };
+
+    const startEditOp = (op) => {
+        setEditingOpId(op.id);
+        editOpForm.setData({
+            name: op.name,
+            abbreviation: op.abbreviation || '',
+            unit_rate: op.unit_rate ?? '',
+        });
+    };
+
+    const submitEditOp = (e) => {
+        e.preventDefault();
+        editOpForm.put(route('farms.operations.update', editingOpId), {
+            onSuccess: () => setEditingOpId(null),
         });
     };
 
@@ -159,53 +177,123 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                         {activeTab === 'operations' && (
                             <div>
                                 <h3 className="text-lg font-bold leading-none mb-6">Gérer les Opérations</h3>
-                                <form onSubmit={submitOp} className="flex gap-2 mb-6 max-w-xl">
-                                    <input 
-                                        type="text" 
-                                        placeholder="Ex: Récolte, Taille..." 
-                                        className="flex-1 rounded-lg border-gray-300 text-sm" 
-                                        value={opForm.data.name} 
-                                        onChange={e => opForm.setData('name', e.target.value)} 
+                                <form onSubmit={submitOp} className="flex gap-2 mb-6 max-w-2xl">
+                                    <input
+                                        type="text"
+                                        placeholder="Ex: Récolte, Taille..."
+                                        className="flex-1 rounded-lg border-gray-300 text-sm"
+                                        value={opForm.data.name}
+                                        onChange={e => opForm.setData('name', e.target.value)}
                                         required
                                     />
-                                    <input 
-                                        type="text" 
-                                        placeholder="Abréviation (ex: REC)" 
-                                        className="w-32 rounded-lg border-gray-300 text-sm" 
-                                        value={opForm.data.abbreviation} 
-                                        onChange={e => opForm.setData('abbreviation', e.target.value)} 
+                                    <input
+                                        type="text"
+                                        placeholder="Abréviation (ex: REC)"
+                                        className="w-32 rounded-lg border-gray-300 text-sm"
+                                        value={opForm.data.abbreviation}
+                                        onChange={e => opForm.setData('abbreviation', e.target.value)}
+                                    />
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="Prix/unité (DH)"
+                                        className="w-36 rounded-lg border-gray-300 text-sm"
+                                        value={opForm.data.unit_rate}
+                                        onChange={e => opForm.setData('unit_rate', e.target.value)}
                                     />
                                     <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
                                 </form>
+                                <p className="text-[10px] text-gray-400 mb-3 max-w-2xl">
+                                    Laissez le prix/unité vide pour une opération payée au tarif journalier normal de l'employé. Renseignez-le pour une opération payée à la quantité (ex: 10 DH/mètre) — la grille de pointage demandera alors une quantité au lieu des heures.
+                                </p>
                                 <div className="bg-gray-50 rounded-lg overflow-hidden">
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-100">
                                             <tr>
                                                 <th className="px-4 py-2 text-left font-bold text-gray-600">Opération</th>
                                                 <th className="px-4 py-2 text-left font-bold text-gray-600">Abréviation</th>
+                                                <th className="px-4 py-2 text-left font-bold text-gray-600">Prix/unité</th>
                                                 <th className="px-4 py-2 text-right font-bold text-gray-600">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-200">
                                             {operations.map(op => (
-                                                <tr key={op.id} className="hover:bg-gray-50">
-                                                    <td className="px-4 py-3 font-medium text-gray-700">{op.name}</td>
-                                                    <td className="px-4 py-3 text-xs text-gray-500 font-mono">{op.abbreviation || '-'}</td>
-                                                    <td className="px-4 py-3 text-right">
-                                                        <Link
-                                                            href={route('farms.operations.destroy', op.id)}
-                                                            method="delete"
-                                                            as="button"
-                                                            className="text-red-500 hover:text-red-700 text-xs font-bold"
-                                                        >
-                                                            Supprimer
-                                                        </Link>
-                                                    </td>
-                                                </tr>
+                                                editingOpId === op.id ? (
+                                                    <tr key={op.id} className="bg-blue-50">
+                                                        <td className="px-4 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="w-full rounded-lg border-gray-300 text-sm"
+                                                                value={editOpForm.data.name}
+                                                                onChange={e => editOpForm.setData('name', e.target.value)}
+                                                                required
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <input
+                                                                type="text"
+                                                                className="w-full rounded-lg border-gray-300 text-sm"
+                                                                value={editOpForm.data.abbreviation}
+                                                                onChange={e => editOpForm.setData('abbreviation', e.target.value)}
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-2">
+                                                            <input
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0"
+                                                                placeholder="Journalier"
+                                                                className="w-full rounded-lg border-gray-300 text-sm"
+                                                                value={editOpForm.data.unit_rate}
+                                                                onChange={e => editOpForm.setData('unit_rate', e.target.value)}
+                                                            />
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                            <button
+                                                                onClick={submitEditOp}
+                                                                className="text-green-600 hover:text-green-800 text-xs font-bold mr-3"
+                                                                disabled={editOpForm.processing}
+                                                            >
+                                                                Enregistrer
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setEditingOpId(null)}
+                                                                className="text-gray-500 hover:text-gray-700 text-xs font-bold"
+                                                            >
+                                                                Annuler
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    <tr key={op.id} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-3 font-medium text-gray-700">{op.name}</td>
+                                                        <td className="px-4 py-3 text-xs text-gray-500 font-mono">{op.abbreviation || '-'}</td>
+                                                        <td className="px-4 py-3 text-xs text-gray-600">
+                                                            {op.unit_rate ? `${Number(op.unit_rate).toFixed(2)} DH/unité` : 'Journalier'}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                                                            <button
+                                                                onClick={() => startEditOp(op)}
+                                                                className="text-blue-600 hover:text-blue-800 text-xs font-bold mr-3"
+                                                            >
+                                                                Modifier
+                                                            </button>
+                                                            <Link
+                                                                href={route('farms.operations.destroy', op.id)}
+                                                                method="delete"
+                                                                as="button"
+                                                                className="text-red-500 hover:text-red-700 text-xs font-bold"
+                                                            >
+                                                                Supprimer
+                                                            </Link>
+                                                        </td>
+                                                    </tr>
+                                                )
                                             ))}
                                             {operations.length === 0 && (
                                                 <tr>
-                                                    <td colSpan="3" className="px-4 py-8 text-center text-gray-400 italic">Aucune opération</td>
+                                                    <td colSpan="4" className="px-4 py-8 text-center text-gray-400 italic">Aucune opération</td>
                                                 </tr>
                                             )}
                                         </tbody>

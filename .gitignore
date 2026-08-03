@@ -4,6 +4,9 @@
 /public/hot
 /public/storage
 /storage/*.key
+# Real employee payroll source files used one-time by database/seeders/PrsRealDataSeeder.php —
+# contains real names/CINs, never commit.
+/storage/app/prs_archive
 /vendor
 .env
 .env.backup

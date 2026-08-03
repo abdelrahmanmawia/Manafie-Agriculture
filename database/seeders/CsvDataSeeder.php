@@ -670,12 +670,14 @@ class CsvDataSeeder extends Seeder
         $num = $data[0] ?: rand(1000, 9999);
         $firstName = $data[2];
         $lastName = $data[1];
-        $cin = $data[3];
+        $cin = $data[3] !== '' ? $data[3] : null;
         $blocName = $data[4];
         $brut = $data[5];
         $complement = $data[6] ?? 0;
+        $ent = Enterprise::find($entId);
 
         Employee::create([
+            'farm_id' => $ent->farm_id,
             'enterprise_id' => $entId,
             'matricule' => $prefix . '-' . $num . '-' . rand(1,999),
             'full_name' => $firstName . ' ' . $lastName,
@@ -686,7 +688,6 @@ class CsvDataSeeder extends Seeder
         ]);
 
         if ($blocName) {
-            $ent = Enterprise::find($entId);
             Bloc::firstOrCreate(['name' => $blocName, 'farm_id' => $ent->farm_id]);
         }
     }

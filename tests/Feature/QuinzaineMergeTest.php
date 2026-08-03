@@ -40,11 +40,11 @@ class QuinzaineMergeTest extends TestCase
         $operation = Operation::create(['farm_id' => $farm->id, 'name' => 'Op A']);
 
         $employeeX = Employee::create([
-            'enterprise_id' => $enterpriseX->id, 'matricule' => 'X-1', 'full_name' => 'Employee X',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterpriseX->id, 'matricule' => 'X-1', 'full_name' => 'Employee X',
             'type' => 'persea', 'base_rate' => 100, 'is_active' => true,
         ]);
         $employeeY = Employee::create([
-            'enterprise_id' => $enterpriseY->id, 'matricule' => 'Y-1', 'full_name' => 'Employee Y',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterpriseY->id, 'matricule' => 'Y-1', 'full_name' => 'Employee Y',
             'type' => 'persea', 'base_rate' => 100, 'is_active' => true,
         ]);
 
@@ -93,11 +93,11 @@ class QuinzaineMergeTest extends TestCase
         $operation = Operation::create(['farm_id' => $farm->id, 'name' => 'Op A']);
 
         $employeeX = Employee::create([
-            'enterprise_id' => $enterpriseX->id, 'matricule' => 'X-1', 'full_name' => 'Employee X',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterpriseX->id, 'matricule' => 'X-1', 'full_name' => 'Employee X',
             'type' => 'persea', 'base_rate' => 100, 'is_active' => true,
         ]);
         $employeeY = Employee::create([
-            'enterprise_id' => $enterpriseY->id, 'matricule' => 'Y-1', 'full_name' => 'Employee Y',
+            'farm_id' => $farm->id, 'enterprise_id' => $enterpriseY->id, 'matricule' => 'Y-1', 'full_name' => 'Employee Y',
             'type' => 'persea', 'base_rate' => 100, 'is_active' => true,
         ]);
 

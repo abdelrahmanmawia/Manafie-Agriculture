@@ -10,6 +10,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\HarvestController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehicleUsageController;
 use App\Http\Controllers\StockInventoryController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockAlertController;
@@ -47,6 +48,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'settings'])->name('farms.settings');
     Route::patch('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'updateSettings'])->name('farms.updateSettings');
     Route::post('/farms/{farm}/operations', [App\Http\Controllers\FarmController::class, 'addOperation'])->name('farms.operations.store');
+    Route::put('/farms/operations/{operation}', [App\Http\Controllers\FarmController::class, 'updateOperation'])->name('farms.operations.update');
     Route::post('/farms/{farm}/blocs', [App\Http\Controllers\FarmController::class, 'addBloc'])->name('farms.blocs.store');
     Route::post('/farms/{farm}/sectors', [App\Http\Controllers\FarmController::class, 'addSector'])->name('farms.sectors.store');
     Route::post('/farms/{farm}/parcelles', [App\Http\Controllers\FarmController::class, 'addParcelle'])->name('farms.parcelles.store');
@@ -118,6 +120,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('stock.vehicles.update');
     Route::delete('/stock/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('stock.vehicles.destroy');
     Route::post('/stock/vehicles/{vehicle}/toggle-active', [VehicleController::class, 'toggleActive'])->name('stock.vehicles.toggle-active');
+
+    // Stock Management - Vehicle Usage / Location (rental tracking)
+    Route::get('/stock/vehicle-usage', [VehicleUsageController::class, 'index'])->name('stock.vehicle-usage.index');
+    Route::post('/stock/vehicle-usage/cell', [VehicleUsageController::class, 'cell'])->name('stock.vehicle-usage.cell');
 
     // Stock Management - Inventory
     Route::get('/stock/inventory', [StockInventoryController::class, 'index'])->name('stock.inventory.index');

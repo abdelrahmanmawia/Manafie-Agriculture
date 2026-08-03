@@ -11,7 +11,7 @@ class PointageRecord extends Model
 
     protected $fillable = [
         'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'date',
-        'hours', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net'
+        'hours', 'quantity', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net'
     ];
 
     protected $casts = [

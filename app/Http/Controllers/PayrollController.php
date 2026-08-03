@@ -67,7 +67,10 @@ class PayrollController extends Controller
         $employee = Employee::findOrFail($employeeId);
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
-        abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
+        // Employee is farm-scoped, not enterprise-scoped (the same real worker can have pointage
+        // under several enterprises of the same farm over time) — so the real invariant is same
+        // farm, not same enterprise; never loosens across farms.
+        abort_unless($employee->farm_id === $quinzaine->enterprise->farm_id, 403);
 
         $records = PointageRecord::where('employee_id', $employeeId)
             ->where('quinzaine_id', $quinzaineId)

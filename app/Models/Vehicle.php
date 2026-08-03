@@ -16,6 +16,8 @@ class Vehicle extends Model
         'type',
         'model',
         'fuel_type',
+        'default_daily_rate',
+        'is_location',
         'default_driver_id',
         'is_active',
         'notes',
@@ -23,6 +25,7 @@ class Vehicle extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_location' => 'boolean',
     ];
 
     public function farm()
@@ -43,5 +46,10 @@ class Vehicle extends Model
     public function manualStockEntries()
     {
         return $this->hasMany(ManualStockEntry::class);
+    }
+
+    public function usages()
+    {
+        return $this->hasMany(VehicleUsage::class);
     }
 }

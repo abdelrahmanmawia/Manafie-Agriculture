@@ -109,15 +109,40 @@ class FarmController extends Controller
     {
         $this->assertFarmManagerAccess($request, $farm->id);
 
-        $request->validate(['name' => 'required|string|max:255', 'abbreviation' => 'nullable|string|max:50']);
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'abbreviation' => 'nullable|string|max:50',
+            'unit_rate' => 'nullable|numeric|min:0',
+        ]);
 
         Operation::create([
-            'name' => $request->name,
-            'abbreviation' => $request->abbreviation,
+            'name' => $validated['name'],
+            'abbreviation' => $validated['abbreviation'] ?? null,
+            'unit_rate' => $validated['unit_rate'] ?? null,
             'farm_id' => $farm->id
         ]);
 
         return redirect()->back()->with('success', 'Opération ajoutée.');
+    }
+
+    /**
+     * unit_rate needs its own update path (not just create/delete): it's a piece-rate price
+     * ("10 DH per meter") that can legitimately change between periods, and deleting+recreating
+     * the Operation to change it would break the FK from existing PointageRecords.
+     */
+    public function updateOperation(Request $request, Operation $operation)
+    {
+        $this->assertFarmManagerAccess($request, $operation->farm_id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'abbreviation' => 'nullable|string|max:50',
+            'unit_rate' => 'nullable|numeric|min:0',
+        ]);
+
+        $operation->update($validated);
+
+        return redirect()->back()->with('success', 'Opération mise à jour.');
     }
 
     public function addBloc(Request $request, Farm $farm)

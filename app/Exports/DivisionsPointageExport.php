@@ -49,6 +49,11 @@ class DivisionsPointageExport implements WithMultipleSheets
             }
         }
 
+        // Vehicle usage (Stock domain) is farm-pooled, not enterprise-scoped like the sheets
+        // above — added once per farm rather than once per enterprise, bridging the two domains
+        // only at export time by matching vehicle-usage dates to this quinzaine's own range.
+        $sheets[] = new LocationExport($farm, $this->referenceQuinzaine->start_date, $this->referenceQuinzaine->end_date);
+
         return $sheets;
     }
 }

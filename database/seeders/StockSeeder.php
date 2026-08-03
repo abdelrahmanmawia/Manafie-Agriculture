@@ -97,6 +97,7 @@ class StockSeeder extends Seeder
             $vehicles = collect();
             foreach ($vehiclesData as $data) {
                 $driver = $farmEmployees->isNotEmpty() ? $farmEmployees->random() : null;
+                $data['plate_number'] .= '-F' . $farm->id;
                 $vehicles->push(Vehicle::create(array_merge($data, [
                     'farm_id' => $farm->id,
                     'default_driver_id' => $driver ? $driver->id : null,

@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             CsvDataSeeder::class,
-            PointageSeeder::class,
+            PrsRealDataSeeder::class,
             StockSeeder::class, // Add StockSeeder here
         ]);
     }

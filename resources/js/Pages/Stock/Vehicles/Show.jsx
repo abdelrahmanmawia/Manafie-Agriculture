@@ -25,6 +25,8 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
         fuel_type: vehicle.fuel_type,
         default_driver_id: vehicle.default_driver_id || '',
         is_active: vehicle.is_active,
+        is_location: vehicle.is_location,
+        default_daily_rate: vehicle.default_daily_rate ?? '',
         notes: vehicle.notes || '',
     });
 
@@ -49,6 +51,8 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
             fuel_type: vehicle.fuel_type,
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
+            is_location: vehicle.is_location,
+            default_daily_rate: vehicle.default_daily_rate ?? '',
             notes: vehicle.notes || '',
         });
         setIsEditing(true);
@@ -414,6 +418,34 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                 checked={editForm.data.is_active}
                                 onChange={(e) => editForm.setData('is_active', e.target.checked)}
                             />
+                        </div>
+
+                        <div className="bg-purple-50 rounded-xl p-4 space-y-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <InputLabel htmlFor="edit_is_location" value="Disponible en Location" className="mb-0" />
+                                    <p className="text-xs text-gray-500">Seuls les véhicules marqués ici apparaissent dans la grille "Location"</p>
+                                </div>
+                                <ToggleSwitch
+                                    checked={editForm.data.is_location}
+                                    onChange={(e) => editForm.setData('is_location', e.target.checked)}
+                                />
+                            </div>
+                            {editForm.data.is_location && (
+                                <div>
+                                    <InputLabel htmlFor="edit_default_daily_rate" value="Tarif Journalier par Défaut (DH)" />
+                                    <TextInput
+                                        id="edit_default_daily_rate"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.default_daily_rate}
+                                        onChange={(e) => editForm.setData('default_daily_rate', e.target.value)}
+                                    />
+                                    <InputError message={editForm.errors.default_daily_rate} className="mt-2" />
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
