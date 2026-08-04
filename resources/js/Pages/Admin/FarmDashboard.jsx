@@ -353,7 +353,7 @@ export default function FarmDashboard({
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <Link
-                                            href={route('pointage.index', { enterprise_id: ent.id })}
+                                            href={route('pointage.quinzaines', { enterprise_id: ent.id })}
                                             className="w-full text-center bg-blue-600 text-white hover:bg-blue-700 py-3 rounded-xl font-bold text-xs transition-colors uppercase tracking-widest"
                                         >
                                             {t('pointage')}

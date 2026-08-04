@@ -13,7 +13,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
 
-    const { data, setData, post, put, processing, reset, errors } = useForm({
+    const { data, setData, post, transform, processing, reset, errors } = useForm({
         matricule: '',
         full_name: '',
         cin: '',
@@ -29,12 +29,19 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
         complement: 0,
         enterprise_id: selectedEnterpriseId || (enterprises?.[0]?.id || ''),
         is_active: true,
+        photo: null,
     });
 
     const submit = (e) => {
         e.preventDefault();
         if (editingEmployee) {
-            put(route('employees.update', editingEmployee.id), {
+            // PHP only auto-parses multipart/form-data bodies into $_POST/$_FILES for a genuine
+            // POST request, never for PUT — a real PUT with a file attached arrives at Laravel
+            // completely empty. Route it as POST with a spoofed _method field instead (Inertia's
+            // documented workaround for file uploads on put()/patch()); Laravel's method-override
+            // middleware still treats it as PUT for routing/authorization.
+            transform((data) => ({ ...data, _method: 'put' }));
+            post(route('employees.update', editingEmployee.id), {
                 onSuccess: () => {
                     reset();
                     setIsEditingEmployee(false);
@@ -42,6 +49,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                 },
             });
         } else {
+            transform((data) => data);
             post(route('employees.store'), {
                 onSuccess: () => {
                     reset();
@@ -69,6 +77,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
             complement: employee.complement || 0,
             enterprise_id: employee.enterprise_id,
             is_active: employee.is_active,
+            photo: null,
         });
 
         setIsEditingEmployee(true);
@@ -371,6 +380,29 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                         <option value="true">Actif</option>
                                         <option value="false">Inactif</option>
                                     </select>
+                                </div>
+                            )}
+
+                            {/* Badge photo (Edit Only) — optional, printed on the pointage badge alongside the QR code */}
+                            {isEditingEmployee && (
+                                <div className="md:col-span-3 flex items-center gap-4 border-t pt-4 mt-2">
+                                    {editingEmployee?.photo_path && (
+                                        <img
+                                            src={`/storage/${editingEmployee.photo_path}`}
+                                            alt=""
+                                            className="w-14 h-14 rounded-lg object-cover border border-gray-200"
+                                        />
+                                    )}
+                                    <div className="flex-1">
+                                        <label className="block text-xs font-black uppercase text-gray-400 mb-1">Photo du Badge (optionnel)</label>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="w-full text-xs"
+                                            onChange={e => setData('photo', e.target.files[0] || null)}
+                                        />
+                                        {errors.photo && <div className="text-red-500 text-xs mt-1">{errors.photo}</div>}
+                                    </div>
                                 </div>
                             )}
                         </div>

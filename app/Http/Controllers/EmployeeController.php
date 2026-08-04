@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Services\PayrollService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -184,10 +185,28 @@ class EmployeeController extends Controller
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',
-            'is_active' => 'boolean'
+            // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
+            // "true"/"false" once a photo file forces the request into multipart/FormData —
+            // Laravel's `boolean` rule strictly rejects those strings (only true/false/0/1/'0'/'1'),
+            // so accept them here and coerce below via $request->boolean() rather than trusting
+            // the raw validated value (casting the STRING "false" with PHP's (bool) is true).
+            'is_active' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
+            'photo' => 'nullable|image|max:5120',
         ]);
 
+        if (array_key_exists('is_active', $validated)) {
+            $validated['is_active'] = $request->boolean('is_active');
+        }
+
         $this->assertEnterpriseAssignable($request, (int) $validated['enterprise_id']);
+
+        if ($request->hasFile('photo')) {
+            if ($employee->photo_path) {
+                Storage::disk('public')->delete($employee->photo_path);
+            }
+            $validated['photo_path'] = $request->file('photo')->store('badges', 'public');
+        }
+        unset($validated['photo']);
 
         $employee->update($validated);
 

@@ -45,7 +45,45 @@ class PointageController extends Controller
         return Excel::download(new DivisionsPointageExport($quinzaine), $fileName);
     }
 
-    public function index(Request $request)
+    /**
+     * /pointage — the zone's landing page: a grid of divisions (mirrors
+     * Admin/FarmDashboard's "Divisions de la Ferme" cards), each with general info
+     * (workers, periods) and a link into that division's quinzaine list. The actual
+     * quinzaine list/management lives at quinzaines() below.
+     */
+    public function dashboard(Request $request)
+    {
+        $user = $request->user();
+
+        $withCounts = [
+            'employees',
+            'quinzaines',
+            'quinzaines as open_quinzaines_count' => fn ($q) => $q->where('is_closed', false),
+        ];
+
+        if ($user->role === 'super_admin') {
+            $enterprises = \App\Models\Enterprise::where('farm_id', session('active_farm_id'))
+                ->withCount($withCounts)
+                ->get();
+        } elseif ($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id)) {
+            $enterprises = \App\Models\Enterprise::where('farm_id', $user->farm_id)
+                ->withCount($withCounts)
+                ->get();
+        } elseif ($user->enterprise_id) {
+            // Single-enterprise user: still rendered as a (one-card) grid, for consistency.
+            $enterprises = \App\Models\Enterprise::where('id', $user->enterprise_id)
+                ->withCount($withCounts)
+                ->get();
+        } else {
+            $enterprises = collect();
+        }
+
+        return Inertia::render('Pointage/Index', [
+            'enterprises' => $enterprises,
+        ]);
+    }
+
+    public function quinzaines(Request $request)
     {
         $user = $request->user();
         $enterpriseId = $user->role === 'super_admin'
@@ -77,7 +115,7 @@ class PointageController extends Controller
                         $q->where('farm_id', $user->farm_id);
                     });
                 } else {
-                    return Inertia::render('Pointage/Index', [
+                    return Inertia::render('Pointage/Quinzaines', [
                         'quinzaines' => [],
                         'enterprises' => [],
                         'error' => 'Aucune division ne vous est assignée.'
@@ -88,7 +126,7 @@ class PointageController extends Controller
             }
         }
 
-        return Inertia::render('Pointage/Index', [
+        return Inertia::render('Pointage/Quinzaines', [
             'quinzaines' => $query->get(),
             'enterprises' => $user->role === 'super_admin'
                 ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()

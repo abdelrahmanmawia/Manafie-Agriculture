@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\PointageController;
+use App\Http\Controllers\BadgeController;
+use App\Http\Controllers\PointageScanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EnterpriseController;
 use App\Http\Controllers\EmployeeController;
@@ -80,13 +82,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::middleware('farm.selected')->group(function () {
     // Pointage
-    Route::get('/pointage', [PointageController::class, 'index'])->name('pointage.index');
+    Route::get('/pointage', [PointageController::class, 'dashboard'])->name('pointage.index');
+    Route::get('/pointage/quinzaines', [PointageController::class, 'quinzaines'])->name('pointage.quinzaines');
     Route::get('/pointage/grid/{quinzaine}', [PointageController::class, 'grid'])->name('pointage.grid');
     Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');
     Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions'); // New route
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
     Route::post('/pointage', [PointageController::class, 'store'])->name('pointage.store');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
+
+    // Badge printing
+    Route::get('/badges', [BadgeController::class, 'index'])->name('badges.index');
+    Route::get('/badges/print', [BadgeController::class, 'print'])->name('badges.print');
+
+    // Offline scan station page (plain Blade + vanilla JS, not Inertia) + one-time token mint
+    Route::get('/pointage/scan-station', [PointageScanController::class, 'stationPage'])->name('pointage.scan-station');
+    Route::post('/pointage/scan-station/token', [PointageScanController::class, 'issueToken'])->name('pointage.scan-station.token');
 
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/payroll-history', [PayrollController::class, 'history'])->name('payroll.history');

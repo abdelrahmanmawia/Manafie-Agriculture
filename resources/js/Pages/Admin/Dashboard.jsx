@@ -29,7 +29,7 @@ export default function Dashboard({ auth, enterprise, stats }) {
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-8">
                         <h3 className="text-xl font-bold mb-4">{t('quick_actions')}</h3>
                         <div className="flex flex-wrap gap-4">
-                            <Link href={route('pointage.index')} className="bg-blue-600 text-white px-8 py-4 rounded-lg font-black shadow-lg hover:bg-blue-700 transition-all flex items-center gap-3">
+                            <Link href={route('pointage.quinzaines')} className="bg-blue-600 text-white px-8 py-4 rounded-lg font-black shadow-lg hover:bg-blue-700 transition-all flex items-center gap-3">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                                 </svg>

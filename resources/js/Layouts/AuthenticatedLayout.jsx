@@ -61,10 +61,12 @@ export default function Authenticated({ user, header, children }) {
     ];
 
     const pointageItems = [
-        { label: 'Quinzaines', href: 'pointage.index', match: ['pointage.index', 'pointage.grid'], icon: ICONS.clock },
+        { label: 'Tableau de Bord', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
+        { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
         { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
+        { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
     ];
 
     const stockItems = [
