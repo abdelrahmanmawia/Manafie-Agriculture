@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Quinzaine;
 use App\Models\Vehicle;
 use App\Models\VehicleUsage;
 use Illuminate\Http\Request;
@@ -41,13 +42,59 @@ class VehicleUsageController extends Controller
             $days[] = $date->format('Y-m-d');
         }
 
+        // Location has no Quinzaine of its own (it's farm-pooled, not enterprise-scoped), but a
+        // day still counts as "closed" if ANY of this farm's enterprises has a closed Quinzaine
+        // covering it — mirrors the Pointage grid's own is_closed guard, applied at the day level
+        // since Location spans all of a farm's divisions at once.
+        $closedRanges = $this->closedQuinzaineRanges($farmId, $startDate, $endDate);
+        $closedDays = [];
+        foreach ($days as $day) {
+            foreach ($closedRanges as [$rangeStart, $rangeEnd]) {
+                if ($day >= $rangeStart && $day <= $rangeEnd) {
+                    $closedDays[] = $day;
+                    break;
+                }
+            }
+        }
+
+        // Lets the user jump straight to a known period instead of only stepping prev/next.
+        // Dedup by date range: the same real period usually has one Quinzaine per enterprise,
+        // but Location is farm-wide and only cares about the date range once.
+        $availableQuinzaines = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->orderByDesc('start_date')
+            ->get(['label', 'start_date', 'end_date'])
+            ->unique(fn ($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
+            ->map(fn ($q) => [
+                'label' => $q->label,
+                'start_date' => $q->start_date->format('Y-m-d'),
+                'end_date' => $q->end_date->format('Y-m-d'),
+            ])
+            ->values();
+
         return Inertia::render('Stock/VehicleUsage/Index', [
             'vehicles' => $vehicles,
             'days' => $days,
             'startDate' => $startDate->format('Y-m-d'),
             'endDate' => $endDate->format('Y-m-d'),
             'existingUsages' => $usages,
+            'closedDays' => $closedDays,
+            'availableQuinzaines' => $availableQuinzaines,
         ]);
+    }
+
+    /**
+     * @return array<int, array{0: string, 1: string}> start/end date pairs of closed Quinzaines
+     *                                                  overlapping the given window, for this farm.
+     */
+    private function closedQuinzaineRanges(?int $farmId, Carbon $startDate, Carbon $endDate): array
+    {
+        return Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->where('is_closed', true)
+            ->where('start_date', '<=', $endDate->format('Y-m-d'))
+            ->where('end_date', '>=', $startDate->format('Y-m-d'))
+            ->get(['start_date', 'end_date'])
+            ->map(fn ($q) => [$q->start_date->format('Y-m-d'), $q->end_date->format('Y-m-d')])
+            ->all();
     }
 
     /**
@@ -64,6 +111,20 @@ class VehicleUsageController extends Controller
         ]);
 
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
+        $farmId = $this->resolveWriteFarmId($request);
+
+        // Never trust the client's own greyed-out styling — re-check server-side that this date
+        // doesn't fall inside a closed Quinzaine before writing anything, same guard
+        // PointageController::updateCell applies for pointage itself.
+        $isClosed = !empty($this->closedQuinzaineRanges($farmId, Carbon::parse($date), Carbon::parse($date)));
+        if ($isClosed) {
+            // Inertia's base middleware shares `errors` automatically (unlike a plain session
+            // `with()` flash, which nothing in this app's frontend actually reads) — withErrors()
+            // is the pattern already proven to reach the page, same as the daily_rate error below.
+            return redirect()->back()->withErrors([
+                'date' => 'Cette période est clôturée et ne peut plus être modifiée.',
+            ]);
+        }
 
         $existing = VehicleUsage::where('vehicle_id', $validated['vehicle_id'])
             ->whereDate('date', $date)
@@ -84,7 +145,7 @@ class VehicleUsageController extends Controller
 
         VehicleUsage::create([
             'vehicle_id' => $validated['vehicle_id'],
-            'farm_id' => $this->resolveWriteFarmId($request),
+            'farm_id' => $farmId,
             'date' => $date,
             'daily_rate' => $vehicle->default_daily_rate,
         ]);

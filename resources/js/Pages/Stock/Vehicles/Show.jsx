@@ -78,6 +78,9 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
 
     const fuelTransactions = vehicle.fuel_transactions ?? [];
     const manualStockEntries = vehicle.manual_stock_entries ?? [];
+    const locationUsages = vehicle.usages ?? [];
+    const totalLocationDays = locationUsages.length;
+    const totalLocationAmount = locationUsages.reduce((sum, u) => sum + parseFloat(u.daily_rate || 0), 0);
 
     const totalFuelLiters = fuelTransactions.reduce((sum, t) => sum + parseFloat(t.quantity_liters || 0), 0);
     const totalFuelCost = fuelTransactions.reduce((sum, t) => sum + parseFloat(t.total_cost || 0), 0);
@@ -217,6 +220,63 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </div>
                         </div>
                     </div>
+
+                    {/* Location (rental tracking) — only for vehicles flagged "Disponible en Location" */}
+                    {vehicle.is_location && (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                                <div>
+                                    <h4 className="text-lg font-bold text-gray-800">Location</h4>
+                                    <p className="text-sm text-gray-500 mt-1">Jours d'utilisation enregistrés dans la grille Location</p>
+                                </div>
+                                <Link
+                                    href={route('stock.vehicle-usage.index')}
+                                    className="text-purple-600 hover:text-purple-800 text-sm font-semibold"
+                                >
+                                    Voir la grille →
+                                </Link>
+                            </div>
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-purple-50 rounded-xl p-4">
+                                    <p className="text-sm text-gray-500">Jours Loués (total)</p>
+                                    <p className="text-2xl font-bold text-purple-700 mt-1">{formatInt(totalLocationDays)}</p>
+                                </div>
+                                <div className="bg-purple-50 rounded-xl p-4">
+                                    <p className="text-sm text-gray-500">Montant Total</p>
+                                    <p className="text-2xl font-bold text-purple-700 mt-1">{formatMAD(totalLocationAmount)}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-xl p-4">
+                                    <p className="text-sm text-gray-500">Tarif Journalier par Défaut</p>
+                                    <p className="text-2xl font-bold text-gray-800 mt-1">
+                                        {vehicle.default_daily_rate ? formatMAD(vehicle.default_daily_rate) : 'Non défini'}
+                                    </p>
+                                </div>
+                            </div>
+                            {locationUsages.length > 0 && (
+                                <div className="px-6 pb-6">
+                                    <table className="min-w-full divide-y divide-gray-200 text-sm">
+                                        <thead>
+                                            <tr>
+                                                <th className="py-2 text-left text-xs font-semibold text-gray-500 uppercase">Date</th>
+                                                <th className="py-2 text-right text-xs font-semibold text-gray-500 uppercase">Tarif ce jour-là</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {locationUsages.slice(0, 10).map((u) => (
+                                                <tr key={u.id}>
+                                                    <td className="py-2 text-gray-700">{formatDate(u.date)}</td>
+                                                    <td className="py-2 text-right font-medium text-gray-900">{formatMAD(u.daily_rate)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {locationUsages.length > 10 && (
+                                        <p className="text-xs text-gray-400 mt-2">Affichage des 10 entrées les plus récentes sur {locationUsages.length}.</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {vehicle.notes && (
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">

@@ -104,14 +104,15 @@ class VehicleController extends Controller
 
     public function show(Vehicle $vehicle)
     {
-        $vehicle->load(
+        $vehicle->load([
             'defaultDriver',
             'fuelTransactions.product',
             'fuelTransactions.driver',
             'manualStockEntries.product',
             'manualStockEntries.employee',
-            'manualStockEntries.stockMovement'
-        );
+            'manualStockEntries.stockMovement',
+            'usages' => fn ($q) => $q->orderByDesc('date'),
+        ]);
 
         // Keep the vehicle's currently assigned driver selectable even if they've since gone
         // inactive, so editing the vehicle doesn't silently drop that field.
