@@ -125,9 +125,6 @@ class HarvestController extends Controller
 
     public function bulkWeigh(Request $request)
     {
-        Log::info('bulkWeigh method called.');
-        Log::info('Raw request data:', $request->all()); // Log raw request data
-
         $user = $request->user();
 
         try {
@@ -139,10 +136,8 @@ class HarvestController extends Controller
                 'individual_weights' => 'required_if:weighing_type,individual|array',
                 'individual_weights.*' => 'numeric|min:0',
             ]);
-            Log::info('Validation successful. Validated data:', $validated);
-
         } catch (ValidationException $e) {
-            Log::error('Validation failed in bulkWeigh:', ['errors' => $e->errors(), 'request' => $request->all()]);
+            Log::error('Validation failed in bulkWeigh:', ['errors' => $e->errors()]);
             throw $e; // Re-throw the exception so Inertia can catch it
         }
 
@@ -152,7 +147,6 @@ class HarvestController extends Controller
 
         // Security check - ensure all harvests belong to user's farm
         $harvests = Harvest::whereIn('id', $harvestIds)->get();
-        Log::info('Fetched harvests:', $harvests->pluck('id')->toArray());
 
         $userFarmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
 
@@ -162,24 +156,17 @@ class HarvestController extends Controller
                 abort(403);
             }
         }
-        Log::info('Security check passed for all selected harvests.');
-
 
         if ($validated['weighing_type'] === 'total') {
-            Log::info('Weighing type: total');
             // Distribute total weight proportionally by box count
             $totalWeight = $validated['total_weight_kg'];
             $totalBoxes = $harvests->sum('boxes_count') ?: $harvests->count(); // Fallback to count if boxes_count is 0
-
-            Log::info("Total weight: {$totalWeight}, Total boxes (or harvests count): {$totalBoxes}");
 
             foreach ($harvests as $harvest) {
                 $boxes = $harvest->boxes_count ?: 1; // Ensure boxes is at least 1 to avoid division by zero
                 $actualKg = ($totalWeight / $totalBoxes) * $boxes;
                 $unitPriceDh = $harvest->unit_price_dh ?? 0;
                 $totalRevenue = $actualKg * $unitPriceDh;
-
-                Log::info("Updating harvest ID: {$harvest->id} (boxes: {$boxes}). Calculated actualKg: {$actualKg}, unitPriceDh: {$unitPriceDh}, totalRevenue: {$totalRevenue}");
 
                 $harvest->update([
                     'actual_kg' => $actualKg,
@@ -189,18 +176,14 @@ class HarvestController extends Controller
                     'weighing_batch_id' => $weighingBatchId,
                     'total_revenue_dh' => $totalRevenue
                 ]);
-                Log::info("Harvest ID: {$harvest->id} updated successfully.");
             }
         } else {
-            Log::info('Weighing type: individual');
             // Individual weights provided
             $individualWeights = $validated['individual_weights'];
             foreach ($harvests as $harvest) {
                 $actualKg = $individualWeights[$harvest->id] ?? $harvest->estimated_kg;
                 $unitPriceDh = $harvest->unit_price_dh ?? 0;
                 $totalRevenue = $actualKg * $unitPriceDh;
-
-                Log::info("Updating harvest ID: {$harvest->id} (individual weight). Calculated actualKg: {$actualKg}, unitPriceDh: {$unitPriceDh}, totalRevenue: {$totalRevenue}");
 
                 $harvest->update([
                     'actual_kg' => $actualKg,
@@ -210,11 +193,9 @@ class HarvestController extends Controller
                     'weighing_batch_id' => $weighingBatchId,
                     'total_revenue_dh' => $totalRevenue
                 ]);
-                Log::info("Harvest ID: {$harvest->id} updated successfully.");
             }
         }
 
-        Log::info('bulkWeigh method finished. Redirecting back.');
         return redirect()->back()->with('success', count($harvestIds) . ' récolte(s) pesée(s) avec succès.');
     }
 

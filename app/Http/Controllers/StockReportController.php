@@ -233,38 +233,41 @@ class StockReportController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
         $periodInDays = $request->input('period', 365); // Default to 1 year
+        $startDate = now()->subDays($periodInDays);
 
         $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get();
+        $productIds = $products->pluck('id');
 
-        $stockTurnoverData = $products->map(function ($product) use ($periodInDays) {
-            $startDate = now()->subDays($periodInDays);
+        // Pulled once for every product up front (2 queries total) instead of 4 queries
+        // per product in the loop — this report scans every product in the farm, so the
+        // per-product query count used to scale linearly with catalog size.
+        $inventories = StockInventory::whereIn('product_id', $productIds)->get()->keyBy('product_id');
 
+        $movementSums = StockMovement::whereIn('product_id', $productIds)
+            ->where('date', '>=', $startDate)
+            ->selectRaw('product_id, movement_type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost_sum')
+            ->groupBy('product_id', 'movement_type')
+            ->get()
+            ->groupBy('product_id');
+
+        $stockTurnoverData = $products->map(function ($product) use ($inventories, $movementSums) {
             // Value inventory at CUMP (the actual weighted-average cost paid in), same basis
             // used for every other cost calculation in this module — falling back to the
             // catalog unit_cost only when no réception has ever set a CUMP yet.
-            $inventory = StockInventory::where('product_id', $product->id)->first();
+            $inventory = $inventories->get($product->id);
             $valuationCost = (float) ($inventory->average_cost ?? $product->unit_cost ?? 1);
 
             $beginningInventory = (float) ($inventory->quantity_on_hand ?? 0); // Simplified: current stock as beginning
 
-            $purchases = StockMovement::where('product_id', $product->id)
-                ->where('movement_type', 'in')
-                ->where('date', '>=', $startDate)
-                ->sum('quantity');
-
-            $salesOrConsumption = StockMovement::where('product_id', $product->id)
-                ->where('movement_type', 'out')
-                ->where('date', '>=', $startDate)
-                ->sum('quantity');
+            $productMovements = $movementSums->get($product->id, collect());
+            $purchases = (float) ($productMovements->firstWhere('movement_type', 'in')->total_quantity ?? 0);
+            $outRow = $productMovements->firstWhere('movement_type', 'out');
+            $salesOrConsumption = (float) ($outRow->total_quantity ?? 0);
+            $costOfGoodsSold = (float) ($outRow->total_cost_sum ?? 0);
 
             $endingInventory = $beginningInventory + $purchases - $salesOrConsumption; // Simplified calculation
 
             $averageInventory = ($beginningInventory + $endingInventory) / 2;
-
-            $costOfGoodsSold = StockMovement::where('product_id', $product->id)
-                ->where('movement_type', 'out')
-                ->where('date', '>=', $startDate)
-                ->sum('total_cost');
 
             $stockTurnoverRatio = $averageInventory > 0 ? $costOfGoodsSold / ($averageInventory * $valuationCost) : 0;
 

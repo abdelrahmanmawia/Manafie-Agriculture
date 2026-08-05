@@ -51,6 +51,10 @@ class StockAlertController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        // Same gap as every other Stock show/update method audited — trusted the
+        // route-bound $alert with no farm-ownership check at all.
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $alert->product->farm_id === $farmId, 403);
 
         $alert->update([
             'is_resolved' => true,
@@ -58,7 +62,7 @@ class StockAlertController extends Controller
             'notes' => $request->input('notes', $alert->notes), // Allow updating notes on resolve
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Alerte résolue avec succès.');
     }
 
     public function unresolvedCount(Request $request): JsonResponse

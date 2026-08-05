@@ -43,6 +43,15 @@ class HandleInertiaRequests extends Middleware
                 'user' => $user ? $user->load(['farm', 'enterprise']) : null,
             ],
             'activeFarm' => $activeFarm,
+            // Every controller already does redirect()->back()->with('success'/'error', ...)
+            // for non-validation notices (a delete succeeded, "select a farm first", etc.) —
+            // nothing previously read this, so those messages silently never reached the
+            // user. Sharing it here (read once by AuthenticatedLayout's toast) is what makes
+            // those existing calls actually work, rather than rewriting ~20 call sites.
+            'flash' => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+            ],
         ];
     }
 }

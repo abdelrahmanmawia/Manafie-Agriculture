@@ -15,6 +15,17 @@ use Inertia\Inertia; // Import Inertia
 
 class StockInventoryController extends Controller
 {
+    /**
+     * show()/movements() trusted the route-bound model with no ownership check, and
+     * adjust()/count() only validated product_id with exists:products,id — any
+     * authenticated user could view or adjust another farm's inventory by walking IDs.
+     */
+    private function assertProductInScope(Request $request, Product $product): void
+    {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $product->farm_id === $farmId, 403);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -43,8 +54,10 @@ class StockInventoryController extends Controller
             'stockInventory' => $inventory,        ]);
     }
 
-    public function show(StockInventory $inventory)
+    public function show(Request $request, StockInventory $inventory)
     {
+        $this->assertProductInScope($request, $inventory->product);
+
         $inventory->load([
             'product',
             'product.stockMovements.performedBy',
@@ -75,6 +88,7 @@ class StockInventoryController extends Controller
 
         $inventory = DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
+            $this->assertProductInScope($request, $product);
 
             $inventory = StockInventory::firstOrCreate(
                 ['product_id' => $product->id],
@@ -122,6 +136,7 @@ class StockInventoryController extends Controller
 
         $inventory = DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
+            $this->assertProductInScope($request, $product);
 
             $inventory = StockInventory::firstOrCreate(
                 [
@@ -159,8 +174,10 @@ class StockInventoryController extends Controller
         return response()->json($inventory);
     }
 
-    public function movements(Product $product): JsonResponse
+    public function movements(Request $request, Product $product): JsonResponse
     {
+        $this->assertProductInScope($request, $product);
+
         $movements = $product->stockMovements()
             ->with(['performedBy', 'reference' => function ($morphTo) {
                 $morphTo->morphWith([

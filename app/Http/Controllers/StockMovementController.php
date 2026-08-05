@@ -76,6 +76,7 @@ class StockMovementController extends Controller
 
         DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
+            abort_unless($product->farm_id === $this->resolveWriteFarmId($request), 403);
             $unitCost = $validated['unit_cost'] ?? $product->unit_cost ?? 0;
 
             StockMovement::create([
@@ -118,6 +119,6 @@ class StockMovementController extends Controller
             StockAlertService::syncLowStock($product);
         });
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Réception de stock enregistrée avec succès.');
     }
 }

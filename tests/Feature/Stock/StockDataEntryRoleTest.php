@@ -143,6 +143,37 @@ class StockDataEntryRoleTest extends TestCase
         $this->assertDatabaseHas('products', ['id' => $this->product->id, 'min_stock_level' => 250]);
     }
 
+    /**
+     * Regression: PHP only parses multipart/form-data into $_POST/$_FILES for a real POST,
+     * never PUT — attaching a photo forces the frontend into multipart/form-data, so it must
+     * route through POST + _method=put (Employees.jsx / Stock/Index.jsx / Stock/Show.jsx all
+     * do this now). Also covers the is_active boolean coercion: FormData serializes a JS
+     * `true` as the literal string "true", which Laravel's strict `boolean` rule used to
+     * reject outright.
+     */
+    public function test_updating_product_with_a_photo_via_post_method_spoofing_succeeds(): void
+    {
+        $photo = \Illuminate\Http\UploadedFile::fake()->image('product.jpg');
+
+        $this->actingAs($this->farmManager)
+            ->post(route('stock.products.update', $this->product), [
+                '_method' => 'put',
+                'name' => 'Updated Via Multipart',
+                'category' => $this->product->category,
+                'unit_type' => $this->product->unit_type,
+                'is_active' => 'true', // exactly what FormData serializes a JS boolean to
+                'image' => $photo,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('products', [
+            'id' => $this->product->id,
+            'name' => 'Updated Via Multipart',
+            'is_active' => true,
+        ]);
+        $this->assertNotNull($this->product->fresh()->image);
+    }
+
     // --- VehicleController ---
 
     public function test_data_entry_cannot_create_vehicle(): void

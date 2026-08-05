@@ -21,6 +21,17 @@ use Illuminate\Validation\ValidationException;
 
 class ManualStockEntryController extends Controller
 {
+    /**
+     * show/edit/update/destroy/verify all trusted the route-bound $entry with no
+     * ownership check — any authenticated user could view or mutate another farm's
+     * manual stock entry by walking IDs.
+     */
+    private function assertEntryInScope(Request $request, ManualStockEntry $entry): void
+    {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $entry->farm_id === $farmId, 403);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -104,6 +115,7 @@ class ManualStockEntryController extends Controller
 
         return DB::transaction(function () use ($validated, $request, $farmId) {
             $product = Product::findOrFail($validated['product_id']);
+            abort_unless($product->farm_id === $farmId, 403);
 
             // Cost basis is the CUMP (weighted-average cost built up from every réception),
             // not a price re-entered here — a sortie shouldn't ask what was already paid in.
@@ -162,12 +174,14 @@ class ManualStockEntryController extends Controller
 
             StockAlertService::syncLowStock($product);
 
-            return redirect()->back();
+            return redirect()->back()->with('success', 'Sortie de stock enregistrée avec succès.');
         });
     }
 
-    public function show(ManualStockEntry $entry)
+    public function show(Request $request, ManualStockEntry $entry)
     {
+        $this->assertEntryInScope($request, $entry);
+
         $entry->load('product', 'employee', 'vehicle', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
 
         return Inertia::render('Stock/ManualStockEntries/Show', [
@@ -175,8 +189,10 @@ class ManualStockEntryController extends Controller
         ]);
     }
 
-    public function edit(ManualStockEntry $entry)
+    public function edit(Request $request, ManualStockEntry $entry)
     {
+        $this->assertEntryInScope($request, $entry);
+
         $products = Product::where('farm_id', $entry->farm_id)->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
         // Keep the entry's currently assigned employee selectable even if they've since gone
         // inactive, so editing the entry doesn't silently drop that field.
@@ -208,6 +224,9 @@ class ManualStockEntryController extends Controller
 
     public function update(Request $request, ManualStockEntry $entry)
     {
+        // data_entry is intentionally allowed to update (see test_data_entry_can_update_manual_stock_entry).
+        $this->assertEntryInScope($request, $entry);
+
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
             'entry_type' => 'sometimes|required|in:consumption,transfer,loss,theft,damage',
@@ -236,6 +255,10 @@ class ManualStockEntryController extends Controller
             $newProductId = $validated['product_id'] ?? $oldProductId;
             $newQuantity = $validated['quantity'] ?? $oldQuantity;
             $productChanged = $newProductId != $oldProductId;
+
+            if ($productChanged) {
+                abort_unless(Product::findOrFail($newProductId)->farm_id === $entry->farm_id, 403);
+            }
 
             $oldInventory = StockInventory::where('product_id', $oldProductId)->first();
             $newInventory = $productChanged
@@ -294,7 +317,7 @@ class ManualStockEntryController extends Controller
                 StockAlertService::syncLowStock(Product::findOrFail($oldProductId));
             }
 
-            return redirect()->route('stock.manual-entries.show', $entry);
+            return redirect()->route('stock.manual-entries.show', $entry)->with('success', 'Entrée mise à jour avec succès.');
         });
     }
 
@@ -303,6 +326,7 @@ class ManualStockEntryController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertEntryInScope($request, $entry);
 
         return DB::transaction(function () use ($entry) {
             // Revert stock movement
@@ -322,7 +346,7 @@ class ManualStockEntryController extends Controller
 
             StockAlertService::syncLowStock(Product::findOrFail($entry->product_id));
 
-            return redirect()->route('stock.manual-entries.index');
+            return redirect()->route('stock.manual-entries.index')->with('success', 'Entrée supprimée avec succès.');
         });
     }
 
@@ -331,6 +355,7 @@ class ManualStockEntryController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertEntryInScope($request, $entry);
 
         $entry->update([
             'is_verified' => true,
@@ -338,7 +363,7 @@ class ManualStockEntryController extends Controller
             'verified_at' => now(),
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Entrée vérifiée avec succès.');
     }
 
     // A secteur/parcelle picked independently of its bloc (e.g. a direct API call bypassing

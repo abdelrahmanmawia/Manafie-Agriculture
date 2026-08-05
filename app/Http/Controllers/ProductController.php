@@ -14,10 +14,22 @@ use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia; // Import Inertia
 
 class ProductController extends Controller
 {
+    /**
+     * show/update/toggleActive/destroy all trusted the route-bound $product with no
+     * ownership check — any authenticated user could view or silently mutate another
+     * farm's product by walking IDs. index()/store() were already properly scoped.
+     */
+    private function assertProductInScope(Request $request, Product $product): void
+    {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $product->farm_id === $farmId, 403);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -133,11 +145,13 @@ class ProductController extends Controller
 
         StockAlertService::syncLowStock($product);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Produit créé avec succès.');
     }
 
-    public function show(Product $product)
+    public function show(Request $request, Product $product)
     {
+        $this->assertProductInScope($request, $product);
+
         $product->load('stockInventory', 'stockMovements', 'stockAlerts');
 
         return Inertia::render('Stock/Show', [
@@ -152,23 +166,37 @@ class ProductController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertProductInScope($request, $product);
 
         $product->update(['is_active' => !$product->is_active]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', $product->is_active ? 'Produit activé.' : 'Produit désactivé.');
     }
 
     public function update(Request $request, Product $product)
     {
+        // data_entry is intentionally allowed to update (see test_data_entry_can_update_product) —
+        // only store/destroy/toggleActive are role-restricted. Farm-scoping still applies to everyone.
+        $this->assertProductInScope($request, $product);
+
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'category' => 'sometimes|required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
             'unit_type' => 'sometimes|required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
-            'is_active' => 'boolean',
+            // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
+            // "true"/"false" once a photo file forces the request into multipart/FormData —
+            // Laravel's `boolean` rule strictly rejects those strings (only accepts
+            // true/false/0/1/'0'/'1'), so accept them here and coerce via $request->boolean()
+            // rather than trusting the raw validated value ((bool)"false" is true in PHP).
+            'is_active' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
             'image' => 'nullable|image|max:5120',
         ]);
+
+        if (array_key_exists('is_active', $validated)) {
+            $validated['is_active'] = $request->boolean('is_active');
+        }
 
         if ($request->hasFile('image')) {
             if ($product->image) {
@@ -183,7 +211,7 @@ class ProductController extends Controller
         // the low-stock threshold without any quantity actually moving.
         StockAlertService::syncLowStock($product);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Produit mis à jour avec succès.');
     }
 
     public function destroy(Request $request, Product $product)
@@ -198,6 +226,6 @@ class ProductController extends Controller
 
         $product->delete();
 
-        return redirect()->route('stock.products.index');
+        return redirect()->route('stock.products.index')->with('success', 'Produit supprimé avec succès.');
     }
 }

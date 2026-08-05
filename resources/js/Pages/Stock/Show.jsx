@@ -75,7 +75,12 @@ export default function Show({ auth, product, categories, unitTypes }) {
 
     const submitEdit = (e) => {
         e.preventDefault();
-        editForm.put(route('stock.products.update', product.id), {
+        // PHP only parses multipart/form-data bodies into $_POST/$_FILES for a real POST,
+        // never for PUT — a real PUT with the image file attached would arrive empty.
+        // Route it as POST with a spoofed _method field instead (Inertia's documented
+        // workaround for file uploads on put()/patch()).
+        editForm.transform((data) => ({ ...data, _method: 'put' }));
+        editForm.post(route('stock.products.update', product.id), {
             onSuccess: () => closeEdit(),
         });
     };

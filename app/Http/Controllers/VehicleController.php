@@ -11,6 +11,17 @@ use Inertia\Inertia; // Import Inertia
 
 class VehicleController extends Controller
 {
+    /**
+     * show/update/toggleActive/destroy trusted the route-bound $vehicle with no
+     * ownership check — any authenticated user could view or mutate another farm's
+     * vehicle by walking IDs.
+     */
+    private function assertVehicleInScope(Request $request, Vehicle $vehicle): void
+    {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $vehicle->farm_id === $farmId, 403);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -99,11 +110,13 @@ class VehicleController extends Controller
             'notes' => $validated['notes'] ?? null,
         ]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Véhicule créé avec succès.');
     }
 
-    public function show(Vehicle $vehicle)
+    public function show(Request $request, Vehicle $vehicle)
     {
+        $this->assertVehicleInScope($request, $vehicle);
+
         $vehicle->load([
             'defaultDriver',
             'fuelTransactions.product',
@@ -138,14 +151,18 @@ class VehicleController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertVehicleInScope($request, $vehicle);
 
         $vehicle->update(['is_active' => !$vehicle->is_active]);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', $vehicle->is_active ? 'Véhicule activé.' : 'Véhicule désactivé.');
     }
 
     public function update(Request $request, Vehicle $vehicle)
     {
+        // data_entry is intentionally allowed to update (see test_data_entry_can_update_vehicle).
+        $this->assertVehicleInScope($request, $vehicle);
+
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'plate_number' => 'sometimes|required|string|unique:vehicles,plate_number,' . $vehicle->id,
@@ -161,7 +178,7 @@ class VehicleController extends Controller
 
         $vehicle->update($validated);
 
-        return redirect()->back();
+        return redirect()->back()->with('success', 'Véhicule mis à jour avec succès.');
     }
 
     public function destroy(Request $request, Vehicle $vehicle)
@@ -169,6 +186,7 @@ class VehicleController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertVehicleInScope($request, $vehicle);
 
         // Vehicle has no soft-deletes, and fuel_transactions/manual_stock_entries reference it
         // with no cascade — the DB would already reject this delete via a foreign key
@@ -182,6 +200,6 @@ class VehicleController extends Controller
 
         $vehicle->delete();
 
-        return redirect()->route('stock.vehicles.index');
+        return redirect()->route('stock.vehicles.index')->with('success', 'Véhicule supprimé avec succès.');
     }
 }

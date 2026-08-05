@@ -88,7 +88,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');
     Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions'); // New route
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
-    Route::post('/pointage', [PointageController::class, 'store'])->name('pointage.store');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
 
     // Badge printing

@@ -49,8 +49,11 @@ class FuelTransactionController extends Controller
         ]);
     }
 
-    public function show(FuelTransaction $transaction)
+    public function show(Request $request, FuelTransaction $transaction)
     {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $transaction->farm_id === $farmId, 403);
+
         $transaction->load('vehicle', 'product', 'driver', 'performedBy');
 
         return Inertia::render('Stock/FuelTransactions/Show', [

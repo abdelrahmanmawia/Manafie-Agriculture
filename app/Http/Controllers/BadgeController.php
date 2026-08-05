@@ -64,8 +64,12 @@ class BadgeController extends Controller
     public function print(Request $request)
     {
         $employeeIds = $request->query('employee_ids');
+        // Was unscoped by farm entirely — any authenticated user could print another
+        // farm's employee badges (names, matricules, QR codes) just by supplying its IDs.
         $employees = $employeeIds
-            ? Employee::whereIn('id', explode(',', $employeeIds))->get()
+            ? Employee::whereIn('id', explode(',', $employeeIds))
+                ->where('farm_id', $this->scopedFarmId($request))
+                ->get()
             : $this->scopedEmployees($request);
 
         foreach ($employees as $employee) {

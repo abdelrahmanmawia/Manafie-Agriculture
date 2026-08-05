@@ -402,4 +402,85 @@ class SecurityScopingTest extends TestCase
 
         $this->assertDatabaseHas('harvests', ['bloc_id' => $this->blocA->id, 'farm_id' => $this->farmA->id]);
     }
+
+    public function test_farm_manager_cannot_export_another_farms_pointage(): void
+    {
+        $this->actingAs($this->managerA)
+            ->get('/pointage/export/' . $this->quinzaineB->id)
+            ->assertForbidden();
+    }
+
+    public function test_farm_manager_cannot_export_all_divisions_for_another_farm(): void
+    {
+        $this->actingAs($this->managerA)
+            ->get('/pointage/export-all-divisions/' . $this->quinzaineB->id)
+            ->assertForbidden();
+    }
+
+    public function test_farm_manager_cannot_read_another_farms_pointage_summary(): void
+    {
+        $this->actingAs($this->managerA)
+            ->get('/pointage/summary/' . $this->quinzaineB->id)
+            ->assertForbidden();
+    }
+
+    public function test_farm_manager_cannot_write_pointage_cell_for_another_farms_quinzaine(): void
+    {
+        $this->actingAs($this->managerA)
+            ->post('/pointage/cell', [
+                'employee_id' => $this->employeeB->id,
+                'quinzaine_id' => $this->quinzaineB->id,
+                'date' => '2026-01-06',
+                'operation_id' => $this->operationB->id,
+                'bloc_id' => $this->blocB->id,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseMissing('pointage_records', [
+            'employee_id' => $this->employeeB->id,
+            'quinzaine_id' => $this->quinzaineB->id,
+            'date' => '2026-01-06',
+        ]);
+    }
+
+    public function test_farm_manager_cannot_write_pointage_cell_using_another_farms_employee(): void
+    {
+        $ownQuinzaine = Quinzaine::create([
+            'enterprise_id' => $this->enterpriseA->id,
+            'label' => '1QZ A', 'start_date' => '2026-01-01', 'end_date' => '2026-01-15', 'is_closed' => false,
+        ]);
+
+        $this->actingAs($this->managerA)
+            ->post('/pointage/cell', [
+                'employee_id' => $this->employeeB->id, // foreign employee
+                'quinzaine_id' => $ownQuinzaine->id, // own quinzaine
+                'date' => '2026-01-06',
+                'operation_id' => $this->operationA->id,
+                'bloc_id' => $this->blocA->id,
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_farm_manager_can_write_pointage_cell_for_their_own_farm(): void
+    {
+        $ownQuinzaine = Quinzaine::create([
+            'enterprise_id' => $this->enterpriseA->id,
+            'label' => '1QZ A', 'start_date' => '2026-01-01', 'end_date' => '2026-01-15', 'is_closed' => false,
+        ]);
+
+        $this->actingAs($this->managerA)
+            ->post('/pointage/cell', [
+                'employee_id' => $this->employeeA->id,
+                'quinzaine_id' => $ownQuinzaine->id,
+                'date' => '2026-01-06',
+                'operation_id' => $this->operationA->id,
+                'bloc_id' => $this->blocA->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('pointage_records', [
+            'employee_id' => $this->employeeA->id,
+            'quinzaine_id' => $ownQuinzaine->id,
+        ]);
+    }
 }

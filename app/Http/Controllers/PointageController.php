@@ -27,9 +27,31 @@ class PointageController extends Controller
         $this->payrollService = $payrollService;
     }
 
-    public function export($quinzaineId)
+    /**
+     * Same scoping rule grid() already used, extracted so every method that reads or
+     * writes a specific Quinzaine by ID enforces it — export/exportAllDivisions/summary/
+     * updateCell previously trusted the route/request-bound quinzaine with no ownership
+     * check at all, letting any authenticated user read or write another farm's payroll
+     * data just by walking quinzaine IDs.
+     */
+    private function assertQuinzaineInScope($user, Quinzaine $quinzaine): void
     {
-        $quinzaine = Quinzaine::findOrFail($quinzaineId);
+        if ($user->enterprise_id) {
+            abort_unless($quinzaine->enterprise_id === $user->enterprise_id, 403);
+        } elseif ($user->farm_id) {
+            abort_unless($quinzaine->enterprise->farm_id === $user->farm_id, 403);
+        } elseif ($user->role === 'super_admin') {
+            abort_unless($quinzaine->enterprise->farm_id === (int) session('active_farm_id'), 403);
+        } else {
+            abort(403);
+        }
+    }
+
+    public function export(Request $request, $quinzaineId)
+    {
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
+        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = $cleanLabel . '.xlsx';
 
@@ -37,8 +59,11 @@ class PointageController extends Controller
     }
 
     // New method for exporting all divisions
-    public function exportAllDivisions(Quinzaine $quinzaine)
+    public function exportAllDivisions(Request $request, Quinzaine $quinzaine)
     {
+        $quinzaine->loadMissing('enterprise');
+        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';
 
@@ -140,17 +165,7 @@ class PointageController extends Controller
     {
         $user = $request->user();
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
-
-        // Security check
-        if ($user->enterprise_id) {
-            if ($quinzaine->enterprise_id !== $user->enterprise_id) abort(403);
-        } elseif ($user->farm_id) {
-            if ($quinzaine->enterprise->farm_id !== $user->farm_id) abort(403);
-        } elseif ($user->role === 'super_admin') {
-            if ($quinzaine->enterprise->farm_id !== (int) session('active_farm_id')) abort(403);
-        } else {
-            abort(403);
-        }
+        $this->assertQuinzaineInScope($user, $quinzaine);
 
         $enterpriseId = $quinzaine->enterprise_id;
         $employees = Employee::where('enterprise_id', $enterpriseId)->where('is_active', true)->get();
@@ -195,9 +210,17 @@ class PointageController extends Controller
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+
+        // employee_id was only checked with exists:employees,id — an employee from a
+        // completely different enterprise/farm could otherwise be written into this
+        // quinzaine (mismatched data, and a cross-tenant write via an ID the caller
+        // isn't actually scoped to).
+        $employee = Employee::findOrFail($validated['employee_id']);
+        abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
 
         if ($quinzaine->is_closed) {
-            return redirect()->back()->with('error', 'This period is closed and cannot be modified.');
+            return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
         }
 
         // If operation or bloc is empty, delete the record (mark as absent)
@@ -209,7 +232,6 @@ class PointageController extends Controller
             return redirect()->back();
         }
 
-        $employee = Employee::find($validated['employee_id']);
         $operation = Operation::find($validated['operation_id']);
         $quantity = $validated['quantity'] ?? null;
 
@@ -270,9 +292,10 @@ class PointageController extends Controller
         return redirect()->back();
     }
 
-    public function summary($quinzaineId)
+    public function summary(Request $request, $quinzaineId)
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
+        $this->assertQuinzaineInScope($request->user(), $quinzaine);
 
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
             ->join('operations', 'pointage_records.operation_id', '=', 'operations.id')

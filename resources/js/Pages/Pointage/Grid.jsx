@@ -427,6 +427,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     </button>
                                 </div>
 
+                                {errors.date && (
+                                    <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-sm font-bold rounded-xl p-4">
+                                        {errors.date}
+                                    </div>
+                                )}
+
                                 <form onSubmit={submit} className="space-y-6">
                                     <div className="space-y-6">
                                         <div className="relative">
