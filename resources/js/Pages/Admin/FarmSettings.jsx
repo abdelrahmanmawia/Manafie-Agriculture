@@ -1,7 +1,16 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, Link } from '@inertiajs/react';
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { t } from '@/Helpers/i18n';
+
+// Same path strings as AuthenticatedLayout.jsx's ICONS.sliders/pencil/map — reused directly
+// rather than picking new emoji, so this page's tabs match the app's SVG icon system instead
+// of standing out with a different visual register.
+const TAB_ICONS = {
+    general: 'M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4',
+    operations: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
+    structure: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+};
 
 export default function FarmSettings({ auth, farm, operations, blocs }) {
     const [activeTab, setActiveTab] = useState('general');
@@ -111,20 +120,22 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                     <div className="bg-white rounded-t-lg shadow-sm border-b border-gray-200">
                         <div className="flex space-x-1 px-4">
                             {[
-                                { id: 'general', label: 'Général', icon: '⚙️' },
-                                { id: 'operations', label: 'Opérations', icon: '🔧' },
-                                { id: 'structure', label: 'Structure', icon: '🗺️' },
+                                { id: 'general', label: 'Général', icon: TAB_ICONS.general },
+                                { id: 'operations', label: 'Opérations', icon: TAB_ICONS.operations },
+                                { id: 'structure', label: 'Structure', icon: TAB_ICONS.structure },
                             ].map(tab => (
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-4 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors ${
+                                    className={`px-4 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center ${
                                         activeTab === tab.id
                                             ? 'border-blue-600 text-blue-600'
                                             : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                                 >
-                                    <span className="mr-2">{tab.icon}</span>
+                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={tab.icon} />
+                                    </svg>
                                     {tab.label}
                                 </button>
                             ))}
@@ -138,22 +149,25 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                 <h3 className="text-lg font-bold leading-none mb-6">Paramètres Généraux</h3>
                                 <form onSubmit={submitFarmSettings} className="max-w-2xl space-y-4">
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="farm_name" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             Nom de la ferme
                                         </label>
                                         <input
+                                            id="farm_name"
                                             type="text"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             value={farmSettingsForm.data.name}
                                             onChange={e => farmSettingsForm.setData('name', e.target.value)}
                                             required
                                         />
+                                        {farmSettingsForm.errors.name && <div className="text-red-500 text-xs mt-1">{farmSettingsForm.errors.name}</div>}
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="farm_box_weight_kg" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             Poids estimé par caisse (Kg)
                                         </label>
                                         <input
+                                            id="farm_box_weight_kg"
                                             type="number"
                                             step="0.01"
                                             min="1"
@@ -164,6 +178,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                             required
                                         />
                                         <p className="text-[10px] text-gray-400 mt-1">Utilisé pour l'estimation du poids des récoltes</p>
+                                        {farmSettingsForm.errors.box_weight_kg && <div className="text-red-500 text-xs mt-1">{farmSettingsForm.errors.box_weight_kg}</div>}
                                     </div>
                                     <div>
                                         <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors" disabled={farmSettingsForm.processing}>
@@ -204,6 +219,9 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                     />
                                     <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
                                 </form>
+                                {Object.keys(opForm.errors).length > 0 && (
+                                    <div className="text-red-500 text-xs mb-3 max-w-2xl">{Object.values(opForm.errors).join(' ')}</div>
+                                )}
                                 <p className="text-[10px] text-gray-400 mb-3 max-w-2xl">
                                     Laissez le prix/unité vide pour une opération payée au tarif journalier normal de l'employé. Renseignez-le pour une opération payée à la quantité (ex: 10 DH/mètre) — la grille de pointage demandera alors une quantité au lieu des heures.
                                 </p>
@@ -220,7 +238,13 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                         <tbody className="divide-y divide-gray-200">
                                             {operations.map(op => (
                                                 editingOpId === op.id ? (
-                                                    <tr key={op.id} className="bg-blue-50">
+                                                    <Fragment key={op.id}>
+                                                    {Object.keys(editOpForm.errors).length > 0 && (
+                                                        <tr className="bg-blue-50">
+                                                            <td colSpan="4" className="px-4 pb-2 text-red-500 text-xs">{Object.values(editOpForm.errors).join(' ')}</td>
+                                                        </tr>
+                                                    )}
+                                                    <tr className="bg-blue-50">
                                                         <td className="px-4 py-2">
                                                             <input
                                                                 type="text"
@@ -265,6 +289,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                             </button>
                                                         </td>
                                                     </tr>
+                                                    </Fragment>
                                                 ) : (
                                                     <tr key={op.id} className="hover:bg-gray-50">
                                                         <td className="px-4 py-3 font-medium text-gray-700">{op.name}</td>
@@ -327,6 +352,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                             Ajouter
                                         </button>
                                     </form>
+                                    {blocForm.errors.name && <div className="text-red-500 text-xs mt-2">{blocForm.errors.name}</div>}
                                 </div>
 
                                 {/* HIERARCHICAL STRUCTURE DISPLAY */}
@@ -386,6 +412,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                         onChange={e => sectorForm.setData('name', e.target.value)}
                                                                         required
                                                                     />
+                                                                    {sectorForm.errors.name && <div className="text-red-500 text-[10px]">{sectorForm.errors.name}</div>}
                                                                     <div className="grid grid-cols-3 gap-2">
                                                                         <input
                                                                             type="number"
@@ -405,6 +432,9 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                             Ajouter
                                                                         </button>
                                                                     </div>
+                                                                    {(sectorForm.errors.area_ha || sectorForm.errors.total_trees) && (
+                                                                        <div className="text-red-500 text-[10px]">{sectorForm.errors.area_ha || sectorForm.errors.total_trees}</div>
+                                                                    )}
                                                                 </form>
                                                             </div>
 
@@ -467,6 +497,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                                     onChange={e => parcelleForm.setData('name', e.target.value)}
                                                                                                     required
                                                                                                 />
+                                                                                                {parcelleForm.errors.name && <div className="text-red-500 text-[10px]">{parcelleForm.errors.name}</div>}
                                                                                                 <div className="grid grid-cols-4 gap-2">
                                                                                                     <input
                                                                                                         type="number"
@@ -509,6 +540,11 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                                         Ajouter
                                                                                                     </button>
                                                                                                 </div>
+                                                                                                {Object.keys(parcelleForm.errors).filter(k => k !== 'name').length > 0 && (
+                                                                                                    <div className="text-red-500 text-[10px]">
+                                                                                                        {Object.entries(parcelleForm.errors).filter(([k]) => k !== 'name').map(([, v]) => v).join(' ')}
+                                                                                                    </div>
+                                                                                                )}
                                                                                             </form>
                                                                                         </div>
 

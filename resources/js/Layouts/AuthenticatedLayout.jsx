@@ -183,7 +183,10 @@ export default function Authenticated({ user, header, children }) {
                             </div>
                         </div>
 
-                        <div className="-me-2 flex items-center sm:hidden">
+                        {/* Must hide at the same breakpoint (lg) the desktop nav appears at, not sm — otherwise
+                            there's a dead zone between 640px and 1023px (tablets, landscape phones) where
+                            neither the desktop nav nor this hamburger is visible, leaving no way to navigate. */}
+                        <div className="-me-2 flex items-center lg:hidden">
                             <button
                                 onClick={() => setShowingNavigationDropdown((previousState) => !previousState)}
                                 className="inline-flex items-center justify-center p-3 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 focus:outline-none transition duration-150 ease-in-out border-2 border-transparent hover:border-blue-100"

@@ -155,10 +155,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                     {/* Farm selector for super admin */}
                     {auth.user.role === 'super_admin' && farms.length > 0 && (
                         <div className="bg-white p-4 shadow sm:rounded-lg">
-                            <label className="block text-xs font-black uppercase text-gray-500 mb-2">
+                            <label htmlFor="harvest_farm_id" className="block text-xs font-black uppercase text-gray-500 mb-2">
                                 Sélectionner une ferme
                             </label>
                             <select
+                                id="harvest_farm_id"
                                 className="w-full max-w-xs rounded-lg border-gray-300 text-sm"
                                 value={selectedFarmId || ''}
                                 onChange={e => {
@@ -193,10 +194,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Bloc / Plot selection */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_bloc_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             Bloc / Parcelle *
                                         </label>
                                         <select
+                                            id="harvest_bloc_id"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             value={data.bloc_id}
                                             onChange={e => {
@@ -219,10 +221,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                                     {/* Secteur selection */}
                                     {data.bloc_id && availableSectors.length > 0 && (
                                         <div>
-                                            <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                            <label htmlFor="harvest_sector_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                                 Secteur *
                                             </label>
                                             <select
+                                                id="harvest_sector_id"
                                                 className="w-full rounded-lg border-gray-300 text-sm"
                                                 value={data.sector_id}
                                                 onChange={e => {
@@ -245,10 +248,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                                     {/* Parcelle selection (optional) */}
                                     {data.sector_id && availableParcelles.length > 0 && (
                                         <div>
-                                            <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                            <label htmlFor="harvest_parcelle_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                                 Parcelle (optionnel)
                                             </label>
                                             <select
+                                                id="harvest_parcelle_id"
                                                 className="w-full rounded-lg border-gray-300 text-sm"
                                                 value={data.parcelle_id}
                                                 onChange={e => setData('parcelle_id', e.target.value)}
@@ -266,10 +270,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Date */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_date" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             {t('harvest_date')} *
                                         </label>
                                         <input
+                                            id="harvest_date"
                                             type="date"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             value={data.date}
@@ -281,10 +286,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Variety */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_variety" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             {t('variety')} *
                                         </label>
                                         <select
+                                            id="harvest_variety"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             value={data.variety}
                                             onChange={e => setData('variety', e.target.value)}
@@ -297,10 +303,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Grade */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_grade" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             {t('grade')} *
                                         </label>
                                         <select
+                                            id="harvest_grade"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             value={data.grade}
                                             onChange={e => setData('grade', e.target.value)}
@@ -312,10 +319,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Boxes */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_boxes_count" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             {t('boxes_count')} *
                                         </label>
                                         <input
+                                            id="harvest_boxes_count"
                                             type="number"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             placeholder="Ex: 50"
@@ -329,10 +337,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Price */}
                                     <div>
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_unit_price" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             {t('unit_price')} (optionnel)
                                         </label>
                                         <input
+                                            id="harvest_unit_price"
                                             type="number"
                                             step="0.01"
                                             className="w-full rounded-lg border-gray-300 text-sm"
@@ -345,10 +354,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {/* Comments */}
                                     <div className="md:col-span-2">
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                        <label htmlFor="harvest_comments" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             Observations
                                         </label>
                                         <textarea
+                                            id="harvest_comments"
                                             rows="2"
                                             className="w-full rounded-lg border-gray-300 text-sm"
                                             placeholder="Commentaires..."
@@ -561,10 +571,11 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                                     {weighingType === 'total' ? (
                                         <div className="mb-4">
-                                            <label className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                            <label htmlFor="harvest_total_weight" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                                 Poids total (Kg)
                                             </label>
                                             <input
+                                                id="harvest_total_weight"
                                                 type="number"
                                                 step="0.01"
                                                 className="w-full rounded-lg border-gray-300 text-sm"
@@ -588,6 +599,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                                                     <input
                                                         type="number"
                                                         step="0.01"
+                                                        aria-label={`Poids (Kg) - ${h.bloc?.name} ${h.date.split('T')[0]}`}
                                                         className="flex-1 rounded-lg border-gray-300 text-sm"
                                                         placeholder="Kg"
                                                         value={individualWeights[h.id] || ''}

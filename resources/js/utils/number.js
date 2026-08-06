@@ -14,6 +14,9 @@ export function formatInt(value) {
     return formatNumber(value, 0);
 }
 
+// "DH" (not "MAD") to match the label already used everywhere outside Stock
+// (Admin/Employees/Payroll/FarmDashboard) — this was the one function producing a
+// different currency label for the exact same amounts depending on which page called it.
 export function formatMAD(value, decimals = 2) {
-    return `${formatNumber(value, decimals)} MAD`;
+    return `${formatNumber(value, decimals)} DH`;
 }

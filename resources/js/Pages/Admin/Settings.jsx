@@ -45,6 +45,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     onChange={e => editForm.setData('name', e.target.value)}
                                     required
                                 />
+                                {editForm.errors.name && <div className="text-red-500 text-xs mt-1">{editForm.errors.name}</div>}
                             </div>
                             <div>
                                 <label className="block text-xs font-black uppercase text-gray-400 mb-1">Salaire Brut (DH)</label>
@@ -56,6 +57,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     onChange={e => editForm.setData('default_brut_rate', e.target.value)}
                                     required
                                 />
+                                {editForm.errors.default_brut_rate && <div className="text-red-500 text-xs mt-1">{editForm.errors.default_brut_rate}</div>}
                             </div>
                             <div>
                                 <label className="block text-xs font-black uppercase text-gray-400 mb-1">Type Contrat</label>
@@ -100,10 +102,12 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                             <div>
                                 <label className="block text-sm font-bold text-gray-700">{t('start_date')}</label>
                                 <input type="date" className="rounded border-gray-300" value={qForm.data.start_date} onChange={e => qForm.setData('start_date', e.target.value)} />
+                                {qForm.errors.start_date && <div className="text-red-500 text-xs mt-1">{qForm.errors.start_date}</div>}
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-gray-700">{t('end_date')}</label>
                                 <input type="date" className="rounded border-gray-300" value={qForm.data.end_date} onChange={e => qForm.setData('end_date', e.target.value)} />
+                                {qForm.errors.end_date && <div className="text-red-500 text-xs mt-1">{qForm.errors.end_date}</div>}
                             </div>
                             <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded font-bold">{t('open_new_period')}</button>
                         </form>
@@ -133,6 +137,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                                         method="post"
                                                         as="button"
                                                         href={route('settings.quinzaine.close', q.id)}
+                                                        onBefore={() => confirm('Clôturer cette période ? Le pointage ne pourra plus être modifié une fois clôturée.')}
                                                         className="text-red-600 font-bold hover:underline"
                                                     >
                                                         {t('close_period')}

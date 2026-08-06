@@ -183,5 +183,5 @@ export default {
     revenue: 'Revenu Total (DH)',
     variety: 'Variété',
     harvest_date: 'Date de récolte',
-    select_plot: '-- Choisir une القطعة الأرضية/Bloc --',
+    select_plot: '-- Choisir un Bloc --',
 };

@@ -74,6 +74,7 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
                                             onChange={e => farmForm.setData('name', e.target.value)}
                                             required
                                         />
+                                        {farmForm.errors.name && <div className="text-red-500 text-xs mt-1">{farmForm.errors.name}</div>}
                                     </div>
                                     <button 
                                         type="submit" 

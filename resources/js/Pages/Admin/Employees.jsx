@@ -167,7 +167,83 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             </div>
                         </div>
 
-                        <div className="overflow-x-auto -mx-6 sm:mx-0">
+                        {/* MOBILE CARD VIEW — the 17-column table below is unusable on a phone even with
+                            horizontal scroll, so screens below md get a stacked card per employee
+                            showing the essentials instead, with the full table reserved for md+. */}
+                        <div className="md:hidden space-y-3">
+                            {employees.map(emp => {
+                                const salNetJ = emp.enterprise?.contract_type === 'avec_contrat'
+                                    ? (parseFloat(emp.base_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
+                                    : parseFloat(emp.base_rate);
+
+                                return (
+                                    <div key={emp.id} className={`p-4 rounded-xl border ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <div className="font-bold text-gray-800">{emp.full_name}</div>
+                                                <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}</div>
+                                            </div>
+                                            <span className={`inline-block px-2 py-1 rounded-lg font-black text-[10px] uppercase shrink-0 ${
+                                                emp.type === 'persea' ? 'bg-blue-100 text-blue-800' :
+                                                emp.type === 'hafila' ? 'bg-green-100 text-green-800' :
+                                                'bg-orange-100 text-orange-800'
+                                            }`}>
+                                                {emp.type}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 my-3 text-center">
+                                            <div className="bg-gray-50 rounded-lg py-1.5">
+                                                <div className="text-[8px] font-bold text-gray-400 uppercase">{t('daily_rate_brut')}</div>
+                                                <div className="text-xs font-bold text-gray-600">{formatNumber(emp.base_rate)} DH</div>
+                                            </div>
+                                            <div className="bg-gray-50 rounded-lg py-1.5">
+                                                <div className="text-[8px] font-bold text-gray-400 uppercase">{t('complement')}</div>
+                                                <div className="text-xs font-bold text-gray-600">{formatNumber(emp.complement || 0)} DH</div>
+                                            </div>
+                                            <div className="bg-green-50 rounded-lg py-1.5">
+                                                <div className="text-[8px] font-bold text-green-600 uppercase">{t('daily_net')}</div>
+                                                <div className="text-xs font-black text-green-700">{formatNumber(salNetJ)} DH</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-xs text-gray-500 space-y-0.5 mb-3">
+                                            {emp.cin && <div>{t('cin')}: {emp.cin}</div>}
+                                            {emp.phone && <div>{t('phone')}: {emp.phone}</div>}
+                                            {emp.hire_date && <div>{t('hire_date')}: {emp.hire_date}</div>}
+                                        </div>
+                                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={emp.is_active}
+                                                    onChange={() => handleToggleActive(emp)}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                                            </label>
+                                            {auth.user.role !== 'data_entry' && (
+                                                <div className="flex gap-4">
+                                                    <button onClick={() => handleEdit(emp)} className="text-blue-600 font-bold text-xs uppercase">{t('edit')}</button>
+                                                    <Link
+                                                        href={route('employees.destroy', emp.id)}
+                                                        method="delete"
+                                                        as="button"
+                                                        onBefore={() => confirm(`Supprimer définitivement ${emp.full_name} ? Cette action est irréversible.`)}
+                                                        className="text-red-600 font-bold text-xs uppercase"
+                                                    >
+                                                        {t('delete')}
+                                                    </Link>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {employees.length === 0 && (
+                                <div className="py-12 text-center text-gray-400 italic">{t('no_employee_found')}</div>
+                            )}
+                        </div>
+
+                        <div className="hidden md:block overflow-x-auto -mx-6 sm:mx-0">
                             <div className="inline-block min-w-full align-middle">
                                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50">
@@ -253,6 +329,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                             href={route('employees.destroy', emp.id)}
                                                             method="delete"
                                                             as="button"
+                                                            onBefore={() => confirm(`Supprimer définitivement ${emp.full_name} ? Cette action est irréversible.`)}
                                                             className="text-red-600 hover:text-red-900 font-bold text-xs transition-colors uppercase"
                                                         >
                                                             {t('delete')}
@@ -288,59 +365,60 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             {/* Identity */}
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('matricule_label')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.matricule} onChange={e => setData('matricule', e.target.value)} />
+                                <label htmlFor="emp_matricule" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('matricule_label')}</label>
+                                <input id="emp_matricule" type="text" className="w-full rounded-lg border-gray-200" value={data.matricule} onChange={e => setData('matricule', e.target.value)} />
                                 {errors.matricule && <div className="text-red-500 text-xs mt-1">{errors.matricule}</div>}
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('full_name_label')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.full_name} onChange={e => setData('full_name', e.target.value)} />
+                                <label htmlFor="emp_full_name" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('full_name_label')}</label>
+                                <input id="emp_full_name" type="text" className="w-full rounded-lg border-gray-200" value={data.full_name} onChange={e => setData('full_name', e.target.value)} />
                                 {errors.full_name && <div className="text-red-500 text-xs mt-1">{errors.full_name}</div>}
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cin')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.cin} onChange={e => setData('cin', e.target.value)} />
+                                <label htmlFor="emp_cin" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cin')}</label>
+                                <input id="emp_cin" type="text" className="w-full rounded-lg border-gray-200" value={data.cin} onChange={e => setData('cin', e.target.value)} />
                             </div>
 
                             {/* Dates & CNSS */}
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cnss_number_label')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.cnss_number} onChange={e => setData('cnss_number', e.target.value)} />
+                                <label htmlFor="emp_cnss" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cnss_number_label')}</label>
+                                <input id="emp_cnss" type="text" className="w-full rounded-lg border-gray-200" value={data.cnss_number} onChange={e => setData('cnss_number', e.target.value)} />
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('dob_label')}</label>
-                                <input type="date" className="w-full rounded-lg border-gray-200" value={data.dob} onChange={e => setData('dob', e.target.value)} />
+                                <label htmlFor="emp_dob" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('dob_label')}</label>
+                                <input id="emp_dob" type="date" className="w-full rounded-lg border-gray-200" value={data.dob} onChange={e => setData('dob', e.target.value)} />
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('hire_date_label')}</label>
-                                <input type="date" className="w-full rounded-lg border-gray-200" value={data.hire_date} onChange={e => setData('hire_date', e.target.value)} />
+                                <label htmlFor="emp_hire_date" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('hire_date_label')}</label>
+                                <input id="emp_hire_date" type="date" className="w-full rounded-lg border-gray-200" value={data.hire_date} onChange={e => setData('hire_date', e.target.value)} />
                             </div>
 
                             {/* Contact */}
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('phone_label')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.phone} onChange={e => setData('phone', e.target.value)} />
+                                <label htmlFor="emp_phone" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('phone_label')}</label>
+                                <input id="emp_phone" type="text" className="w-full rounded-lg border-gray-200" value={data.phone} onChange={e => setData('phone', e.target.value)} />
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('address')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.address} onChange={e => setData('address', e.target.value)} />
+                                <label htmlFor="emp_address" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('address')}</label>
+                                <input id="emp_address" type="text" className="w-full rounded-lg border-gray-200" value={data.address} onChange={e => setData('address', e.target.value)} />
                             </div>
 
                             {/* Bank */}
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('bank')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} />
+                                <label htmlFor="emp_bank_name" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('bank')}</label>
+                                <input id="emp_bank_name" type="text" className="w-full rounded-lg border-gray-200" value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} />
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('rib')}</label>
-                                <input type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
+                                <label htmlFor="emp_rib" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('rib')}</label>
+                                <input id="emp_rib" type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
                             </div>
 
                             {/* Enterprise Assignment */}
                             {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
                                 <div>
-                                    <label className="block text-xs font-black uppercase text-blue-600 mb-1">{t('assign_to_ferme')}</label>
+                                    <label htmlFor="emp_enterprise_id" className="block text-xs font-black uppercase text-blue-600 mb-1">{t('assign_to_ferme')}</label>
                                     <select
+                                        id="emp_enterprise_id"
                                         className="w-full rounded-lg border-blue-200 bg-blue-50"
                                         value={data.enterprise_id}
                                         onChange={e => setData('enterprise_id', e.target.value)}
@@ -354,25 +432,42 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
 
                             {/* Payroll Profile */}
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('contract_type_auto')}</label>
-                                <div className="bg-gray-100 p-2.5 rounded-lg text-gray-500 font-black uppercase text-[10px]">
+                                <label htmlFor="emp_type" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('type')}</label>
+                                <select
+                                    id="emp_type"
+                                    className="w-full rounded-lg border-gray-200"
+                                    value={data.type}
+                                    onChange={e => setData('type', e.target.value)}
+                                >
+                                    <option value="persea">PERSEA</option>
+                                    <option value="hafila">HAFILA</option>
+                                    <option value="interim">INTERIM</option>
+                                </select>
+                                {errors.type && <div className="text-red-500 text-xs mt-1">{errors.type}</div>}
+                            </div>
+                            <div>
+                                <label id="emp_contract_type_label" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('contract_type_auto')}</label>
+                                <div aria-labelledby="emp_contract_type_label" className="bg-gray-100 p-2.5 rounded-lg text-gray-500 font-black uppercase text-[10px]">
                                     {selectedEnterpriseId ? (enterprises.find(e => e.id == selectedEnterpriseId)?.contract_type.replace('_', ' ')) : t('managed_by_ferme')}
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('daily_rate_dh')}</label>
-                                <input type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-blue-700" value={data.base_rate} onChange={e => setData('base_rate', e.target.value)} />
+                                <label htmlFor="emp_base_rate" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('daily_rate_dh')}</label>
+                                <input id="emp_base_rate" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-blue-700" value={data.base_rate} onChange={e => setData('base_rate', e.target.value)} />
+                                {errors.base_rate && <div className="text-red-500 text-xs mt-1">{errors.base_rate}</div>}
                             </div>
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">{t('complement_prime')}</label>
-                                <input type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-green-700" value={data.complement} onChange={e => setData('complement', e.target.value)} />
+                                <label htmlFor="emp_complement" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('complement_prime')}</label>
+                                <input id="emp_complement" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-green-700" value={data.complement} onChange={e => setData('complement', e.target.value)} />
+                                {errors.complement && <div className="text-red-500 text-xs mt-1">{errors.complement}</div>}
                             </div>
 
                             {/* Status (Edit Only) */}
                             {isEditingEmployee && (
                                 <div>
-                                    <label className="block text-xs font-black uppercase text-gray-400 mb-1">Statut</label>
+                                    <label htmlFor="emp_is_active" className="block text-xs font-black uppercase text-gray-400 mb-1">Statut</label>
                                     <select
+                                        id="emp_is_active"
                                         className="w-full rounded-lg border-gray-200"
                                         value={data.is_active ? 'true' : 'false'}
                                         onChange={e => setData('is_active', e.target.value === 'true')}
@@ -394,8 +489,9 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                         />
                                     )}
                                     <div className="flex-1">
-                                        <label className="block text-xs font-black uppercase text-gray-400 mb-1">Photo du Badge (optionnel)</label>
+                                        <label htmlFor="emp_photo" className="block text-xs font-black uppercase text-gray-400 mb-1">Photo du Badge (optionnel)</label>
                                         <input
+                                            id="emp_photo"
                                             type="file"
                                             accept="image/*"
                                             className="w-full text-xs"

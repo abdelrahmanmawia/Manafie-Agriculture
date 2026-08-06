@@ -87,10 +87,11 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             {user.role !== 'super_admin' && (
-                                                <Link 
-                                                    href={route('users.destroy', user.id)} 
-                                                    method="delete" 
+                                                <Link
+                                                    href={route('users.destroy', user.id)}
+                                                    method="delete"
                                                     as="button"
+                                                    onBefore={() => confirm(`Supprimer définitivement le compte de ${user.name} ? Cette action est irréversible.`)}
                                                     className="text-red-600 hover:text-red-900 font-bold transition-colors"
                                                 >
                                                     {t('delete')}
@@ -111,26 +112,27 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                     <form onSubmit={submit} className="space-y-6">
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">{t('full_name')}</label>
-                                <input type="text" className="w-full rounded border-gray-300" value={data.name} onChange={e => setData('name', e.target.value)} />
+                                <label htmlFor="user_name" className="block text-sm font-bold text-gray-700 mb-1">{t('full_name')}</label>
+                                <input id="user_name" type="text" className="w-full rounded border-gray-300" value={data.name} onChange={e => setData('name', e.target.value)} />
                                 {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">{t('email')}</label>
-                                <input type="email" className="w-full rounded border-gray-300" value={data.email} onChange={e => setData('email', e.target.value)} />
+                                <label htmlFor="user_email" className="block text-sm font-bold text-gray-700 mb-1">{t('email')}</label>
+                                <input id="user_email" type="email" className="w-full rounded border-gray-300" value={data.email} onChange={e => setData('email', e.target.value)} />
                                 {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 mb-1">{t('temp_password')}</label>
-                                <input type="password" title="password" className="w-full rounded border-gray-300" value={data.password} onChange={e => setData('password', e.target.value)} />
+                                <label htmlFor="user_password" className="block text-sm font-bold text-gray-700 mb-1">{t('temp_password')}</label>
+                                <input id="user_password" type="password" title="password" className="w-full rounded border-gray-300" value={data.password} onChange={e => setData('password', e.target.value)} />
                                 {errors.password && <div className="text-red-500 text-xs mt-1">{errors.password}</div>}
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Ferme</label>
-                                    <select 
-                                        className="w-full rounded border-gray-300" 
-                                        value={data.farm_id} 
+                                    <label htmlFor="user_farm_id" className="block text-sm font-bold text-gray-700 mb-1">Ferme</label>
+                                    <select
+                                        id="user_farm_id"
+                                        className="w-full rounded border-gray-300"
+                                        value={data.farm_id}
                                         onChange={e => setData('farm_id', e.target.value)}
                                     >
                                         <option value="">-- Choisir Ferme --</option>
@@ -139,8 +141,8 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                     {errors.farm_id && <div className="text-red-500 text-xs mt-1">{errors.farm_id}</div>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
-                                    <select className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
+                                    <label htmlFor="user_role" className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
+                                    <select id="user_role" className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
                                         <option value="farm_manager">Manager Ferme (Tous accès)</option>
                                         <option value="enterprise_admin">Admin Division</option>
                                         <option value="data_entry">{t('data_entry_personnel')}</option>
@@ -148,10 +150,11 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                     {errors.role && <div className="text-red-500 text-xs mt-1">{errors.role}</div>}
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Division (Optionnel)</label>
-                                    <select 
-                                        className="w-full rounded border-gray-300" 
-                                        value={data.enterprise_id} 
+                                    <label htmlFor="user_enterprise_id" className="block text-sm font-bold text-gray-700 mb-1">Division (Optionnel)</label>
+                                    <select
+                                        id="user_enterprise_id"
+                                        className="w-full rounded border-gray-300"
+                                        value={data.enterprise_id}
                                         onChange={e => setData('enterprise_id', e.target.value)}
                                         disabled={data.role === 'farm_manager'}
                                     >

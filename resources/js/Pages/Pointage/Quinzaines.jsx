@@ -19,6 +19,16 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const [selectedGlobalQuinzaineId, setSelectedGlobalQuinzaineId] = useState(quinzaines.length > 0 ? quinzaines[0].id : '');
     const [filterEnterpriseId, setFilterEnterpriseId] = useState(props.ziggy?.query?.enterprise_id || '');
 
+    // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
+    // JS-observable "download finished" event to hook into, so this just gives brief visual
+    // feedback that the click registered while the file generates server-side, rather than
+    // the button looking dead for a few seconds.
+    const [downloadingKey, setDownloadingKey] = useState(null);
+    const triggerDownload = (key) => {
+        setDownloadingKey(key);
+        setTimeout(() => setDownloadingKey(prev => (prev === key ? null : prev)), 2500);
+    };
+
     const formatDate = (dateString) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -76,7 +86,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines (Periods)</h2>
+                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines</h2>
                     {auth.user.role !== 'data_entry' && (
                         <button
                             onClick={() => setIsCreating(true)}
@@ -130,12 +140,22 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                             ? 'bg-blue-600 hover:bg-blue-700'
                                             : 'bg-gray-400 cursor-not-allowed opacity-75'
                                     }`}
-                                    onClick={(e) => !selectedPeriodKey && e.preventDefault()}
+                                    onClick={(e) => {
+                                        if (!selectedPeriodKey) { e.preventDefault(); return; }
+                                        triggerDownload('all-divisions');
+                                    }}
                                 >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                    </svg>
-                                    Exporter
+                                    {downloadingKey === 'all-divisions' ? (
+                                        <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                                        </svg>
+                                    )}
+                                    {downloadingKey === 'all-divisions' ? 'Génération...' : 'Exporter'}
                                 </a>
                             </div>
                         )}
@@ -215,17 +235,19 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                     <a
                                                         href={route('pointage.export', q.id)}
                                                         target="_blank"
+                                                        onClick={() => triggerDownload(`excel-${q.id}`)}
                                                         className="text-center py-2 bg-green-50 text-green-700 rounded-lg text-[9px] font-black border border-green-200 hover:bg-green-100 transition-colors"
                                                     >
-                                                        EXCEL
+                                                        {downloadingKey === `excel-${q.id}` ? 'GÉNÉRATION...' : 'EXCEL'}
                                                     </a>
 
                                                     <a
                                                         href={route('payroll.general-payslip', q.id)}
                                                         target="_blank"
+                                                        onClick={() => triggerDownload(`pdf-${q.id}`)}
                                                         className="text-center py-2 bg-red-50 text-red-700 rounded-lg text-[9px] font-black border border-red-200 hover:bg-red-100 transition-colors"
                                                     >
-                                                        PDF GLOBAL
+                                                        {downloadingKey === `pdf-${q.id}` ? 'GÉNÉRATION...' : 'PDF GLOBAL'}
                                                     </a>
                                                 </div>
 
@@ -234,6 +256,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                         method="post"
                                                         as="button"
                                                         href={route('settings.quinzaine.close', q.id)}
+                                                        onBefore={() => confirm('Clôturer cette période ? Le pointage ne pourra plus être modifié une fois clôturée.')}
                                                         className="w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
                                                     >
                                                         CLÔTURER CETTE PÉRIODE

@@ -13,6 +13,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);
 
+    // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
+    // JS-observable "download finished" event, so this just gives brief visual feedback that
+    // the click registered while the file generates server-side.
+    const [downloadingKey, setDownloadingKey] = useState(null);
+    const triggerDownload = (key) => {
+        setDownloadingKey(key);
+        setTimeout(() => setDownloadingKey(prev => (prev === key ? null : prev)), 2500);
+    };
+
     // Check for mobile on mount and resize
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -68,12 +77,23 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             return;
         }
 
+        // No fallback to operations[0]/blocs[0] here on purpose — silently picking
+        // "whatever's first in the list" would mis-attribute this employee's pay to the
+        // wrong operation/bloc with no indication anything went wrong. The buttons below
+        // are already disabled until both are chosen, so this is just a defensive backstop.
+        const operationId = globalOperation || existingRecords[employeeId]?.[currentDate]?.[0]?.operation_id;
+        const blocId = globalBloc || existingRecords[employeeId]?.[currentDate]?.[0]?.bloc_id;
+        if (!operationId || !blocId) {
+            alert('Veuillez d\'abord choisir une Opération et un Bloc en haut de la page.');
+            return;
+        }
+
         router.post(route('pointage.cell'), {
             employee_id: employeeId,
             quinzaine_id: quinzaine.id,
             date: currentDate,
-            operation_id: globalOperation || (existingRecords[employeeId]?.[currentDate]?.[0]?.operation_id || operations[0]?.id),
-            bloc_id: globalBloc || (existingRecords[employeeId]?.[currentDate]?.[0]?.bloc_id || blocs[0]?.id),
+            operation_id: operationId,
+            bloc_id: blocId,
             hours: globalHours || (existingRecords[employeeId]?.[currentDate]?.[0]?.hours || 0),
             is_jf: existingRecords[employeeId]?.[currentDate]?.[0]?.is_jf || false,
         }, { preserveScroll: true });
@@ -157,9 +177,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 </select>
                             </div>
                             <div className="mt-3 flex items-center justify-between">
-                                <label className="text-[10px] font-black text-gray-400 uppercase">H.S:</label>
-                                <input type="number" value={globalHours} onChange={(e) => setGlobalHours(e.target.value)} className="w-16 h-8 text-xs font-bold rounded-lg border-gray-100 bg-gray-50" min="0" />
+                                <label htmlFor="grid_global_hours" className="text-[10px] font-black text-gray-400 uppercase">H.S:</label>
+                                <input id="grid_global_hours" type="number" value={globalHours} onChange={(e) => setGlobalHours(e.target.value)} className="w-16 h-8 text-xs font-bold rounded-lg border-gray-100 bg-gray-50" min="0" />
                             </div>
+                            {(!globalOperation || !globalBloc) && (
+                                <p className="mt-2 text-[10px] font-bold text-orange-500 uppercase tracking-wide">
+                                    ⚠ Choisissez une Opération et un Bloc avant de marquer des présences
+                                </p>
+                            )}
                         </div>
 
                         <div className="space-y-3">
@@ -172,7 +197,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             <span className="font-black text-gray-900 uppercase leading-none mb-1 text-sm">{emp.full_name}</span>
                                             <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? `${record.hours}h HS` : 'Absent'}</span>
                                         </div>
-                                        <button onClick={() => handleQuickSave(emp.id, !isPresent)} disabled={quinzaine.is_closed} className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}>
+                                        <button
+                                            onClick={() => handleQuickSave(emp.id, !isPresent)}
+                                            disabled={quinzaine.is_closed || (!isPresent && (!globalOperation || !globalBloc))}
+                                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}
+                                        >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={isPresent ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} /></svg>
                                         </button>
                                     </div>
@@ -210,18 +239,20 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         <a
                             href={route('pointage.export', quinzaine.id)}
                             target="_blank"
+                            onClick={() => triggerDownload('excel')}
                             className="bg-green-600 hover:bg-green-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all mr-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                            EXCEL
+                            {downloadingKey === 'excel' ? 'GÉNÉRATION...' : 'EXCEL'}
                         </a>
                         <a
                             href={route('payroll.general-payslip', quinzaine.id)}
                             target="_blank"
+                            onClick={() => triggerDownload('pdf')}
                             className="bg-red-600 hover:bg-red-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all mr-4"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            PDF GLOBAL
+                            {downloadingKey === 'pdf' ? 'GÉNÉRATION...' : 'PDF GLOBAL'}
                         </a>
                         <span className={`px-4 py-1.5 rounded-full text-[10px] font-black border-2 uppercase tracking-tighter ${quinzaine.enterprise?.contract_type === 'avec_contrat' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
                             {quinzaine.enterprise?.contract_type.replace('_', ' ')}
@@ -436,15 +467,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 <form onSubmit={submit} className="space-y-6">
                                     <div className="space-y-6">
                                         <div className="relative">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
-                                            <select className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.operation_id} onChange={e => setData('operation_id', e.target.value)}>
+                                            <label htmlFor="cell_operation_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
+                                            <select id="cell_operation_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.operation_id} onChange={e => setData('operation_id', e.target.value)}>
                                                 <option value="">🚫 ABSENCE</option>
                                                 {operations.map(o => <option key={o.id} value={o.id}>📌 {o.name.toUpperCase()}</option>)}
                                             </select>
                                         </div>
                                         <div className="relative">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>
-                                            <select className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.bloc_id} onChange={e => setData('bloc_id', e.target.value)}>
+                                            <label htmlFor="cell_bloc_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>
+                                            <select id="cell_bloc_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.bloc_id} onChange={e => setData('bloc_id', e.target.value)}>
                                                 <option value="">-- CHOISIR UN BLOC --</option>
                                                 {blocs.map(b => <option key={b.id} value={b.id}>🏠 {b.name.toUpperCase()}</option>)}
                                             </select>
@@ -452,11 +483,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
                                         {isPieceRate ? (
                                             <div className="group">
-                                                <label className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.2em] mb-2 block ml-1">
+                                                <label htmlFor="cell_quantity" className="text-[10px] font-black uppercase text-emerald-500 tracking-[0.2em] mb-2 block ml-1">
                                                     Quantité ({Number(selectedOperation.unit_rate).toFixed(2)} DH/unité)
                                                 </label>
                                                 <div className="relative">
-                                                    <input type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 font-black text-emerald-900 text-2xl focus:border-emerald-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.quantity} onChange={e => setData('quantity', e.target.value)} />
+                                                    <input id="cell_quantity" type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-emerald-100 bg-emerald-50/50 font-black text-emerald-900 text-2xl focus:border-emerald-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.quantity} onChange={e => setData('quantity', e.target.value)} />
                                                 </div>
                                                 {data.quantity > 0 && (
                                                     <p className="text-xs font-bold text-emerald-600 mt-2 ml-1">
@@ -467,16 +498,16 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         ) : (
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div className="group">
-                                                    <label className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
+                                                    <label htmlFor="cell_hours" className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
                                                     <div className="relative">
-                                                        <input type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                        <input id="cell_hours" type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
                                                         <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
                                                     </div>
                                                 </div>
 
                                                 <div className="flex flex-col">
-                                                    <label className="text-[10px] font-black uppercase text-purple-500 tracking-[0.2em] mb-2 block ml-1 text-center">Statut Spécial</label>
-                                                    <button type="button" onClick={() => setData('is_jf', !data.is_jf)} className={`flex-1 rounded-2xl border-2 font-black text-xs uppercase tracking-widest transition-all ${data.is_jf ? 'bg-purple-600 border-purple-700 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 border-gray-100 text-gray-300 hover:text-gray-400 hover:bg-gray-100'}`}>
+                                                    <label id="cell_is_jf_label" className="text-[10px] font-black uppercase text-purple-500 tracking-[0.2em] mb-2 block ml-1 text-center">Statut Spécial</label>
+                                                    <button type="button" aria-labelledby="cell_is_jf_label" onClick={() => setData('is_jf', !data.is_jf)} className={`flex-1 rounded-2xl border-2 font-black text-xs uppercase tracking-widest transition-all ${data.is_jf ? 'bg-purple-600 border-purple-700 text-white shadow-lg shadow-purple-200' : 'bg-gray-50 border-gray-100 text-gray-300 hover:text-gray-400 hover:bg-gray-100'}`}>
                                                         {data.is_jf ? 'JOUR FÉRIÉ' : 'Standard'}
                                                     </button>
                                                 </div>
