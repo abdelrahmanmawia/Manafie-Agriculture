@@ -28,24 +28,29 @@ function escapeHtml(str) {
 }
 
 let audioCtx;
-function beep(freq, durationMs) {
+function beep(freq, durationMs, delayMs = 0) {
     try {
         audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        const startAt = audioCtx.currentTime + delayMs / 1000;
         const osc = audioCtx.createOscillator();
         const gain = audioCtx.createGain();
         osc.frequency.value = freq;
         osc.type = 'sine';
         osc.connect(gain);
         gain.connect(audioCtx.destination);
-        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + durationMs / 1000);
+        gain.gain.setValueAtTime(0.2, startAt);
+        osc.start(startAt);
+        osc.stop(startAt + durationMs / 1000);
     } catch (e) {
         // Web Audio unavailable/blocked — scanning still works, just silently.
     }
 }
 const beepSuccess = () => beep(880, 120);
 const beepError = () => beep(220, 320);
+// Distinct two-tap tone so a rejected re-scan (same badge, same worker) doesn't
+// sound identical to a real error (unknown badge, missing bloc/opération) —
+// the operator needs to tell "already logged" from "something's wrong" by ear.
+const beepDuplicate = () => { beep(440, 90); beep(440, 90, 140); };
 
 document.addEventListener('DOMContentLoaded', () => {
     const scanInput = document.getElementById('scanInput');
@@ -59,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const connState = document.getElementById('connState');
     const queueTableBody = document.getElementById('queueTableBody');
     const emptyQueueMsg = document.getElementById('emptyQueueMsg');
+    const syncStatus = document.getElementById('syncStatus');
 
     function refocus() {
         scanInput.focus();
@@ -179,7 +185,7 @@ document.addEventListener('DOMContentLoaded', () => {
             || synced.find((s) => s.badge_uuid === badgeUuid && (now - s.synced_at) < DUPLICATE_WINDOW_MS);
         if (recentlyScanned) {
             showBanner('dup', `⏱ ${employee.full_name} — déjà scanné il y a quelques secondes`);
-            beepError();
+            beepDuplicate();
             refocus();
             return;
         }
@@ -217,8 +223,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const queue = await db.getAll('scanQueue');
         if (queue.length === 0) {
+            syncStatus.textContent = '';
             return;
         }
+
+        syncStatus.textContent = 'Synchronisation…';
+        syncStatus.className = '';
 
         const payload = queue.map((q) => ({
             scan_uuid: q.scan_uuid,
@@ -259,9 +269,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             await db.put('stationData', Date.now(), 'lastSync');
+            const stillFailed = (await db.getAll('scanQueue')).filter((q) => q.status === 'failed').length;
+            syncStatus.textContent = stillFailed
+                ? `⚠ ${stillFailed} scan(s) rejeté(s) par le serveur — voir la file ci-dessous`
+                : `✓ Synchronisé à ${new Date().toLocaleTimeString()}`;
+            syncStatus.className = stillFailed ? 'warn' : 'ok';
         } catch (e) {
-            // Server unreachable or request failed outright — leave the queue untouched,
-            // the next manual click or 'online' event will retry the whole batch.
+            // Network/server unreachable — the queue is left untouched so the next manual
+            // click, 'online' event, or periodic auto-retry picks it back up, but the
+            // operator needs to actually see that it didn't go through.
+            syncStatus.textContent = '✗ Synchronisation impossible — nouvelle tentative automatique en cours.';
+            syncStatus.className = 'err';
         }
         await refreshUI();
     }
@@ -347,6 +365,14 @@ document.addEventListener('DOMContentLoaded', () => {
     exportBtn.addEventListener('click', exportQueue);
     window.addEventListener('online', () => { updateConnState(); doSync(); });
     window.addEventListener('offline', updateConnState);
+
+    // navigator.onLine only reflects the network interface, not the server being
+    // reachable — a scan queued during a brief server-side hiccup would otherwise sit
+    // stuck until someone happens to click "Synchroniser" again. Retry periodically
+    // instead of relying solely on the 'online' event or a manual tap.
+    setInterval(() => {
+        if (navigator.onLine) doSync();
+    }, 30000);
 
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('/scan-station-sw.js').catch(() => {});
