@@ -22,7 +22,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-bold text-2xl text-gray-800 leading-tight">Tableau de Bord de Gestion de Stock</h2>
+                    <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Tableau de Bord de Gestion de Stock</h2>
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <span className="flex items-center">
                             <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -95,7 +95,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                         {/* Recent Alerts */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                                <h3 className="text-base font-bold text-gray-800">Alertes récentes</h3>
+                                <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">Alertes récentes</h3>
                                 <Link href={route('stock.alerts.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
                                     Tout voir
                                 </Link>
@@ -124,7 +124,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                         {/* Recent Movements */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                                <h3 className="text-base font-bold text-gray-800">Mouvements récents</h3>
+                                <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">Mouvements récents</h3>
                                 <Link href={route('stock.movements.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
                                     Tout voir
                                 </Link>
@@ -157,7 +157,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
 
                     {/* Quick Actions */}
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
-                        <h3 className="text-lg font-bold text-gray-800 mb-4">Actions Rapides</h3>
+                        <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-4">Actions Rapides</h3>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <Link
                                 href={route('stock.products.index')}

@@ -45,7 +45,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Coût par Hectare</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Coût par Hectare</h2>
                             <p className="text-sm text-gray-500 mt-1">Calcul du coût des intrants par hectare, par bloc puis détaillé par secteur et parcelle</p>
                         </div>
                     </div>
@@ -71,7 +71,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Superficie Totale</p>
@@ -84,7 +84,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Nombre de Blocs</p>
@@ -100,9 +100,9 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
                     </div>
 
                     {/* Cost per Hectare — Bloc > Secteur > Parcelle */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800">Analyse du Coût par Hectare</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Analyse du Coût par Hectare</h3>
                             <p className="text-sm text-gray-500 mt-1">Cliquez sur un bloc pour voir le détail par secteur, puis sur un secteur pour voir le détail par parcelle.</p>
                         </div>
 

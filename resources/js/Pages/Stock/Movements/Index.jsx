@@ -47,12 +47,12 @@ export default function Index({ auth, stockMovements, products }) {
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Mouvements de Stock</h2>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Mouvements de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Historique des entrées et sorties du magasin</p>
                     </div>
                     <button
                         onClick={() => setIsReceiving(true)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -66,9 +66,9 @@ export default function Index({ auth, stockMovements, products }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800">Tous les Mouvements de Stock</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Tous les Mouvements de Stock</h3>
                         </div>
 
                         {stockMovements.length === 0 ? (
@@ -134,7 +134,7 @@ export default function Index({ auth, stockMovements, products }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">Nouvelle Réception de Stock</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Nouvelle Réception de Stock</h3>
                         </div>
                         <button onClick={() => setIsReceiving(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

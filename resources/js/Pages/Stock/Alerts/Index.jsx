@@ -51,7 +51,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
             user={auth.user}
             header={
                 <div>
-                    <h2 className="font-bold text-2xl text-gray-800 leading-tight">Alertes de Stock</h2>
+                    <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Alertes de Stock</h2>
                     <p className="text-sm text-gray-500 mt-1">Suivi des seuils de stock, expirations et anomalies</p>
                 </div>
             }
@@ -62,7 +62,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Alertes Actives</p>
@@ -75,7 +75,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Dont Stock Faible</p>
@@ -88,7 +88,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Résolues</p>
@@ -103,10 +103,10 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Liste des Alertes</h3>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Liste des Alertes</h3>
                                 <span className="text-sm text-gray-500">{stockAlerts.length} alerte(s)</span>
                             </div>
                         </div>

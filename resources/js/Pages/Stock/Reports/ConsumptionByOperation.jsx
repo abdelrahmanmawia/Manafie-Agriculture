@@ -21,7 +21,7 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Consommation par Opération</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Consommation par Opération</h2>
                             <p className="text-sm text-gray-500 mt-1">Analyse des produits consommés par type d'opération</p>
                         </div>
                     </div>
@@ -54,9 +54,9 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                     </div>
 
                     {/* Consumption by Operation */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800">Analyse de la Consommation par Opération</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Analyse de la Consommation par Opération</h3>
                         </div>
                         <div className="p-6">
                             {consumptionByOperation.length === 0 ? (
@@ -72,7 +72,7 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
                                         <div key={index} className="border border-gray-200 rounded-xl overflow-hidden">
                                             <div className="bg-gray-50 p-4 border-b border-gray-200">
                                                 <div className="flex items-center justify-between">
-                                                    <h4 className="text-lg font-bold text-gray-800">{operationData.operation_name}</h4>
+                                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">{operationData.operation_name}</h4>
                                                     <span className="inline-flex items-center px-3 py-1 rounded-full bg-purple-100 text-purple-800 text-sm font-semibold">
                                                         {formatNumber(operationData.total_quantity_consumed)} unités
                                                     </span>

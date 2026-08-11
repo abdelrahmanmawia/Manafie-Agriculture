@@ -124,7 +124,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Détails du Véhicule</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Détails du Véhicule</h2>
                             <p className="text-sm text-gray-500 mt-1">Informations et historique de consommation</p>
                         </div>
                     </div>
@@ -132,7 +132,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                         <button
                             type="button"
                             onClick={openEdit}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -151,7 +151,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Vehicle Header Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
@@ -161,7 +161,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                         </svg>
                                     </div>
                                     <div>
-                                        <h3 className="text-2xl font-bold text-gray-900">{vehicle.name}</h3>
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{vehicle.name}</h3>
                                         <div className="flex items-center gap-3 mt-2">
                                             <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
                                                 {TYPE_LABELS[vehicle.type] || vehicle.type}
@@ -186,24 +186,24 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Pleins Enregistrés</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(fuelTransactions.length)}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Carburant Total</p>
                             <p className="text-2xl font-bold text-orange-600 mt-1">{formatNumber(totalFuelLiters, 0)} L</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Coût Carburant Total</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatMAD(totalFuelCost)}</p>
                         </div>
                     </div>
 
                     {/* Vehicle Information */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h4 className="text-lg font-bold text-gray-800">Informations</h4>
+                            <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Informations</h4>
                         </div>
                         <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-x-8">
                             <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50">
@@ -223,10 +223,10 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
 
                     {/* Location (rental tracking) — only for vehicles flagged "Disponible en Location" */}
                     {vehicle.is_location && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                                 <div>
-                                    <h4 className="text-lg font-bold text-gray-800">Location</h4>
+                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Location</h4>
                                     <p className="text-sm text-gray-500 mt-1">Jours d'utilisation enregistrés dans la grille Location</p>
                                 </div>
                                 <Link
@@ -279,9 +279,9 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                     )}
 
                     {vehicle.notes && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Notes</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Notes</h4>
                             </div>
                             <div className="p-6">
                                 <p className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700">{vehicle.notes}</p>
@@ -290,9 +290,9 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                     )}
 
                     {/* Activity History */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h4 className="text-lg font-bold text-gray-800">Historique de Consommation</h4>
+                            <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique de Consommation</h4>
                             <p className="text-sm text-gray-500 mt-1">Pleins de carburant et sorties de stock liées à ce véhicule</p>
                         </div>
                         <div className="p-6">
@@ -359,7 +359,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">Modifier le Véhicule</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Modifier le Véhicule</h3>
                         </div>
                         <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

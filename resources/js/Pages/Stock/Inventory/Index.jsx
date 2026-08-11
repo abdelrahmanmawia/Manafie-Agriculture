@@ -40,12 +40,12 @@ export default function Index({ auth, stockInventory }) {
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Gestion des Stocks</h2>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Stocks</h2>
                         <p className="text-sm text-gray-500 mt-1">Niveaux d'inventaire actuels par produit</p>
                     </div>
                     <Link
                         href={route('stock.movements.index') + '?action=receive'}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -61,22 +61,22 @@ export default function Index({ auth, stockInventory }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Articles en Stock</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(stockInventory.length)}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Stock Faible</p>
                             <p className="text-2xl font-bold text-red-600 mt-1">{formatInt(lowStockCount)}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Valeur Totale</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatMAD(totalValue)}</p>
                         </div>
                     </div>
 
                     {/* Search */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
                         <div className="relative max-w-md">
                             <input
@@ -92,10 +92,10 @@ export default function Index({ auth, stockInventory }) {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Inventaire Actuel des Produits</h3>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Inventaire Actuel des Produits</h3>
                                 <span className="text-sm text-gray-500">{filtered.length} article(s)</span>
                             </div>
                         </div>

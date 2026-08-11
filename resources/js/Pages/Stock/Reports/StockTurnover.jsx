@@ -34,7 +34,7 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Rotation des Stocks</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Rotation des Stocks</h2>
                             <p className="text-sm text-gray-500 mt-1">Mesure de la fréquence de renouvellement des stocks</p>
                         </div>
                     </div>
@@ -46,7 +46,7 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Filter Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                         <form onSubmit={handleFilterChange} className="flex items-end gap-4">
                             <div className="flex-1">
                                 <InputLabel htmlFor="period" value="Période (jours)" />
@@ -88,9 +88,9 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
                     </div>
 
                     {/* Stock Turnover Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800">Analyse de la Rotation des Stocks</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Analyse de la Rotation des Stocks</h3>
                         </div>
                         <div className="p-6">
                             {stockTurnoverData.length === 0 ? (

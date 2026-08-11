@@ -21,7 +21,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Valeur de l'Inventaire</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Valeur de l'Inventaire</h2>
                             <p className="text-sm text-gray-500 mt-1">Vue d'ensemble de la valeur actuelle de votre stock</p>
                         </div>
                     </div>
@@ -54,9 +54,9 @@ export default function InventoryValue({ auth, inventoryValue }) {
                     </div>
 
                     {/* Inventory Value Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-bold text-gray-800">Valeur Actuelle de l'Inventaire par Produit</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Valeur Actuelle de l'Inventaire par Produit</h3>
                         </div>
                         <div className="p-6">
                             {inventoryValue.length === 0 ? (

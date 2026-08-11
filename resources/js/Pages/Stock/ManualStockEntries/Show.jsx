@@ -72,14 +72,14 @@ export default function Show({ auth, manualStockEntry }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Détails de la Sortie de Stock</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Détails de la Sortie de Stock</h2>
                             <p className="text-sm text-gray-500 mt-1">Sortie #{manualStockEntry.id}</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <Link
                             href={route('stock.manual-entries.edit', manualStockEntry.id)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -101,7 +101,7 @@ export default function Show({ auth, manualStockEntry }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Header Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
@@ -111,7 +111,7 @@ export default function Show({ auth, manualStockEntry }) {
                                         </svg>
                                     </div>
                                     <div>
-                                        <h3 className="text-2xl font-bold text-gray-900">{manualStockEntry.product?.name || 'N/A'}</h3>
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{manualStockEntry.product?.name || 'N/A'}</h3>
                                         <div className="flex items-center gap-3 mt-2">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${entryType.className}`}>
                                                 {entryType.label}
@@ -136,19 +136,19 @@ export default function Show({ auth, manualStockEntry }) {
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Quantité</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(manualStockEntry.quantity)} {UNIT_TYPE_LABELS[manualStockEntry.product?.unit_type] || manualStockEntry.product?.unit_type || ''}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Employé</p>
                             <p className="text-lg font-semibold text-gray-900 mt-1">{manualStockEntry.employee?.full_name || 'N/A'}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Véhicule</p>
                             <p className="text-lg font-semibold text-gray-900 mt-1">{manualStockEntry.vehicle?.name || 'N/A'}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Opération</p>
                             <p className="text-lg font-semibold text-gray-900 mt-1">{manualStockEntry.operation?.name || 'N/A'}</p>
                         </div>
@@ -156,9 +156,9 @@ export default function Show({ auth, manualStockEntry }) {
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Location */}
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Emplacement</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Emplacement</h4>
                             </div>
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
@@ -178,9 +178,9 @@ export default function Show({ auth, manualStockEntry }) {
 
                         {/* Vehicle telemetry or verification info */}
                         {hasVehicleContext ? (
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                                 <div className="p-6 border-b border-gray-100">
-                                    <h4 className="text-lg font-bold text-gray-800">Suivi Véhicule</h4>
+                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Suivi Véhicule</h4>
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="flex justify-between items-center py-2">
@@ -190,9 +190,9 @@ export default function Show({ auth, manualStockEntry }) {
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                                 <div className="p-6 border-b border-gray-100">
-                                    <h4 className="text-lg font-bold text-gray-800">Vérification</h4>
+                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Vérification</h4>
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="flex justify-between items-center py-2 border-b border-gray-50">
@@ -214,9 +214,9 @@ export default function Show({ auth, manualStockEntry }) {
 
                     {/* Verification info when vehicle context takes the second slot */}
                     {hasVehicleContext && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Vérification</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Vérification</h4>
                             </div>
                             <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-x-8">
                                 <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50">
@@ -236,9 +236,9 @@ export default function Show({ auth, manualStockEntry }) {
                     )}
 
                     {manualStockEntry.notes && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Notes</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Notes</h4>
                             </div>
                             <div className="p-6">
                                 <p className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700">{manualStockEntry.notes}</p>

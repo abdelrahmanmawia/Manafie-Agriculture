@@ -38,7 +38,7 @@ export default function Index({ auth, fuelTransactions, vehicles }) {
             user={auth.user}
             header={
                 <div>
-                    <h2 className="font-bold text-2xl text-gray-800 leading-tight">Transactions de Carburant</h2>
+                    <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Transactions de Carburant</h2>
                     <p className="text-sm text-gray-500 mt-1">
                         Historique des ravitaillements passés. Pour enregistrer un nouveau plein, utilisez{' '}
                         <Link href={route('stock.manual-entries.index')} className="text-orange-600 hover:underline font-medium">
@@ -53,7 +53,7 @@ export default function Index({ auth, fuelTransactions, vehicles }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Filters */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
@@ -87,10 +87,10 @@ export default function Index({ auth, fuelTransactions, vehicles }) {
                     </div>
 
                     {/* Transactions Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Historique des Transactions</h3>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Transactions</h3>
                                 <span className="text-sm text-gray-500">{filteredTransactions.length} transaction(s)</span>
                             </div>
                         </div>

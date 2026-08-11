@@ -21,7 +21,7 @@ export default function Show({ auth, fuelTransaction }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Transaction de Carburant</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Transaction de Carburant</h2>
                             <p className="text-sm text-gray-500 mt-1">Historique en lecture seule</p>
                         </div>
                     </div>
@@ -33,7 +33,7 @@ export default function Show({ auth, fuelTransaction }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Header Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-center gap-4">
                                 <div className="h-16 w-16 bg-orange-100 rounded-xl flex items-center justify-center">
@@ -43,7 +43,7 @@ export default function Show({ auth, fuelTransaction }) {
                                     </svg>
                                 </div>
                                 <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">{fuelTransaction.product?.name || 'Carburant'}</h3>
+                                    <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{fuelTransaction.product?.name || 'Carburant'}</h3>
                                     <p className="text-sm text-gray-500 mt-1">{fuelTransaction.vehicle?.name || 'N/A'} · {fuelTransaction.vehicle?.plate_number || 'N/A'}</p>
                                 </div>
                             </div>
@@ -52,28 +52,28 @@ export default function Show({ auth, fuelTransaction }) {
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Quantité</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(fuelTransaction.quantity_liters)} L</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Prix / Litre</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{fuelTransaction.unit_price_per_liter ? formatMAD(fuelTransaction.unit_price_per_liter) : 'N/A'}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Coût Total</p>
                             <p className="text-2xl font-bold text-orange-600 mt-1">{fuelTransaction.total_cost ? formatMAD(fuelTransaction.total_cost) : 'N/A'}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Date</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatDate(fuelTransaction.date)}</p>
                         </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Détails de la Transaction</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Détails de la Transaction</h4>
                             </div>
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2 border-b border-gray-50">
@@ -91,9 +91,9 @@ export default function Show({ auth, fuelTransaction }) {
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Suivi Véhicule</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Suivi Véhicule</h4>
                             </div>
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2">
@@ -105,9 +105,9 @@ export default function Show({ auth, fuelTransaction }) {
                     </div>
 
                     {fuelTransaction.notes && (
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-bold text-gray-800">Notes</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Notes</h4>
                             </div>
                             <div className="p-6">
                                 <p className="bg-gray-50 p-4 rounded-lg text-sm text-gray-700">{fuelTransaction.notes}</p>

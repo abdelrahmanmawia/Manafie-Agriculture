@@ -39,13 +39,13 @@ export default function Show({ auth, stockInventory }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-bold text-2xl text-gray-800 leading-tight">Détails de l'Inventaire</h2>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Détails de l'Inventaire</h2>
                             <p className="text-sm text-gray-500 mt-1">{stockInventory.product.name}</p>
                         </div>
                     </div>
                     <Link
                         href={route('stock.products.show', stockInventory.product.id)}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-semibold shadow transition-all"
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
                     >
                         Voir le Produit
                     </Link>
@@ -57,11 +57,11 @@ export default function Show({ auth, stockInventory }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Header Card */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6">
                             <div className="flex items-start justify-between">
                                 <div>
-                                    <h3 className="text-2xl font-bold text-gray-900">{stockInventory.product.name}</h3>
+                                    <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{stockInventory.product.name}</h3>
                                     <div className="flex items-center gap-3 mt-2">
                                         <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
                                             {CATEGORY_LABELS[stockInventory.product.category] || stockInventory.product.category}
@@ -83,12 +83,12 @@ export default function Show({ auth, stockInventory }) {
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Quantité en Stock</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(stockInventory.quantity_on_hand)}</p>
                             <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</p>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Stock Minimum</p>
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(stockInventory.product.min_stock_level)}</p>
                             <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</p>
@@ -96,9 +96,9 @@ export default function Show({ auth, stockInventory }) {
                     </div>
 
                     {/* Info */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h4 className="text-lg font-bold text-gray-800">Informations de Stock</h4>
+                            <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Informations de Stock</h4>
                         </div>
                         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8">
                             <div className="flex justify-between items-center py-2 border-b border-gray-50">
@@ -121,9 +121,9 @@ export default function Show({ auth, stockInventory }) {
                     </div>
 
                     {/* Movements */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h4 className="text-lg font-bold text-gray-800">Historique des Mouvements de Stock</h4>
+                            <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Mouvements de Stock</h4>
                         </div>
                         {movements.length === 0 ? (
                             <div className="text-center py-12">

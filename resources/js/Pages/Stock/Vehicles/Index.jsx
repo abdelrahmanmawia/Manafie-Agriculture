@@ -111,13 +111,13 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Gestion des Véhicules</h2>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Véhicules</h2>
                         <p className="text-sm text-gray-500 mt-1">Parc de véhicules et engins agricoles de la ferme</p>
                     </div>
                     {auth.user.role !== 'data_entry' && (
                         <button
                             onClick={openCreate}
-                            className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                            className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -134,7 +134,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Total Véhicules</p>
@@ -145,7 +145,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Actifs</p>
@@ -158,7 +158,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 </div>
                             </div>
                         </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Tracteurs / Engins</p>
@@ -172,7 +172,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                     </div>
 
                     {/* Filters */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
@@ -206,10 +206,10 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                     </div>
 
                     {/* Vehicles Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Liste des Véhicules</h3>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Liste des Véhicules</h3>
                                 <span className="text-sm text-gray-500">{filteredVehicles.length} véhicule(s)</span>
                             </div>
                         </div>
@@ -313,7 +313,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">{editingVehicle ? 'Modifier le Véhicule' : 'Ajouter un Nouveau Véhicule'}</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{editingVehicle ? 'Modifier le Véhicule' : 'Ajouter un Nouveau Véhicule'}</h3>
                         </div>
                         <button onClick={closeVehicleModal} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

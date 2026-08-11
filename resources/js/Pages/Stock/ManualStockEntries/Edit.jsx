@@ -46,10 +46,10 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Modifier la Sortie de Stock</h2>
+                    <h2 className="font-black text-xl text-gray-800 uppercase tracking-tighter leading-tight">Modifier la Sortie de Stock</h2>
                     <Link
                         href={route('stock.manual-entries.index')}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                     >
                         Retour aux Sorties de Stock
                     </Link>
@@ -60,8 +60,8 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6">
-                        <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Modifier la Sortie #{manualStockEntry.id}</h3>
+                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-2xl border border-gray-100 p-6">
+                        <h3 className="text-xl font-black mb-6 text-gray-800 uppercase tracking-tighter border-b pb-4">Modifier la Sortie #{manualStockEntry.id}</h3>
                         <form onSubmit={submit} className="space-y-6">
                             <div className="space-y-4">
                                 <div>

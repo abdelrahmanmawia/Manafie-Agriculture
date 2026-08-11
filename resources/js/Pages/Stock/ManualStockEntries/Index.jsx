@@ -89,13 +89,13 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Sorties de Stock</h2>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Sorties de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Enregistrez les consommations, transferts et ajustements de stock</p>
                     </div>
                     {auth.user.role !== 'data_entry' && (
                         <button
                             onClick={() => setIsCreating(true)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all flex items-center gap-2"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -111,7 +111,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Filters */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
@@ -147,10 +147,10 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                     </div>
 
                     {/* Entries Table */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-bold text-gray-800">Historique des Sorties</h3>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Sorties</h3>
                                 <span className="text-sm text-gray-500">{filteredEntries.length} sortie(s)</span>
                             </div>
                         </div>
@@ -292,7 +292,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             <Modal show={isCreating} onClose={() => setIsCreating(false)}>
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-bold text-gray-800">Enregistrer une Sortie de Stock</h3>
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Enregistrer une Sortie de Stock</h3>
                         <button
                             onClick={() => setIsCreating(false)}
                             className="text-gray-400 hover:text-gray-600 transition-colors"

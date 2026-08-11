@@ -54,7 +54,7 @@ export default function Index({ auth }) {
                         </svg>
                     </Link>
                     <div>
-                        <h2 className="font-bold text-2xl text-gray-800 leading-tight">Rapports et Analyses de Stock</h2>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Rapports et Analyses de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Visualisez et analysez vos données de stock</p>
                     </div>
                 </div>
@@ -64,9 +64,9 @@ export default function Index({ auth }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6">
-                            <h3 className="text-lg font-bold text-gray-800 mb-6">Sélectionnez un Rapport</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-6">Sélectionnez un Rapport</h3>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {reports.map((report, index) => (
@@ -80,7 +80,7 @@ export default function Index({ auth }) {
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={report.icon} />
                                             </svg>
                                         </div>
-                                        <h4 className="text-lg font-semibold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors">{report.name}</h4>
+                                        <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-2 group-hover:text-blue-600 transition-colors">{report.name}</h4>
                                         <p className="text-sm text-gray-600">{report.description}</p>
                                     </Link>
                                 ))}
