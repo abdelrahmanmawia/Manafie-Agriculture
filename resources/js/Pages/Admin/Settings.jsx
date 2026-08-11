@@ -25,7 +25,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight">{t('settings')} - {enterprise.name}</h2>}
+            header={<h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('settings')} - {enterprise.name}</h2>}
         >
             <Head title={t('settings')} />
 
@@ -33,8 +33,8 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
                     {/* ENTERPRISE DETAILS */}
-                    <div className="bg-white p-6 shadow sm:rounded-lg border-t-4 border-blue-600">
-                        <h3 className="text-lg font-bold mb-4">Détails de la Division</h3>
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-blue-600">
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">Détails de la Division</h3>
                         <form onSubmit={submitEdit} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                             <div>
                                 <label className="block text-xs font-black uppercase text-gray-400 mb-1">Nom de la Division</label>
@@ -86,7 +86,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                 <button
                                     type="submit"
                                     disabled={editForm.processing}
-                                    className="bg-blue-600 text-white px-6 py-2 rounded font-bold uppercase text-xs tracking-widest"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
                                 >
                                     Enregistrer les modifications
                                 </button>
@@ -96,9 +96,9 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                     </div>
 
                     {/* QUINZAINE MANAGEMENT */}
-                    <div className="bg-white p-6 shadow sm:rounded-lg border-t-4 border-green-500">
-                        <h3 className="text-lg font-bold mb-4">{t('manage_periods')}</h3>
-                        <form onSubmit={(e) => { e.preventDefault(); qForm.post(route('settings.quinzaine')); }} className="flex flex-wrap gap-4 items-end mb-6 bg-gray-50 p-4 rounded-lg">
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-green-500">
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">{t('manage_periods')}</h3>
+                        <form onSubmit={(e) => { e.preventDefault(); qForm.post(route('settings.quinzaine')); }} className="flex flex-wrap gap-4 items-end mb-6 bg-gray-50 p-4 rounded-xl">
                             <div>
                                 <label className="block text-sm font-bold text-gray-700">{t('start_date')}</label>
                                 <input type="date" className="rounded border-gray-300" value={qForm.data.start_date} onChange={e => qForm.setData('start_date', e.target.value)} />
@@ -109,7 +109,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                 <input type="date" className="rounded border-gray-300" value={qForm.data.end_date} onChange={e => qForm.setData('end_date', e.target.value)} />
                                 {qForm.errors.end_date && <div className="text-red-500 text-xs mt-1">{qForm.errors.end_date}</div>}
                             </div>
-                            <button type="submit" className="bg-green-600 text-white px-6 py-2 rounded font-bold">{t('open_new_period')}</button>
+                            <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors">{t('open_new_period')}</button>
                         </form>
 
                         <div className="overflow-x-auto">

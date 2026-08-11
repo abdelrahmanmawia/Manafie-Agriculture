@@ -70,8 +70,6 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
             individual_weights: weighingType === 'individual' ? individualWeights : {},
         });
 
-        console.log('Submitting bulk weigh payload (via bulkWeighForm):', bulkWeighForm.data); // Log payload
-
         bulkWeighForm.post(route('harvests.bulkWeigh'), {
             onSuccess: () => {
                 setShowWeighModal(false);
@@ -82,7 +80,6 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                 bulkWeighForm.reset(); // Reset the bulk weigh form data
             },
             onError: (backendErrors) => {
-                console.error('Backend errors:', backendErrors); // Log backend errors
                 setFrontendErrors(backendErrors); // Display backend errors
             }
         });
@@ -136,7 +133,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">
+                    <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">
                         {t('harvests')}
                     </h2>
                 </div>
@@ -154,7 +151,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
 
                     {/* Farm selector for super admin */}
                     {auth.user.role === 'super_admin' && farms.length > 0 && (
-                        <div className="bg-white p-4 shadow sm:rounded-lg">
+                        <div className="bg-white p-4 shadow-sm sm:rounded-2xl border border-gray-100">
                             <label htmlFor="harvest_farm_id" className="block text-xs font-black uppercase text-gray-500 mb-2">
                                 Sélectionner une ferme
                             </label>
@@ -181,7 +178,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                         {/* FORM CARD */}
-                        <div className="lg:col-span-2 bg-white p-6 shadow sm:rounded-lg border-t-4 border-blue-600">
+                        <div className="lg:col-span-2 bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-blue-600">
                             <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-4 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -377,7 +374,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                         </div>
 
                         {/* EXPLANATORY Card */}
-                        <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 shadow sm:rounded-lg border-l-4 border-green-600">
+                        <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 shadow-sm sm:rounded-2xl border-l-4 border-green-600">
                             <h3 className="text-lg font-black text-green-900 mb-3 flex items-center gap-2">
                                 <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -407,7 +404,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                     </div>
 
                     {/* LOWER CARD: HARVESTS TABLE */}
-                    <div className="bg-white p-6 shadow sm:rounded-lg">
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100">
                         <div className="mb-4 flex justify-between items-center">
                             <div>
                                 <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">
@@ -420,7 +417,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                             {selectedHarvests.length > 0 && (
                                 <button
                                     onClick={() => setShowWeighModal(true)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase transition-colors"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-md transition-colors"
                                 >
                                     Peser {selectedHarvests.length} récolte(s)
                                 </button>

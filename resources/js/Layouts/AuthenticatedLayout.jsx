@@ -48,17 +48,19 @@ export default function Authenticated({ user, header, children }) {
         truck: 'M3 13l1.5-5A2 2 0 016.4 6.5h5.2a2 2 0 011.9 1.5l1 4M3 13v4a1 1 0 001 1h1m14-5v4a1 1 0 01-1 1h-1m-12 0a2 2 0 104 0m-4 0a2 2 0 114 0m8 0a2 2 0 104 0m-4 0a2 2 0 114 0M3 13h15',
     };
 
+    const farmSettingsItem = (user.farm_id || activeFarm)
+        ? { label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: user.farm_id || activeFarm.id, match: 'farms.settings', icon: ICONS.sliders }
+        : null;
+
     const hubItems = [
         { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home },
         ...(needsFarmSelection
             ? []
             : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
-        ...(user.farm_id
-            ? [{ label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: user.farm_id, match: 'farms.settings', icon: ICONS.sliders }]
-            : []),
         ...(user.role === 'super_admin'
             ? [{ label: t('users') || 'Utilisateurs', href: 'users.index', match: 'users.*', icon: ICONS.shield }]
             : []),
+        ...(farmSettingsItem ? [farmSettingsItem] : []),
     ];
 
     const pointageItems = [
@@ -68,6 +70,7 @@ export default function Authenticated({ user, header, children }) {
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
         { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
+        ...(farmSettingsItem ? [farmSettingsItem] : []),
     ];
 
     const stockItems = [

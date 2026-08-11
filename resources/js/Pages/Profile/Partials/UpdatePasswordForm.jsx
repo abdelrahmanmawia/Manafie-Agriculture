@@ -40,7 +40,7 @@ export default function UpdatePasswordForm({ className = '' }) {
     return (
         <section className={className}>
             <header>
-                <h2 className="text-lg font-medium text-gray-900">{t('update_password')}</h2>
+                <h2 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{t('update_password')}</h2>
 
                 <p className="mt-1 text-sm text-gray-600">
                     {t('update_password_msg')}

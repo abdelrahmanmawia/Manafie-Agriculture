@@ -107,12 +107,12 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">{t('personnel_management')}</h2>
+                    <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('personnel_management')}</h2>
                     <div className="flex gap-4 items-center">
                         {auth.user.role !== 'data_entry' && (
                             <button
                                 onClick={() => setIsAddingEmployee(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                             >
                                 <span>+</span> {t('add_employee_btn')}
                             </button>
@@ -127,7 +127,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
                     {/* EMPLOYEES LIST */}
-                    <div className="bg-white p-6 shadow sm:rounded-lg">
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100">
                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                             <div>
                                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">
@@ -138,7 +138,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             <div className="flex gap-3 items-center flex-wrap">
                                 {enterprises && enterprises.length > 0 && (
                                     <select
-                                        className="rounded-lg border-gray-300 text-sm px-4 py-2"
+                                        className="rounded-xl border-gray-200 bg-gray-50 text-sm px-4 py-2"
                                         value={selectedEnterpriseId || ''}
                                         onChange={handleFilterChange}
                                     >
@@ -152,7 +152,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                         placeholder="Rechercher..."
                                         value={localSearch}
                                         onChange={(e) => setLocalSearch(e.target.value)}
-                                        className="rounded-lg border-gray-300 text-sm px-4 py-2 w-64"
+                                        className="rounded-xl border-gray-200 bg-gray-50 text-sm px-4 py-2 w-64"
                                     />
                                     {localSearch && (
                                         <button
@@ -177,7 +177,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     : parseFloat(emp.base_rate);
 
                                 return (
-                                    <div key={emp.id} className={`p-4 rounded-xl border ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
+                                    <div key={emp.id} className={`p-4 rounded-2xl border border-gray-100 ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
                                         <div className="flex justify-between items-start mb-2">
                                             <div>
                                                 <div className="font-bold text-gray-800">{emp.full_name}</div>

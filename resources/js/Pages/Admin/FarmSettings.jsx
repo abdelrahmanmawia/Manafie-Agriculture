@@ -117,7 +117,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
                     {/* TABS */}
-                    <div className="bg-white rounded-t-lg shadow-sm border-b border-gray-200">
+                    <div className="bg-white rounded-t-2xl shadow-sm border border-b-0 border-gray-100">
                         <div className="flex space-x-1 px-4">
                             {[
                                 { id: 'general', label: 'Général', icon: TAB_ICONS.general },
@@ -143,10 +143,10 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                     </div>
 
                     {/* TAB CONTENT */}
-                    <div className="bg-white rounded-b-lg shadow-sm p-6">
+                    <div className="bg-white rounded-b-2xl shadow-sm border border-t-0 border-gray-100 p-6">
                         {activeTab === 'general' && (
                             <div>
-                                <h3 className="text-lg font-bold leading-none mb-6">Paramètres Généraux</h3>
+                                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Paramètres Généraux</h3>
                                 <form onSubmit={submitFarmSettings} className="max-w-2xl space-y-4">
                                     <div>
                                         <label htmlFor="farm_name" className="block text-xs font-black uppercase text-gray-500 mb-1">
@@ -191,7 +191,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
 
                         {activeTab === 'operations' && (
                             <div>
-                                <h3 className="text-lg font-bold leading-none mb-6">Gérer les Opérations</h3>
+                                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Gérer les Opérations</h3>
                                 <form onSubmit={submitOp} className="flex gap-2 mb-6 max-w-2xl">
                                     <input
                                         type="text"
@@ -329,7 +329,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
 
                         {activeTab === 'structure' && (
                             <div>
-                                <h3 className="text-lg font-bold leading-none mb-6">Structure de la Ferme</h3>
+                                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Structure de la Ferme</h3>
 
                                 {/* ADD NEW BLOC FORM */}
                                 <div className="mb-6 bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-lg border border-green-200">

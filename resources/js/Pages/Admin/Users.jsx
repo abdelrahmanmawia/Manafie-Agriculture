@@ -37,10 +37,10 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
             user={auth.user}
             header={
                 <div className="flex justify-between items-center">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">{t('user_management')}</h2>
-                    <button 
+                    <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('user_management')}</h2>
+                    <button
                         onClick={() => setIsAddingUser(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                     >
                         <span>+</span> {t('add_user')}
                     </button>
@@ -51,8 +51,8 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    <div className="bg-white p-6 shadow sm:rounded-lg overflow-x-auto">
-                        <h3 className="text-lg font-bold mb-4 text-gray-800">{t('application_users')}</h3>
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 overflow-x-auto">
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">{t('application_users')}</h3>
                         <table className="min-w-full divide-y divide-gray-200 text-sm">
                             <thead className="bg-gray-50">
                                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-gray-500">
