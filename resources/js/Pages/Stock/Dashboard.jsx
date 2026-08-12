@@ -57,7 +57,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                     )}
 
                     {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <StatCard
                             label="Produits Actifs"
                             value={formatInt(stats.products)}
@@ -78,6 +78,14 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                                 value={formatInt(stats.vehicles)}
                                 tone="gray"
                                 icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />}
+                            />
+                        </Link>
+                        <Link href={route('stock.vehicles.index', { asset_type: 'equipment', status: 'in_repair' })}>
+                            <StatCard
+                                label="Équipement en Panne"
+                                value={formatInt(stats.equipmentDown)}
+                                tone="orange"
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />}
                             />
                         </Link>
                         <Link href={route('stock.alerts.index')}>

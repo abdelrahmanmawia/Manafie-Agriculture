@@ -62,7 +62,7 @@ class ProductController extends Controller
             'employees' => Employee::where('is_active', true)
                 ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
                 ->get(['id', 'full_name']),
-            'vehicles' => Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'type']),
+            'vehicles' => Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'serial_number', 'type', 'asset_type']),
             'blocs' => Bloc::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
             'sectors' => Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id']),
             'parcelles' => Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id', 'sector_id']),

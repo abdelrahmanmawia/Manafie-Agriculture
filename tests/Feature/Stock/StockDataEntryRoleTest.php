@@ -84,6 +84,7 @@ class StockDataEntryRoleTest extends TestCase
     private function vehiclePayload(array $overrides = []): array
     {
         return array_merge([
+            'asset_type' => 'vehicle',
             'name' => 'Nouveau Véhicule',
             'plate_number' => 'N-00001',
             'type' => 'car',
@@ -224,6 +225,77 @@ class StockDataEntryRoleTest extends TestCase
             ->assertRedirect();
 
         $this->assertDatabaseHas('vehicles', ['id' => $this->vehicle->id, 'name' => 'Tracteur Renommé']);
+    }
+
+    /**
+     * Equipment (pumps, generators...) has no plate number — the field is required_if
+     * asset_type=vehicle, nullable otherwise. See migration
+     * add_asset_fields_to_vehicles_table.
+     */
+    public function test_creating_equipment_without_plate_number_succeeds(): void
+    {
+        $this->actingAs($this->farmManager)
+            ->post(route('stock.vehicles.store'), $this->vehiclePayload([
+                'asset_type' => 'equipment',
+                'plate_number' => null,
+                'type' => 'pump',
+            ]))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('vehicles', ['name' => 'Nouveau Véhicule', 'asset_type' => 'equipment', 'plate_number' => null]);
+    }
+
+    public function test_creating_vehicle_without_plate_number_fails_validation(): void
+    {
+        $this->actingAs($this->farmManager)
+            ->post(route('stock.vehicles.store'), $this->vehiclePayload(['plate_number' => null]))
+            ->assertSessionHasErrors('plate_number');
+
+        $this->assertDatabaseCount('vehicles', 1);
+    }
+
+    // --- VehicleMaintenanceLogController ---
+
+    private function maintenanceLogPayload(array $overrides = []): array
+    {
+        return array_merge([
+            'description' => 'Vidange moteur',
+            'performed_at' => now()->toDateString(),
+        ], $overrides);
+    }
+
+    public function test_data_entry_cannot_create_maintenance_log(): void
+    {
+        $this->actingAs($this->dataEntry)
+            ->post(route('stock.vehicles.maintenance-logs.store', $this->vehicle), $this->maintenanceLogPayload())
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('vehicle_maintenance_logs', 0);
+    }
+
+    public function test_farm_manager_can_create_maintenance_log(): void
+    {
+        $this->actingAs($this->farmManager)
+            ->post(route('stock.vehicles.maintenance-logs.store', $this->vehicle), $this->maintenanceLogPayload())
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('vehicle_maintenance_logs', 1);
+    }
+
+    public function test_data_entry_cannot_delete_maintenance_log(): void
+    {
+        $log = $this->vehicle->maintenanceLogs()->create([
+            'farm_id' => $this->farm->id,
+            'description' => 'Vidange moteur',
+            'performed_at' => now()->toDateString(),
+            'created_by' => $this->farmManager->id,
+        ]);
+
+        $this->actingAs($this->dataEntry)
+            ->delete(route('stock.vehicles.maintenance-logs.destroy', $log))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('vehicle_maintenance_logs', ['id' => $log->id]);
     }
 
     // --- ManualStockEntryController ---

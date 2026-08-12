@@ -134,6 +134,18 @@ class StockCrossFarmScopingTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_farm_manager_cannot_create_maintenance_log_on_another_farms_vehicle(): void
+    {
+        $this->actingAs($this->managerA)
+            ->post('/stock/vehicles/' . $this->vehicleB->id . '/maintenance-logs', [
+                'description' => 'Hijacked repair',
+                'performed_at' => now()->toDateString(),
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('vehicle_maintenance_logs', 0);
+    }
+
     public function test_farm_manager_cannot_view_another_farms_manual_stock_entry(): void
     {
         $this->actingAs($this->managerA)

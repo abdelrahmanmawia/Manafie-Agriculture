@@ -9,7 +9,13 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatInt } from '@/utils/number';
-import { VEHICLE_TYPE_LABELS as TYPE_LABELS, FUEL_TYPE_LABELS } from '@/utils/stockLabels';
+import {
+    VEHICLE_TYPE_LABELS as TYPE_LABELS,
+    FUEL_TYPE_LABELS,
+    ASSET_TYPE_LABELS,
+    ASSET_STATUS_LABELS,
+    EQUIPMENT_TYPE_LABELS,
+} from '@/utils/stockLabels';
 
 const TYPE_ICON = {
     tractor: (
@@ -29,24 +35,50 @@ const TYPE_ICON = {
     ),
 };
 
-export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
+// Equipment (pumps, generators, sprayers...) shares one wrench icon instead of a bespoke
+// icon per kind — the vehicle types above are the only ones common enough to earn their own.
+const EQUIPMENT_ICON = (
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+);
+
+const getIcon = (vehicle) => (vehicle.asset_type === 'equipment' ? EQUIPMENT_ICON : (TYPE_ICON[vehicle.type] || TYPE_ICON.other));
+
+export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes, employees }) {
     const [isCreating, setIsCreating] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [assetTypeFilter, setAssetTypeFilter] = useState('');
     const [selectedType, setSelectedType] = useState('');
 
     const { data, setData, post, put, processing, reset, errors, clearErrors } = useForm({
+        asset_type: 'vehicle',
         name: '',
         plate_number: '',
+        serial_number: '',
         type: types.length > 0 ? types[0] : '',
         model: '',
         fuel_type: fuelTypes.length > 0 ? fuelTypes[0] : '',
+        status: 'operational',
         default_driver_id: '',
         is_active: true,
         is_location: false,
         default_daily_rate: '',
+        purchase_date: '',
         notes: '',
     });
+
+    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : TYPE_LABELS);
+
+    const handleAssetTypeChange = (assetType) => {
+        const options = typeOptionsFor(assetType);
+        setData((prev) => ({
+            ...prev,
+            asset_type: assetType,
+            type: options.length > 0 ? options[0] : '',
+            plate_number: assetType === 'equipment' ? '' : prev.plate_number,
+        }));
+    };
 
     const openCreate = () => {
         setEditingVehicle(null);
@@ -59,15 +91,19 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
         setEditingVehicle(vehicle);
         clearErrors();
         setData({
+            asset_type: vehicle.asset_type,
             name: vehicle.name,
-            plate_number: vehicle.plate_number,
+            plate_number: vehicle.plate_number || '',
+            serial_number: vehicle.serial_number || '',
             type: vehicle.type,
             model: vehicle.model || '',
             fuel_type: vehicle.fuel_type,
+            status: vehicle.status || 'operational',
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
             default_daily_rate: vehicle.default_daily_rate ?? '',
+            purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
             notes: vehicle.notes || '',
         });
         setIsCreating(true);
@@ -96,14 +132,17 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
     };
 
     const filteredVehicles = vehicles.filter((vehicle) => {
-        const matchesSearch = vehicle.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             vehicle.plate_number.toLowerCase().includes(searchTerm.toLowerCase());
+        const term = searchTerm.toLowerCase();
+        const matchesSearch = vehicle.name.toLowerCase().includes(term) ||
+                             (vehicle.plate_number || '').toLowerCase().includes(term) ||
+                             (vehicle.serial_number || '').toLowerCase().includes(term);
+        const matchesAssetType = !assetTypeFilter || vehicle.asset_type === assetTypeFilter;
         const matchesType = !selectedType || vehicle.type === selectedType;
-        return matchesSearch && matchesType;
+        return matchesSearch && matchesAssetType && matchesType;
     });
 
     const activeCount = vehicles.filter((v) => v.is_active).length;
-    const tractorCount = vehicles.filter((v) => v.type === 'tractor').length;
+    const equipmentCount = vehicles.filter((v) => v.asset_type === 'equipment').length;
 
     return (
         <AuthenticatedLayout
@@ -111,8 +150,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
             header={
                 <div className="flex justify-between items-center">
                     <div>
-                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Véhicules</h2>
-                        <p className="text-sm text-gray-500 mt-1">Parc de véhicules et engins agricoles de la ferme</p>
+                        <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Véhicules & Matériel</h2>
+                        <p className="text-sm text-gray-500 mt-1">Parc de véhicules et équipement agricole de la ferme</p>
                     </div>
                     {auth.user.role !== 'data_entry' && (
                         <button
@@ -122,13 +161,13 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Ajouter un Véhicule
+                            Ajouter un Actif
                         </button>
                     )}
                 </div>
             }
         >
-            <Head title="Véhicules" />
+            <Head title="Véhicules & Matériel" />
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
@@ -137,7 +176,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-500">Total Véhicules</p>
+                                    <p className="text-sm text-gray-500">Total Actifs</p>
                                     <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(vehicles.length)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-gray-100 rounded-xl flex items-center justify-center">
@@ -161,11 +200,11 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-500">Tracteurs / Engins</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(tractorCount)}</p>
+                                    <p className="text-sm text-gray-500">Équipement</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(equipmentCount)}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                                    <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">{TYPE_ICON.tractor}</svg>
+                                    <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">{EQUIPMENT_ICON}</svg>
                                 </div>
                             </div>
                         </div>
@@ -173,13 +212,13 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
 
                     {/* Filters */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
                                 <div className="relative">
                                     <input
                                         type="text"
-                                        placeholder="Rechercher par nom ou plaque..."
+                                        placeholder="Rechercher par nom, plaque ou n° de série..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
@@ -190,6 +229,18 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 </div>
                             </div>
                             <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Type d'Actif</label>
+                                <select
+                                    value={assetTypeFilter}
+                                    onChange={(e) => { setAssetTypeFilter(e.target.value); setSelectedType(''); }}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
+                                >
+                                    <option value="">Tous</option>
+                                    <option value="vehicle">{ASSET_TYPE_LABELS.vehicle}</option>
+                                    <option value="equipment">{ASSET_TYPE_LABELS.equipment}</option>
+                                </select>
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
                                 <select
                                     value={selectedType}
@@ -197,8 +248,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                 >
                                     <option value="">Tous les types</option>
-                                    {types.map((type) => (
-                                        <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
+                                    {(assetTypeFilter === 'equipment' ? equipmentTypes : assetTypeFilter === 'vehicle' ? types : [...new Set([...types, ...equipmentTypes])]).map((type) => (
+                                        <option key={type} value={type}>{TYPE_LABELS[type] || EQUIPMENT_TYPE_LABELS[type] || type}</option>
                                     ))}
                                 </select>
                             </div>
@@ -209,18 +260,18 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Liste des Véhicules</h3>
-                                <span className="text-sm text-gray-500">{filteredVehicles.length} véhicule(s)</span>
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Liste des Actifs</h3>
+                                <span className="text-sm text-gray-500">{filteredVehicles.length} élément(s)</span>
                             </div>
                         </div>
 
                         {filteredVehicles.length === 0 ? (
                             <div className="text-center py-16">
                                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">{TYPE_ICON.other}</svg>
-                                <p className="mt-4 text-gray-500">Aucun véhicule trouvé</p>
+                                <p className="mt-4 text-gray-500">Aucun élément trouvé</p>
                                 {auth.user.role !== 'data_entry' && (
                                     <button onClick={openCreate} className="mt-4 text-gray-700 hover:text-gray-900 font-medium">
-                                        Ajouter votre premier véhicule
+                                        Ajouter votre premier véhicule ou équipement
                                     </button>
                                 )}
                             </div>
@@ -230,37 +281,51 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     <thead className="bg-gray-50">
                                         <tr>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Véhicule</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type d'Actif</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Carburant</th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Conducteur</th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Statut</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">État</th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Actif</th>
                                             <th scope="col" className="relative px-6 py-3"><span className="sr-only">Actions</span></th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {filteredVehicles.map((vehicle) => (
+                                        {filteredVehicles.map((vehicle) => {
+                                            const statusMeta = ASSET_STATUS_LABELS[vehicle.status] || ASSET_STATUS_LABELS.operational;
+                                            return (
                                             <tr key={vehicle.id} className={`hover:bg-gray-50 transition-colors ${!vehicle.is_active ? 'opacity-60 bg-gray-50' : ''}`}>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center">
                                                         <div className="flex-shrink-0 h-10 w-10 bg-gray-100 rounded-lg flex items-center justify-center">
                                                             <svg className="h-5 w-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                {TYPE_ICON[vehicle.type] || TYPE_ICON.other}
+                                                                {getIcon(vehicle)}
                                                             </svg>
                                                         </div>
                                                         <div className="ml-4">
                                                             <div className="text-sm font-medium text-gray-900">{vehicle.name}</div>
-                                                            <div className="text-xs text-gray-500">{vehicle.plate_number}</div>
+                                                            <div className="text-xs text-gray-500">{vehicle.plate_number || vehicle.serial_number || '—'}</div>
                                                         </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                    {TYPE_LABELS[vehicle.type] || vehicle.type}
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                        {ASSET_TYPE_LABELS[vehicle.asset_type] || vehicle.asset_type}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                    {FUEL_TYPE_LABELS[vehicle.fuel_type] || vehicle.fuel_type}
+                                                    {typeLabelsFor(vehicle.asset_type)[vehicle.type] || vehicle.type}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                    {vehicle.fuel_type ? (FUEL_TYPE_LABELS[vehicle.fuel_type] || vehicle.fuel_type) : '—'}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {vehicle.default_driver?.full_name || 'N/A'}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusMeta.className}`}>
+                                                        {statusMeta.label}
+                                                    </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <ToggleSwitch
@@ -294,7 +359,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
@@ -313,7 +379,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{editingVehicle ? 'Modifier le Véhicule' : 'Ajouter un Nouveau Véhicule'}</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{editingVehicle ? "Modifier l'Actif" : 'Ajouter un Nouvel Actif'}</h3>
                         </div>
                         <button onClick={closeVehicleModal} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -322,9 +388,26 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                         </button>
                     </div>
                     <form onSubmit={submit} className="space-y-6">
+                        <div className="grid grid-cols-2 gap-3">
+                            {['vehicle', 'equipment'].map((assetType) => (
+                                <button
+                                    key={assetType}
+                                    type="button"
+                                    onClick={() => handleAssetTypeChange(assetType)}
+                                    className={`px-4 py-3 rounded-xl border-2 font-bold text-sm uppercase tracking-wide transition-colors ${
+                                        data.asset_type === assetType
+                                            ? 'border-gray-700 bg-gray-700 text-white'
+                                            : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                                    }`}
+                                >
+                                    {ASSET_TYPE_LABELS[assetType]}
+                                </button>
+                            ))}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <InputLabel htmlFor="name" value="Nom du Véhicule *" />
+                                <InputLabel htmlFor="name" value="Nom *" />
                                 <TextInput
                                     id="name"
                                     type="text"
@@ -337,21 +420,36 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 <InputError message={errors.name} className="mt-2" />
                             </div>
 
-                            <div>
-                                <InputLabel htmlFor="plate_number" value="Plaque d'Immatriculation *" />
-                                <TextInput
-                                    id="plate_number"
-                                    type="text"
-                                    className="mt-1 block w-full"
-                                    value={data.plate_number}
-                                    onChange={(e) => setData('plate_number', e.target.value)}
-                                    required
-                                />
-                                <InputError message={errors.plate_number} className="mt-2" />
-                            </div>
+                            {data.asset_type === 'vehicle' ? (
+                                <div>
+                                    <InputLabel htmlFor="plate_number" value="Plaque d'Immatriculation *" />
+                                    <TextInput
+                                        id="plate_number"
+                                        type="text"
+                                        className="mt-1 block w-full"
+                                        value={data.plate_number}
+                                        onChange={(e) => setData('plate_number', e.target.value)}
+                                        required
+                                    />
+                                    <InputError message={errors.plate_number} className="mt-2" />
+                                </div>
+                            ) : (
+                                <div>
+                                    <InputLabel htmlFor="serial_number" value="N° de Série" />
+                                    <TextInput
+                                        id="serial_number"
+                                        type="text"
+                                        className="mt-1 block w-full"
+                                        value={data.serial_number}
+                                        onChange={(e) => setData('serial_number', e.target.value)}
+                                        placeholder="Optionnel"
+                                    />
+                                    <InputError message={errors.serial_number} className="mt-2" />
+                                </div>
+                            )}
 
                             <div>
-                                <InputLabel htmlFor="type" value="Type de Véhicule *" />
+                                <InputLabel htmlFor="type" value="Type *" />
                                 <select
                                     id="type"
                                     className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
@@ -359,21 +457,35 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                     onChange={(e) => setData('type', e.target.value)}
                                     required
                                 >
-                                    {types.map((type) => (
-                                        <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
+                                    {typeOptionsFor(data.asset_type).map((type) => (
+                                        <option key={type} value={type}>{typeLabelsFor(data.asset_type)[type] || type}</option>
                                     ))}
                                 </select>
                                 <InputError message={errors.type} className="mt-2" />
                             </div>
 
                             <div>
-                                <InputLabel htmlFor="fuel_type" value="Type de Carburant *" />
+                                <InputLabel htmlFor="status" value="État" />
+                                <select
+                                    id="status"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={data.status}
+                                    onChange={(e) => setData('status', e.target.value)}
+                                >
+                                    {Object.entries(ASSET_STATUS_LABELS).map(([value, meta]) => (
+                                        <option key={value} value={value}>{meta.label}</option>
+                                    ))}
+                                </select>
+                                <InputError message={errors.status} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="fuel_type" value="Type de Carburant" />
                                 <select
                                     id="fuel_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
                                     value={data.fuel_type}
                                     onChange={(e) => setData('fuel_type', e.target.value)}
-                                    required
                                 >
                                     {fuelTypes.map((fuel) => (
                                         <option key={fuel} value={fuel}>{FUEL_TYPE_LABELS[fuel] || fuel}</option>
@@ -394,20 +506,34 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 <InputError message={errors.model} className="mt-2" />
                             </div>
 
+                            {data.asset_type === 'vehicle' && (
+                                <div>
+                                    <InputLabel htmlFor="default_driver_id" value="Conducteur par Défaut" />
+                                    <select
+                                        id="default_driver_id"
+                                        className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                        value={data.default_driver_id}
+                                        onChange={(e) => setData('default_driver_id', e.target.value)}
+                                    >
+                                        <option value="">-- Sélectionner un conducteur --</option>
+                                        {employees.map((employee) => (
+                                            <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                        ))}
+                                    </select>
+                                    <InputError message={errors.default_driver_id} className="mt-2" />
+                                </div>
+                            )}
+
                             <div>
-                                <InputLabel htmlFor="default_driver_id" value="Conducteur par Défaut" />
-                                <select
-                                    id="default_driver_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
-                                    value={data.default_driver_id}
-                                    onChange={(e) => setData('default_driver_id', e.target.value)}
-                                >
-                                    <option value="">-- Sélectionner un conducteur --</option>
-                                    {employees.map((employee) => (
-                                        <option key={employee.id} value={employee.id}>{employee.full_name}</option>
-                                    ))}
-                                </select>
-                                <InputError message={errors.default_driver_id} className="mt-2" />
+                                <InputLabel htmlFor="purchase_date" value="Date d'Achat" />
+                                <TextInput
+                                    id="purchase_date"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={data.purchase_date}
+                                    onChange={(e) => setData('purchase_date', e.target.value)}
+                                />
+                                <InputError message={errors.purchase_date} className="mt-2" />
                             </div>
 
                             <div className="md:col-span-2">
@@ -426,8 +552,8 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                         {editingVehicle && (
                             <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
                                 <div>
-                                    <InputLabel htmlFor="is_active" value="Véhicule Actif" className="mb-0" />
-                                    <p className="text-xs text-gray-500">Les véhicules inactifs ne sont plus proposés dans les sélections</p>
+                                    <InputLabel htmlFor="is_active" value="Actif" className="mb-0" />
+                                    <p className="text-xs text-gray-500">Les éléments inactifs ne sont plus proposés dans les sélections</p>
                                 </div>
                                 <ToggleSwitch
                                     checked={data.is_active}
@@ -436,6 +562,7 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                             </div>
                         )}
 
+                        {data.asset_type === 'vehicle' && (
                         <div className="bg-purple-50 rounded-xl p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -464,13 +591,14 @@ export default function Index({ auth, vehicles, types, fuelTypes, employees }) {
                                 </div>
                             )}
                         </div>
+                        )}
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeVehicleModal}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing} className="bg-gray-700 hover:bg-gray-800">
                                 {processing
                                     ? (editingVehicle ? 'Mise à jour...' : 'Ajout en cours...')
-                                    : (editingVehicle ? 'Mettre à Jour le Véhicule' : 'Ajouter le Véhicule')}
+                                    : (editingVehicle ? "Mettre à Jour l'Actif" : "Ajouter l'Actif")}
                             </PrimaryButton>
                         </div>
                     </form>

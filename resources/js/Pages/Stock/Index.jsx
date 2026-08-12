@@ -781,7 +781,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             >
                                                 <option value="">-- Sélectionner un véhicule --</option>
                                                 {vehicles.map((vehicle) => (
-                                                    <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.plate_number})</option>
+                                                    <option key={vehicle.id} value={vehicle.id}>{vehicle.name}{(vehicle.plate_number || vehicle.serial_number) ? ` (${vehicle.plate_number || vehicle.serial_number})` : ''}</option>
                                                 ))}
                                             </select>
                                             <InputError message={sortieForm.errors.vehicle_id} className="mt-2" />

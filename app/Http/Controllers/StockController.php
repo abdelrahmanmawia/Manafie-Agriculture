@@ -41,6 +41,11 @@ class StockController extends Controller
             ->where('is_active', true)
             ->count();
 
+        $equipmentDownCount = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->where('asset_type', 'equipment')
+            ->where('status', 'in_repair')
+            ->count();
+
         $recentAlerts = StockAlert::with('product')
             ->when($farmId, fn ($q) => $q->whereHas('product', fn ($q) => $q->where('farm_id', $farmId)))
             ->where('is_resolved', false)
@@ -68,6 +73,7 @@ class StockController extends Controller
                 'products' => $products->count(),
                 'lowStock' => $lowStockCount,
                 'vehicles' => $vehicleCount,
+                'equipmentDown' => $equipmentDownCount,
                 'alerts' => $unresolvedAlertCount,
             ],
             'recentAlerts' => $recentAlerts,

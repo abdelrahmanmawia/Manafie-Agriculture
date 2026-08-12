@@ -11,12 +11,16 @@ class Vehicle extends Model
 
     protected $fillable = [
         'farm_id',
+        'asset_type',
         'name',
         'plate_number',
+        'serial_number',
         'type',
         'model',
         'fuel_type',
+        'status',
         'default_daily_rate',
+        'purchase_date',
         'is_location',
         'default_driver_id',
         'is_active',
@@ -26,6 +30,7 @@ class Vehicle extends Model
     protected $casts = [
         'is_active' => 'boolean',
         'is_location' => 'boolean',
+        'purchase_date' => 'date',
     ];
 
     public function farm()
@@ -51,5 +56,10 @@ class Vehicle extends Model
     public function usages()
     {
         return $this->hasMany(VehicleUsage::class);
+    }
+
+    public function maintenanceLogs()
+    {
+        return $this->hasMany(VehicleMaintenanceLog::class);
     }
 }

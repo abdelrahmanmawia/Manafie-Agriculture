@@ -41,7 +41,7 @@ class FuelTransactionController extends Controller
 
         $fuelTransactions = $query->orderBy('date', 'desc')->get();
 
-        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number']);
+        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'serial_number']);
 
         return Inertia::render('Stock/FuelTransactions/Index', [
             'fuelTransactions' => $fuelTransactions,

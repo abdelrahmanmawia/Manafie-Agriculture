@@ -10,24 +10,47 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
-import { VEHICLE_TYPE_LABELS as TYPE_LABELS, FUEL_TYPE_LABELS, ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import {
+    VEHICLE_TYPE_LABELS as TYPE_LABELS,
+    FUEL_TYPE_LABELS,
+    ENTRY_TYPE_LABELS,
+    UNIT_TYPE_LABELS,
+    ASSET_TYPE_LABELS,
+    ASSET_STATUS_LABELS,
+    EQUIPMENT_TYPE_LABELS,
+} from '@/utils/stockLabels';
 
-export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
+export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, employees }) {
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isAddingMaintenance, setIsAddingMaintenance] = useState(false);
     const { delete: destroy, processing, errors } = useForm();
 
+    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : TYPE_LABELS);
+
     const editForm = useForm({
+        asset_type: vehicle.asset_type,
         name: vehicle.name,
-        plate_number: vehicle.plate_number,
+        plate_number: vehicle.plate_number || '',
+        serial_number: vehicle.serial_number || '',
         type: vehicle.type,
         model: vehicle.model || '',
         fuel_type: vehicle.fuel_type,
+        status: vehicle.status || 'operational',
         default_driver_id: vehicle.default_driver_id || '',
         is_active: vehicle.is_active,
         is_location: vehicle.is_location,
         default_daily_rate: vehicle.default_daily_rate ?? '',
+        purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
         notes: vehicle.notes || '',
+    });
+
+    const maintenanceForm = useForm({
+        description: '',
+        performed_at: new Date().toISOString().slice(0, 10),
+        performed_by_id: '',
+        next_due_date: '',
     });
 
     const confirmVehicleDeletion = () => setConfirmingVehicleDeletion(true);
@@ -44,18 +67,32 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
     const openEdit = () => {
         editForm.clearErrors();
         editForm.setData({
+            asset_type: vehicle.asset_type,
             name: vehicle.name,
-            plate_number: vehicle.plate_number,
+            plate_number: vehicle.plate_number || '',
+            serial_number: vehicle.serial_number || '',
             type: vehicle.type,
             model: vehicle.model || '',
             fuel_type: vehicle.fuel_type,
+            status: vehicle.status || 'operational',
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
             default_daily_rate: vehicle.default_daily_rate ?? '',
+            purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
             notes: vehicle.notes || '',
         });
         setIsEditing(true);
+    };
+
+    const handleEditAssetTypeChange = (assetType) => {
+        const options = typeOptionsFor(assetType);
+        editForm.setData((prev) => ({
+            ...prev,
+            asset_type: assetType,
+            type: options.length > 0 ? options[0] : '',
+            plate_number: assetType === 'equipment' ? '' : prev.plate_number,
+        }));
     };
 
     const closeEdit = () => setIsEditing(false);
@@ -65,6 +102,26 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
         editForm.put(route('stock.vehicles.update', vehicle.id), {
             onSuccess: () => closeEdit(),
         });
+    };
+
+    const openAddMaintenance = () => {
+        maintenanceForm.clearErrors();
+        maintenanceForm.reset();
+        setIsAddingMaintenance(true);
+    };
+
+    const closeAddMaintenance = () => setIsAddingMaintenance(false);
+
+    const submitMaintenance = (e) => {
+        e.preventDefault();
+        maintenanceForm.post(route('stock.vehicles.maintenance-logs.store', vehicle.id), {
+            onSuccess: () => closeAddMaintenance(),
+        });
+    };
+
+    const deleteMaintenanceLog = (log) => {
+        if (!confirm('Supprimer cette intervention de maintenance ?')) return;
+        router.delete(route('stock.vehicles.maintenance-logs.destroy', log.id), { preserveScroll: true });
     };
 
     const handleToggleActive = () => {
@@ -79,6 +136,12 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
     const fuelTransactions = vehicle.fuel_transactions ?? [];
     const manualStockEntries = vehicle.manual_stock_entries ?? [];
     const locationUsages = vehicle.usages ?? [];
+    const maintenanceLogs = vehicle.maintenance_logs ?? [];
+
+    // Flagged client-side from already-loaded data — no separate reminder job needed.
+    const dueSoonCutoff = new Date();
+    dueSoonCutoff.setDate(dueSoonCutoff.getDate() + 7);
+    const upcomingMaintenance = maintenanceLogs.find((log) => log.next_due_date && new Date(log.next_due_date) <= dueSoonCutoff);
     const totalLocationDays = locationUsages.length;
     const totalLocationAmount = locationUsages.reduce((sum, u) => sum + parseFloat(u.daily_rate || 0), 0);
 
@@ -124,8 +187,10 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </svg>
                         </Link>
                         <div>
-                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Détails du Véhicule</h2>
-                            <p className="text-sm text-gray-500 mt-1">Informations et historique de consommation</p>
+                            <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">
+                                {vehicle.asset_type === 'equipment' ? "Détails de l'Équipement" : 'Détails du Véhicule'}
+                            </h2>
+                            <p className="text-sm text-gray-500 mt-1">Informations et historique d'utilisation</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -162,11 +227,22 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                     </div>
                                     <div>
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{vehicle.name}</h3>
-                                        <div className="flex items-center gap-3 mt-2">
-                                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
-                                                {TYPE_LABELS[vehicle.type] || vehicle.type}
+                                        <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                {ASSET_TYPE_LABELS[vehicle.asset_type] || vehicle.asset_type}
                                             </span>
-                                            <span className="text-sm text-gray-500">{vehicle.plate_number}</span>
+                                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                                                {typeLabelsFor(vehicle.asset_type)[vehicle.type] || vehicle.type}
+                                            </span>
+                                            {(() => {
+                                                const statusMeta = ASSET_STATUS_LABELS[vehicle.status] || ASSET_STATUS_LABELS.operational;
+                                                return (
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${statusMeta.className}`}>
+                                                        {statusMeta.label}
+                                                    </span>
+                                                );
+                                            })()}
+                                            <span className="text-sm text-gray-500">{vehicle.plate_number || vehicle.serial_number || '—'}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -183,6 +259,18 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </div>
                         </div>
                     </div>
+
+                    {upcomingMaintenance && (
+                        <div className="flex items-center gap-3 bg-orange-50 border border-orange-200 rounded-xl px-5 py-4">
+                            <svg className="w-5 h-5 text-orange-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p className="text-sm font-medium text-orange-900">
+                                Entretien à prévoir — prochaine échéance le {formatDate(upcomingMaintenance.next_due_date)}
+                                {upcomingMaintenance.description ? ` (${upcomingMaintenance.description})` : ''}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -212,13 +300,75 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </div>
                             <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50">
                                 <span className="text-gray-500">Type de Carburant</span>
-                                <span className="font-medium text-gray-900">{FUEL_TYPE_LABELS[vehicle.fuel_type] || vehicle.fuel_type}</span>
+                                <span className="font-medium text-gray-900">{vehicle.fuel_type ? (FUEL_TYPE_LABELS[vehicle.fuel_type] || vehicle.fuel_type) : 'N/A'}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2">
-                                <span className="text-gray-500">Conducteur par Défaut</span>
-                                <span className="font-medium text-gray-900">{vehicle.default_driver?.full_name || 'N/A'}</span>
+                            {vehicle.asset_type === 'vehicle' ? (
+                                <div className="flex justify-between items-center py-2">
+                                    <span className="text-gray-500">Conducteur par Défaut</span>
+                                    <span className="font-medium text-gray-900">{vehicle.default_driver?.full_name || 'N/A'}</span>
+                                </div>
+                            ) : (
+                                <div className="flex justify-between items-center py-2">
+                                    <span className="text-gray-500">N° de Série</span>
+                                    <span className="font-medium text-gray-900">{vehicle.serial_number || 'N/A'}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50 md:border-t md:pt-4 md:mt-2">
+                                <span className="text-gray-500">Date d'Achat</span>
+                                <span className="font-medium text-gray-900">{vehicle.purchase_date ? formatDate(vehicle.purchase_date) : 'N/A'}</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Maintenance History */}
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                            <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique de Maintenance</h4>
+                            {auth.user.role !== 'data_entry' && (
+                                <button
+                                    type="button"
+                                    onClick={openAddMaintenance}
+                                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    Ajouter une Intervention
+                                </button>
+                            )}
+                        </div>
+                        {maintenanceLogs.length === 0 ? (
+                            <div className="p-6 text-center text-sm text-gray-500">Aucune intervention de maintenance enregistrée.</div>
+                        ) : (
+                            <div className="divide-y divide-gray-100">
+                                {maintenanceLogs.map((log) => (
+                                    <div key={log.id} className="p-4 flex items-center justify-between gap-4">
+                                        <div>
+                                            <p className="text-sm font-medium text-gray-900">{log.description}</p>
+                                            <p className="text-xs text-gray-500 mt-0.5">
+                                                {formatDate(log.performed_at)}
+                                                {log.performed_by?.full_name ? ` · ${log.performed_by.full_name}` : ''}
+                                                {log.next_due_date ? ` · Prochaine échéance : ${formatDate(log.next_due_date)}` : ''}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-3 shrink-0">
+                                            {auth.user.role !== 'data_entry' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => deleteMaintenanceLog(log)}
+                                                    className="text-gray-400 hover:text-red-600 transition-colors"
+                                                    title="Supprimer"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Location (rental tracking) — only for vehicles flagged "Disponible en Location" */}
@@ -349,6 +499,87 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                 </form>
             </Modal>
 
+            {/* ADD MAINTENANCE LOG MODAL */}
+            <Modal show={isAddingMaintenance} onClose={closeAddMaintenance}>
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Ajouter une Intervention</h3>
+                        <button onClick={closeAddMaintenance} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <form onSubmit={submitMaintenance} className="space-y-6">
+                        <div>
+                            <InputLabel htmlFor="maint_description" value="Description *" />
+                            <textarea
+                                id="maint_description"
+                                className="mt-1 block w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 rounded-lg shadow-sm"
+                                value={maintenanceForm.data.description}
+                                onChange={(e) => maintenanceForm.setData('description', e.target.value)}
+                                rows="3"
+                                required
+                                autoFocus
+                                placeholder="Ex: Remplacement du filtre à huile"
+                            ></textarea>
+                            <InputError message={maintenanceForm.errors.description} className="mt-2" />
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <InputLabel htmlFor="maint_performed_at" value="Date *" />
+                                <TextInput
+                                    id="maint_performed_at"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={maintenanceForm.data.performed_at}
+                                    onChange={(e) => maintenanceForm.setData('performed_at', e.target.value)}
+                                    required
+                                />
+                                <InputError message={maintenanceForm.errors.performed_at} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="maint_performed_by_id" value="Effectué Par" />
+                                <select
+                                    id="maint_performed_by_id"
+                                    className="mt-1 block w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 rounded-lg shadow-sm"
+                                    value={maintenanceForm.data.performed_by_id}
+                                    onChange={(e) => maintenanceForm.setData('performed_by_id', e.target.value)}
+                                >
+                                    <option value="">-- Sélectionner --</option>
+                                    {employees.map((employee) => (
+                                        <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                    ))}
+                                </select>
+                                <InputError message={maintenanceForm.errors.performed_by_id} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="maint_next_due_date" value="Prochaine Échéance" />
+                                <TextInput
+                                    id="maint_next_due_date"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={maintenanceForm.data.next_due_date}
+                                    onChange={(e) => maintenanceForm.setData('next_due_date', e.target.value)}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Optionnel — affiche une alerte quand la date approche.</p>
+                                <InputError message={maintenanceForm.errors.next_due_date} className="mt-2" />
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                            <SecondaryButton onClick={closeAddMaintenance}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={maintenanceForm.processing} className="bg-orange-600 hover:bg-orange-700">
+                                {maintenanceForm.processing ? 'Enregistrement...' : "Enregistrer l'Intervention"}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                </div>
+            </Modal>
+
             {/* EDIT VEHICLE MODAL */}
             <Modal show={isEditing} onClose={closeEdit}>
                 <div className="p-8">
@@ -359,7 +590,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </div>
-                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Modifier le Véhicule</h3>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Modifier l'Actif</h3>
                         </div>
                         <button onClick={closeEdit} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -368,9 +599,26 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                         </button>
                     </div>
                     <form onSubmit={submitEdit} className="space-y-6">
+                        <div className="grid grid-cols-2 gap-3">
+                            {['vehicle', 'equipment'].map((assetType) => (
+                                <button
+                                    key={assetType}
+                                    type="button"
+                                    onClick={() => handleEditAssetTypeChange(assetType)}
+                                    className={`px-4 py-3 rounded-xl border-2 font-bold text-sm uppercase tracking-wide transition-colors ${
+                                        editForm.data.asset_type === assetType
+                                            ? 'border-gray-700 bg-gray-700 text-white'
+                                            : 'border-gray-200 text-gray-500 hover:border-gray-400'
+                                    }`}
+                                >
+                                    {ASSET_TYPE_LABELS[assetType]}
+                                </button>
+                            ))}
+                        </div>
+
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <InputLabel htmlFor="edit_name" value="Nom du Véhicule *" />
+                                <InputLabel htmlFor="edit_name" value="Nom *" />
                                 <TextInput
                                     id="edit_name"
                                     type="text"
@@ -383,21 +631,36 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                 <InputError message={editForm.errors.name} className="mt-2" />
                             </div>
 
-                            <div>
-                                <InputLabel htmlFor="edit_plate_number" value="Plaque d'Immatriculation *" />
-                                <TextInput
-                                    id="edit_plate_number"
-                                    type="text"
-                                    className="mt-1 block w-full"
-                                    value={editForm.data.plate_number}
-                                    onChange={(e) => editForm.setData('plate_number', e.target.value)}
-                                    required
-                                />
-                                <InputError message={editForm.errors.plate_number} className="mt-2" />
-                            </div>
+                            {editForm.data.asset_type === 'vehicle' ? (
+                                <div>
+                                    <InputLabel htmlFor="edit_plate_number" value="Plaque d'Immatriculation *" />
+                                    <TextInput
+                                        id="edit_plate_number"
+                                        type="text"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.plate_number}
+                                        onChange={(e) => editForm.setData('plate_number', e.target.value)}
+                                        required
+                                    />
+                                    <InputError message={editForm.errors.plate_number} className="mt-2" />
+                                </div>
+                            ) : (
+                                <div>
+                                    <InputLabel htmlFor="edit_serial_number" value="N° de Série" />
+                                    <TextInput
+                                        id="edit_serial_number"
+                                        type="text"
+                                        className="mt-1 block w-full"
+                                        value={editForm.data.serial_number}
+                                        onChange={(e) => editForm.setData('serial_number', e.target.value)}
+                                        placeholder="Optionnel"
+                                    />
+                                    <InputError message={editForm.errors.serial_number} className="mt-2" />
+                                </div>
+                            )}
 
                             <div>
-                                <InputLabel htmlFor="edit_type" value="Type de Véhicule *" />
+                                <InputLabel htmlFor="edit_type" value="Type *" />
                                 <select
                                     id="edit_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
@@ -405,21 +668,35 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                     onChange={(e) => editForm.setData('type', e.target.value)}
                                     required
                                 >
-                                    {types.map((type) => (
-                                        <option key={type} value={type}>{TYPE_LABELS[type] || type}</option>
+                                    {typeOptionsFor(editForm.data.asset_type).map((type) => (
+                                        <option key={type} value={type}>{typeLabelsFor(editForm.data.asset_type)[type] || type}</option>
                                     ))}
                                 </select>
                                 <InputError message={editForm.errors.type} className="mt-2" />
                             </div>
 
                             <div>
-                                <InputLabel htmlFor="edit_fuel_type" value="Type de Carburant *" />
+                                <InputLabel htmlFor="edit_status" value="État" />
+                                <select
+                                    id="edit_status"
+                                    className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
+                                    value={editForm.data.status}
+                                    onChange={(e) => editForm.setData('status', e.target.value)}
+                                >
+                                    {Object.entries(ASSET_STATUS_LABELS).map(([value, meta]) => (
+                                        <option key={value} value={value}>{meta.label}</option>
+                                    ))}
+                                </select>
+                                <InputError message={editForm.errors.status} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_fuel_type" value="Type de Carburant" />
                                 <select
                                     id="edit_fuel_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm"
                                     value={editForm.data.fuel_type}
                                     onChange={(e) => editForm.setData('fuel_type', e.target.value)}
-                                    required
                                 >
                                     {fuelTypes.map((fuel) => (
                                         <option key={fuel} value={fuel}>{FUEL_TYPE_LABELS[fuel] || fuel}</option>
@@ -441,6 +718,19 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             </div>
 
                             <div>
+                                <InputLabel htmlFor="edit_purchase_date" value="Date d'Achat" />
+                                <TextInput
+                                    id="edit_purchase_date"
+                                    type="date"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.purchase_date}
+                                    onChange={(e) => editForm.setData('purchase_date', e.target.value)}
+                                />
+                                <InputError message={editForm.errors.purchase_date} className="mt-2" />
+                            </div>
+
+                            {editForm.data.asset_type === 'vehicle' && (
+                            <div>
                                 <InputLabel htmlFor="edit_default_driver_id" value="Conducteur par Défaut" />
                                 <select
                                     id="edit_default_driver_id"
@@ -455,6 +745,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                 </select>
                                 <InputError message={editForm.errors.default_driver_id} className="mt-2" />
                             </div>
+                            )}
 
                             <div className="md:col-span-2">
                                 <InputLabel htmlFor="edit_notes" value="Notes" />
@@ -471,8 +762,8 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
 
                         <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
                             <div>
-                                <InputLabel htmlFor="edit_is_active" value="Véhicule Actif" className="mb-0" />
-                                <p className="text-xs text-gray-500">Les véhicules inactifs ne sont plus proposés dans les sélections</p>
+                                <InputLabel htmlFor="edit_is_active" value="Actif" className="mb-0" />
+                                <p className="text-xs text-gray-500">Les éléments inactifs ne sont plus proposés dans les sélections</p>
                             </div>
                             <ToggleSwitch
                                 checked={editForm.data.is_active}
@@ -480,6 +771,7 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                             />
                         </div>
 
+                        {editForm.data.asset_type === 'vehicle' && (
                         <div className="bg-purple-50 rounded-xl p-4 space-y-4">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -507,11 +799,12 @@ export default function Show({ auth, vehicle, types, fuelTypes, employees }) {
                                 </div>
                             )}
                         </div>
+                        )}
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeEdit}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={editForm.processing} className="bg-gray-700 hover:bg-gray-800">
-                                {editForm.processing ? 'Mise à jour...' : 'Mettre à Jour le Véhicule'}
+                                {editForm.processing ? 'Mise à jour...' : "Mettre à Jour l'Actif"}
                             </PrimaryButton>
                         </div>
                     </form>

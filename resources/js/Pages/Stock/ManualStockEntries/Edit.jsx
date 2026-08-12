@@ -140,7 +140,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         >
                                             <option value="">-- Sélectionner un véhicule --</option>
                                             {vehicles.map((vehicle) => (
-                                                <option key={vehicle.id} value={vehicle.id}>{vehicle.name} ({vehicle.plate_number})</option>
+                                                <option key={vehicle.id} value={vehicle.id}>{vehicle.name}{(vehicle.plate_number || vehicle.serial_number) ? ` (${vehicle.plate_number || vehicle.serial_number})` : ''}</option>
                                             ))}
                                         </select>
                                         <InputError message={errors.vehicle_id} className="mt-2" />

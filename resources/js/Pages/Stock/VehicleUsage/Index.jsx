@@ -156,7 +156,7 @@ export default function Index({ auth, vehicles, days, startDate, endDate, existi
                                             <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-purple-50">
                                                 <div className="flex flex-col">
                                                     <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{vehicle.name}</span>
-                                                    <span className="text-[7px] text-gray-400 font-black tracking-widest">{vehicle.plate_number}</span>
+                                                    <span className="text-[7px] text-gray-400 font-black tracking-widest">{vehicle.plate_number || vehicle.serial_number || ''}</span>
                                                 </div>
                                             </td>
                                             {days.map(day => {

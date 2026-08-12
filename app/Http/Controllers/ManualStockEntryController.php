@@ -69,7 +69,7 @@ class ManualStockEntryController extends Controller
         $employees = Employee::where('is_active', true)
             ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
             ->get(['id', 'full_name']);
-        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'type']);
+        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'plate_number', 'serial_number', 'type', 'asset_type']);
         $blocs = Bloc::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']);
         $sectors = Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id']);
         $parcelles = Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id', 'sector_id']);
@@ -95,7 +95,7 @@ class ManualStockEntryController extends Controller
 
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'entry_type' => 'required|in:consumption,transfer,loss,theft,damage',
+            'entry_type' => 'required|in:consumption,transfer,loss,theft,damage,maintenance',
             'quantity' => 'required|numeric|min:0',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -204,7 +204,7 @@ class ManualStockEntryController extends Controller
                 }
             })
             ->get(['id', 'full_name']);
-        $vehicles = Vehicle::where('farm_id', $entry->farm_id)->get(['id', 'name', 'plate_number', 'type']);
+        $vehicles = Vehicle::where('farm_id', $entry->farm_id)->get(['id', 'name', 'plate_number', 'serial_number', 'type', 'asset_type']);
         $blocs = Bloc::where('farm_id', $entry->farm_id)->get(['id', 'name']);
         $sectors = Sector::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name', 'bloc_id']);
         $parcelles = Parcelle::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name', 'bloc_id', 'sector_id']);
@@ -229,7 +229,7 @@ class ManualStockEntryController extends Controller
 
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
-            'entry_type' => 'sometimes|required|in:consumption,transfer,loss,theft,damage',
+            'entry_type' => 'sometimes|required|in:consumption,transfer,loss,theft,damage,maintenance',
             'quantity' => 'sometimes|required|numeric|min:0',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',

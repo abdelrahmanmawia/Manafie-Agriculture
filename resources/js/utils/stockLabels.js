@@ -27,6 +27,7 @@ export const ENTRY_TYPE_LABELS = {
     loss: 'Perte',
     theft: 'Vol',
     damage: 'Dommage',
+    maintenance: 'Maintenance',
 };
 
 export const MOVEMENT_TYPE_LABELS = {
@@ -62,4 +63,24 @@ export const FUEL_TRANSACTION_TYPE_LABELS = {
     fueling: 'Ravitaillement',
     transfer: 'Transfert',
     adjustment: 'Ajustement',
+};
+
+export const ASSET_TYPE_LABELS = {
+    vehicle: 'Véhicule',
+    equipment: 'Équipement',
+};
+
+export const ASSET_STATUS_LABELS = {
+    operational: { label: 'Opérationnel', className: 'bg-green-100 text-green-700' },
+    in_repair: { label: 'En Panne', className: 'bg-orange-100 text-orange-700' },
+    retired: { label: 'Retiré', className: 'bg-gray-200 text-gray-600' },
+};
+
+export const EQUIPMENT_TYPE_LABELS = {
+    pump: 'Pompe',
+    generator: 'Générateur',
+    sprayer: 'Pulvérisateur',
+    compressor: 'Compresseur',
+    tool: 'Outil',
+    other: 'Autre',
 };

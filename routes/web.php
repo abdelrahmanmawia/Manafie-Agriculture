@@ -12,6 +12,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\HarvestController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\VehicleController;
+use App\Http\Controllers\VehicleMaintenanceLogController;
 use App\Http\Controllers\VehicleUsageController;
 use App\Http\Controllers\StockInventoryController;
 use App\Http\Controllers\StockMovementController;
@@ -130,6 +131,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('stock.vehicles.update');
     Route::delete('/stock/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('stock.vehicles.destroy');
     Route::post('/stock/vehicles/{vehicle}/toggle-active', [VehicleController::class, 'toggleActive'])->name('stock.vehicles.toggle-active');
+
+    // Stock Management - Vehicle/Equipment Maintenance Logs
+    Route::post('/stock/vehicles/{vehicle}/maintenance-logs', [VehicleMaintenanceLogController::class, 'store'])->name('stock.vehicles.maintenance-logs.store');
+    Route::put('/stock/vehicles/maintenance-logs/{maintenanceLog}', [VehicleMaintenanceLogController::class, 'update'])->name('stock.vehicles.maintenance-logs.update');
+    Route::delete('/stock/vehicles/maintenance-logs/{maintenanceLog}', [VehicleMaintenanceLogController::class, 'destroy'])->name('stock.vehicles.maintenance-logs.destroy');
 
     // Stock Management - Vehicle Usage / Location (rental tracking)
     Route::get('/stock/vehicle-usage', [VehicleUsageController::class, 'index'])->name('stock.vehicle-usage.index');
