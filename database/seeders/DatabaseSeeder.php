@@ -17,7 +17,10 @@ class DatabaseSeeder extends Seeder
         $this->call([
             CsvDataSeeder::class,
             PrsRealDataSeeder::class,
-            StockSeeder::class, // Add StockSeeder here
+            // StockSeeder generated random demo products/vehicles — replaced by real farm
+            // data below. Left in the repo (unused) in case a non-Persealand dev environment
+            // ever needs quick placeholder Stock data again.
+            StockRealDataSeeder::class,
         ]);
     }
 }
