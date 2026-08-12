@@ -58,7 +58,9 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
         type: types.length > 0 ? types[0] : '',
         model: '',
         fuel_type: fuelTypes.length > 0 ? fuelTypes[0] : '',
+        capacity_liters: '',
         status: 'operational',
+        quantity: 1,
         default_driver_id: '',
         is_active: true,
         is_location: false,
@@ -98,7 +100,9 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
             type: vehicle.type,
             model: vehicle.model || '',
             fuel_type: vehicle.fuel_type,
+            capacity_liters: vehicle.capacity_liters ?? '',
             status: vehicle.status || 'operational',
+            quantity: vehicle.quantity || 1,
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
@@ -303,7 +307,12 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                                                             </svg>
                                                         </div>
                                                         <div className="ml-4">
-                                                            <div className="text-sm font-medium text-gray-900">{vehicle.name}</div>
+                                                            <div className="text-sm font-medium text-gray-900">
+                                                                {vehicle.name}
+                                                                {vehicle.quantity > 1 && (
+                                                                    <span className="ml-1.5 text-xs font-semibold text-gray-500">×{vehicle.quantity}</span>
+                                                                )}
+                                                            </div>
                                                             <div className="text-xs text-gray-500">{vehicle.plate_number || vehicle.serial_number || '—'}</div>
                                                         </div>
                                                     </div>
@@ -480,6 +489,21 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                             </div>
 
                             <div>
+                                <InputLabel htmlFor="quantity" value="Quantité" />
+                                <TextInput
+                                    id="quantity"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    className="mt-1 block w-full"
+                                    value={data.quantity}
+                                    onChange={(e) => setData('quantity', e.target.value)}
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Pour un lot identique non suivi individuellement (ex : 2 broyeurs).</p>
+                                <InputError message={errors.quantity} className="mt-2" />
+                            </div>
+
+                            <div>
                                 <InputLabel htmlFor="fuel_type" value="Type de Carburant" />
                                 <select
                                     id="fuel_type"
@@ -492,6 +516,21 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                                     ))}
                                 </select>
                                 <InputError message={errors.fuel_type} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="capacity_liters" value="Capacité du Réservoir (L)" />
+                                <TextInput
+                                    id="capacity_liters"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="mt-1 block w-full"
+                                    value={data.capacity_liters}
+                                    onChange={(e) => setData('capacity_liters', e.target.value)}
+                                    placeholder="Ex: 2000"
+                                />
+                                <InputError message={errors.capacity_liters} className="mt-2" />
                             </div>
 
                             <div>

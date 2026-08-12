@@ -18,7 +18,9 @@ class Vehicle extends Model
         'type',
         'model',
         'fuel_type',
+        'capacity_liters',
         'status',
+        'quantity',
         'default_daily_rate',
         'purchase_date',
         'is_location',
@@ -31,6 +33,8 @@ class Vehicle extends Model
         'is_active' => 'boolean',
         'is_location' => 'boolean',
         'purchase_date' => 'date',
+        'capacity_liters' => 'decimal:2',
+        'quantity' => 'integer',
     ];
 
     public function farm()

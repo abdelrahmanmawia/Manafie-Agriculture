@@ -37,7 +37,9 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
         type: vehicle.type,
         model: vehicle.model || '',
         fuel_type: vehicle.fuel_type,
+        capacity_liters: vehicle.capacity_liters ?? '',
         status: vehicle.status || 'operational',
+        quantity: vehicle.quantity || 1,
         default_driver_id: vehicle.default_driver_id || '',
         is_active: vehicle.is_active,
         is_location: vehicle.is_location,
@@ -74,7 +76,9 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
             type: vehicle.type,
             model: vehicle.model || '',
             fuel_type: vehicle.fuel_type,
+            capacity_liters: vehicle.capacity_liters ?? '',
             status: vehicle.status || 'operational',
+            quantity: vehicle.quantity || 1,
             default_driver_id: vehicle.default_driver_id || '',
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
@@ -226,7 +230,12 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                         </svg>
                                     </div>
                                     <div>
-                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{vehicle.name}</h3>
+                                        <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">
+                                            {vehicle.name}
+                                            {vehicle.quantity > 1 && (
+                                                <span className="ml-2 text-base text-gray-500 normal-case tracking-normal">×{vehicle.quantity}</span>
+                                            )}
+                                        </h3>
                                         <div className="flex items-center gap-3 mt-2 flex-wrap">
                                             <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
                                                 {ASSET_TYPE_LABELS[vehicle.asset_type] || vehicle.asset_type}
@@ -316,6 +325,10 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                             <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50 md:border-t md:pt-4 md:mt-2">
                                 <span className="text-gray-500">Date d'Achat</span>
                                 <span className="font-medium text-gray-900">{vehicle.purchase_date ? formatDate(vehicle.purchase_date) : 'N/A'}</span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50 md:border-t md:pt-4 md:mt-2">
+                                <span className="text-gray-500">Capacité du Réservoir</span>
+                                <span className="font-medium text-gray-900">{vehicle.capacity_liters ? `${formatNumber(vehicle.capacity_liters, 0)} L` : 'N/A'}</span>
                             </div>
                         </div>
                     </div>
@@ -691,6 +704,20 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                             </div>
 
                             <div>
+                                <InputLabel htmlFor="edit_quantity" value="Quantité" />
+                                <TextInput
+                                    id="edit_quantity"
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.quantity}
+                                    onChange={(e) => editForm.setData('quantity', e.target.value)}
+                                />
+                                <InputError message={editForm.errors.quantity} className="mt-2" />
+                            </div>
+
+                            <div>
                                 <InputLabel htmlFor="edit_fuel_type" value="Type de Carburant" />
                                 <select
                                     id="edit_fuel_type"
@@ -703,6 +730,20 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                     ))}
                                 </select>
                                 <InputError message={editForm.errors.fuel_type} className="mt-2" />
+                            </div>
+
+                            <div>
+                                <InputLabel htmlFor="edit_capacity_liters" value="Capacité du Réservoir (L)" />
+                                <TextInput
+                                    id="edit_capacity_liters"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="mt-1 block w-full"
+                                    value={editForm.data.capacity_liters}
+                                    onChange={(e) => editForm.setData('capacity_liters', e.target.value)}
+                                />
+                                <InputError message={editForm.errors.capacity_liters} className="mt-2" />
                             </div>
 
                             <div>

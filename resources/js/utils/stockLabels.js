@@ -49,6 +49,7 @@ export const VEHICLE_TYPE_LABELS = {
     truck: 'Camion',
     van: 'Camionnette',
     car: 'Voiture',
+    quad: 'Quad',
     other: 'Autre',
 };
 
@@ -79,8 +80,13 @@ export const ASSET_STATUS_LABELS = {
 export const EQUIPMENT_TYPE_LABELS = {
     pump: 'Pompe',
     generator: 'Générateur',
-    sprayer: 'Pulvérisateur',
+    sprayer: 'Pulvérisateur / Atomiseur',
     compressor: 'Compresseur',
+    mulcher: 'Broyeur',
+    plow: 'Charrue à Disque',
+    mower: 'Faucheuse',
+    leveler: 'Lame Niveleuse',
+    roller: 'Rouleau Cover Crop',
     tool: 'Outil',
     other: 'Autre',
 };
