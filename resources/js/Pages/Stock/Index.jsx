@@ -11,7 +11,7 @@ import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { CATEGORY_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations }) {
+export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
     const [isCreating, setIsCreating] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -47,6 +47,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
         quantity: '',
         employee_id: '',
         vehicle_id: '',
+        maintenance_log_id: '',
         operation_id: '',
         bloc_id: '',
         sector_id: '',
@@ -55,6 +56,12 @@ export default function Index({ auth, products, categories, unitTypes, employees
         notes: '',
         odometer_km: '',
     });
+
+    const formatLogOption = (log) => {
+        const date = new Date(log.performed_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+        return `${date} — ${log.description.slice(0, 60)}`;
+    };
+    const vehicleLogsFor = (vehicleId) => vehicleMaintenanceLogs.filter((log) => String(log.vehicle_id) === String(vehicleId));
 
     const sortieSelectedVehicle = vehicles.find((v) => String(v.id) === String(sortieForm.data.vehicle_id));
     // A tractor/truck works a field (bloc/opération apply); a car/van is just transport (they don't).
@@ -144,6 +151,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                 quantity: '',
                 employee_id: '',
                 vehicle_id: '',
+                maintenance_log_id: '',
                 operation_id: '',
                 bloc_id: '',
                 sector_id: '',
@@ -713,7 +721,11 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             id="sortie_entry_type"
                                             className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
                                             value={sortieForm.data.entry_type}
-                                            onChange={(e) => sortieForm.setData('entry_type', e.target.value)}
+                                            onChange={(e) => sortieForm.setData((prev) => ({
+                                                ...prev,
+                                                entry_type: e.target.value,
+                                                maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
+                                            }))}
                                             required
                                         >
                                             <option value="consumption">Consommation</option>
@@ -721,6 +733,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             <option value="loss">Perte</option>
                                             <option value="theft">Vol</option>
                                             <option value="damage">Dommage</option>
+                                            <option value="maintenance">Maintenance</option>
                                         </select>
                                         <InputError message={sortieForm.errors.entry_type} className="mt-2" />
                                     </div>
@@ -777,7 +790,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                 id="sortie_vehicle_id"
                                                 className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
                                                 value={sortieForm.data.vehicle_id}
-                                                onChange={(e) => sortieForm.setData('vehicle_id', e.target.value)}
+                                                onChange={(e) => sortieForm.setData((prev) => ({ ...prev, vehicle_id: e.target.value, maintenance_log_id: '' }))}
                                             >
                                                 <option value="">-- Sélectionner un véhicule --</option>
                                                 {vehicles.map((vehicle) => (
@@ -802,6 +815,25 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                 placeholder="Ex: 12500.5"
                                             />
                                             <InputError message={sortieForm.errors.odometer_km} className="mt-2" />
+                                        </div>
+                                    )}
+
+                                    {isVehicleConsumable(movementModal.product) && sortieForm.data.vehicle_id && sortieForm.data.entry_type === 'maintenance' && (
+                                        <div className="md:col-span-2">
+                                            <InputLabel htmlFor="sortie_maintenance_log_id" value="Intervention de Maintenance Liée" />
+                                            <select
+                                                id="sortie_maintenance_log_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
+                                                value={sortieForm.data.maintenance_log_id}
+                                                onChange={(e) => sortieForm.setData('maintenance_log_id', e.target.value)}
+                                            >
+                                                <option value="">-- Aucune (pièce hors intervention) --</option>
+                                                {vehicleLogsFor(sortieForm.data.vehicle_id).map((log) => (
+                                                    <option key={log.id} value={log.id}>{formatLogOption(log)}</option>
+                                                ))}
+                                            </select>
+                                            <p className="text-xs text-gray-500 mt-1">Rattache le coût de cette pièce à une intervention enregistrée sur la fiche du véhicule.</p>
+                                            <InputError message={sortieForm.errors.maintenance_log_id} className="mt-2" />
                                         </div>
                                     )}
 

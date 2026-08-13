@@ -12,6 +12,7 @@ use App\Models\Parcelle;
 use App\Models\Product;
 use App\Models\Sector;
 use App\Models\Vehicle;
+use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
@@ -69,6 +70,11 @@ class ProductController extends Controller
             'sectors' => Sector::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id']),
             'parcelles' => Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id', 'sector_id']),
             'operations' => Operation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']),
+            // Lets the "Sortie" modal's "Intervention liée" select filter, client-side, to
+            // whichever vehicle is picked — mirrors ManualStockEntryController::maintenanceLogsFor().
+            'vehicleMaintenanceLogs' => VehicleMaintenanceLog::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+                ->orderByDesc('performed_at')
+                ->get(['id', 'vehicle_id', 'description', 'performed_at']),
         ]);
     }
 

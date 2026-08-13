@@ -10,7 +10,7 @@ import InputError from '@/Components/InputError';
 import { formatNumber } from '@/utils/number';
 import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations }) {
+export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
@@ -21,6 +21,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         quantity: '',
         employee_id: '',
         vehicle_id: '',
+        maintenance_log_id: '',
         pointage_record_id: '',
         operation_id: '',
         bloc_id: '',
@@ -30,6 +31,12 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         notes: '',
         odometer_km: '',
     });
+
+    const formatLogOption = (log) => {
+        const date = new Date(log.performed_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+        return `${date} — ${log.description.slice(0, 60)}`;
+    };
+    const vehicleLogsFor = (vehicleId) => vehicleMaintenanceLogs.filter((log) => String(log.vehicle_id) === String(vehicleId));
 
     const filteredSectors = data.bloc_id
         ? sectors.filter((sector) => String(sector.bloc_id) === String(data.bloc_id))
@@ -77,6 +84,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
             'loss': 'bg-orange-100 text-orange-800',
             'theft': 'bg-purple-100 text-purple-800',
             'damage': 'bg-yellow-100 text-yellow-800',
+            'maintenance': 'bg-teal-100 text-teal-800',
         };
         return colors[type] || 'bg-gray-100 text-gray-800';
     };
@@ -141,6 +149,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     <option value="loss">Perte</option>
                                     <option value="theft">Vol</option>
                                     <option value="damage">Dommage</option>
+                                    <option value="maintenance">Maintenance</option>
                                 </select>
                             </div>
                         </div>
@@ -233,6 +242,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     <div className="text-xs">
                                                         {entry.vehicle?.name && <div>{entry.vehicle.name}</div>}
+                                                        {entry.maintenance_log && <div className="text-teal-600">🔧 {entry.maintenance_log.description.slice(0, 30)}</div>}
                                                         {entry.operation?.name && <div>{entry.operation.name}</div>}
                                                         {entry.bloc?.name && <div>{entry.bloc.name}</div>}
                                                         {!entry.vehicle && !entry.operation && !entry.bloc && <span>-</span>}
@@ -336,7 +346,11 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     id="entry_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
                                     value={data.entry_type}
-                                    onChange={(e) => setData('entry_type', e.target.value)}
+                                    onChange={(e) => setData((prev) => ({
+                                        ...prev,
+                                        entry_type: e.target.value,
+                                        maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
+                                    }))}
                                     required
                                 >
                                     <option value="consumption">Consommation</option>
@@ -344,6 +358,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     <option value="loss">Perte</option>
                                     <option value="theft">Vol</option>
                                     <option value="damage">Dommage</option>
+                                    <option value="maintenance">Maintenance</option>
                                 </select>
                                 <InputError message={errors.entry_type} className="mt-2" />
                             </div>
@@ -399,7 +414,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                         id="vehicle_id"
                                         className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
                                         value={data.vehicle_id}
-                                        onChange={(e) => setData('vehicle_id', e.target.value)}
+                                        onChange={(e) => setData((prev) => ({ ...prev, vehicle_id: e.target.value, maintenance_log_id: '' }))}
                                     >
                                         <option value="">-- Sélectionner un véhicule --</option>
                                         {vehicles.map((vehicle) => (
@@ -424,6 +439,25 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                         placeholder="Ex: 12500.5"
                                     />
                                     <InputError message={errors.odometer_km} className="mt-2" />
+                                </div>
+                            )}
+
+                            {isVehicleConsumable && data.vehicle_id && data.entry_type === 'maintenance' && (
+                                <div className="md:col-span-2">
+                                    <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
+                                    <select
+                                        id="maintenance_log_id"
+                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                        value={data.maintenance_log_id}
+                                        onChange={(e) => setData('maintenance_log_id', e.target.value)}
+                                    >
+                                        <option value="">-- Aucune (pièce hors intervention) --</option>
+                                        {vehicleLogsFor(data.vehicle_id).map((log) => (
+                                            <option key={log.id} value={log.id}>{formatLogOption(log)}</option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 mt-1">Rattache le coût de cette pièce à une intervention enregistrée sur la fiche du véhicule.</p>
+                                    <InputError message={errors.maintenance_log_id} className="mt-2" />
                                 </div>
                             )}
 

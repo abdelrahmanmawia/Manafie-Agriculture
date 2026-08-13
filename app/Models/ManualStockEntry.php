@@ -18,6 +18,7 @@ class ManualStockEntry extends Model
         'quantity',
         'employee_id',
         'vehicle_id',
+        'maintenance_log_id',
         'pointage_record_id',
         'operation_id',
         'bloc_id',
@@ -60,6 +61,11 @@ class ManualStockEntry extends Model
     public function vehicle(): BelongsTo
     {
         return $this->belongsTo(Vehicle::class);
+    }
+
+    public function maintenanceLog(): BelongsTo
+    {
+        return $this->belongsTo(VehicleMaintenanceLog::class, 'maintenance_log_id');
     }
 
     public function pointageRecord(): BelongsTo

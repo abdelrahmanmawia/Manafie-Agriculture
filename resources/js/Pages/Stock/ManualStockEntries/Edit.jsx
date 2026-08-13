@@ -7,13 +7,14 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Edit({ auth, manualStockEntry, products, employees, vehicles, blocs, sectors, parcelles, operations }) {
+export default function Edit({ auth, manualStockEntry, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
     const { data, setData, put, processing, errors } = useForm({
         product_id: manualStockEntry.product_id,
         entry_type: manualStockEntry.entry_type,
         quantity: manualStockEntry.quantity,
         employee_id: manualStockEntry.employee_id || '',
         vehicle_id: manualStockEntry.vehicle_id || '',
+        maintenance_log_id: manualStockEntry.maintenance_log_id || '',
         pointage_record_id: manualStockEntry.pointage_record_id || '',
         operation_id: manualStockEntry.operation_id || '',
         bloc_id: manualStockEntry.bloc_id || '',
@@ -35,6 +36,12 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
     const filteredParcelles = data.sector_id
         ? parcelles.filter((parcelle) => String(parcelle.sector_id) === String(data.sector_id))
         : [];
+
+    const formatLogOption = (log) => {
+        const date = new Date(log.performed_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+        return `${date} — ${log.description.slice(0, 60)}`;
+    };
+    const vehicleLogsFor = (vehicleId) => vehicleMaintenanceLogs.filter((log) => String(log.vehicle_id) === String(vehicleId));
 
     const submit = (e) => {
         e.preventDefault();
@@ -87,7 +94,11 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         id="entry_type"
                                         className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                                         value={data.entry_type}
-                                        onChange={(e) => setData('entry_type', e.target.value)}
+                                        onChange={(e) => setData((prev) => ({
+                                            ...prev,
+                                            entry_type: e.target.value,
+                                            maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
+                                        }))}
                                         required
                                     >
                                         <option value="consumption">Consommation</option>
@@ -95,6 +106,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         <option value="loss">Perte</option>
                                         <option value="theft">Vol</option>
                                         <option value="damage">Dommage</option>
+                                        <option value="maintenance">Maintenance</option>
                                     </select>
                                     <InputError message={errors.entry_type} className="mt-2" />
                                 </div>
@@ -136,7 +148,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                             id="vehicle_id"
                                             className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                                             value={data.vehicle_id}
-                                            onChange={(e) => setData('vehicle_id', e.target.value)}
+                                            onChange={(e) => setData((prev) => ({ ...prev, vehicle_id: e.target.value, maintenance_log_id: '' }))}
                                         >
                                             <option value="">-- Sélectionner un véhicule --</option>
                                             {vehicles.map((vehicle) => (
@@ -161,6 +173,24 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                             />
                                             <InputError message={errors.odometer_km} className="mt-2" />
                                         </div>
+                                    </div>
+                                )}
+
+                                {isVehicleConsumable && data.vehicle_id && data.entry_type === 'maintenance' && (
+                                    <div>
+                                        <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
+                                        <select
+                                            id="maintenance_log_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                            value={data.maintenance_log_id}
+                                            onChange={(e) => setData('maintenance_log_id', e.target.value)}
+                                        >
+                                            <option value="">-- Aucune (pièce hors intervention) --</option>
+                                            {vehicleLogsFor(data.vehicle_id).map((log) => (
+                                                <option key={log.id} value={log.id}>{formatLogOption(log)}</option>
+                                            ))}
+                                        </select>
+                                        <InputError message={errors.maintenance_log_id} className="mt-2" />
                                     </div>
                                 )}
 

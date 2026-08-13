@@ -24,6 +24,7 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [isAddingMaintenance, setIsAddingMaintenance] = useState(false);
+    const [editingMaintenanceLog, setEditingMaintenanceLog] = useState(null);
     const { delete: destroy, processing, errors } = useForm();
 
     const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
@@ -51,6 +52,7 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
     const maintenanceForm = useForm({
         description: '',
         performed_at: new Date().toISOString().slice(0, 10),
+        cost: '',
         performed_by_id: '',
         next_due_date: '',
     });
@@ -109,18 +111,41 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
     };
 
     const openAddMaintenance = () => {
+        setEditingMaintenanceLog(null);
         maintenanceForm.clearErrors();
         maintenanceForm.reset();
         setIsAddingMaintenance(true);
     };
 
-    const closeAddMaintenance = () => setIsAddingMaintenance(false);
+    const openEditMaintenance = (log) => {
+        setEditingMaintenanceLog(log);
+        maintenanceForm.clearErrors();
+        maintenanceForm.setData({
+            description: log.description,
+            performed_at: log.performed_at ? String(log.performed_at).slice(0, 10) : '',
+            cost: log.cost ?? '',
+            performed_by_id: log.performed_by_id || '',
+            next_due_date: log.next_due_date ? String(log.next_due_date).slice(0, 10) : '',
+        });
+        setIsAddingMaintenance(true);
+    };
+
+    const closeAddMaintenance = () => {
+        setIsAddingMaintenance(false);
+        setEditingMaintenanceLog(null);
+    };
 
     const submitMaintenance = (e) => {
         e.preventDefault();
-        maintenanceForm.post(route('stock.vehicles.maintenance-logs.store', vehicle.id), {
-            onSuccess: () => closeAddMaintenance(),
-        });
+        if (editingMaintenanceLog) {
+            maintenanceForm.put(route('stock.vehicles.maintenance-logs.update', editingMaintenanceLog.id), {
+                onSuccess: () => closeAddMaintenance(),
+            });
+        } else {
+            maintenanceForm.post(route('stock.vehicles.maintenance-logs.store', vehicle.id), {
+                onSuccess: () => closeAddMaintenance(),
+            });
+        }
     };
 
     const deleteMaintenanceLog = (log) => {
@@ -354,7 +379,12 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                             <div className="p-6 text-center text-sm text-gray-500">Aucune intervention de maintenance enregistrée.</div>
                         ) : (
                             <div className="divide-y divide-gray-100">
-                                {maintenanceLogs.map((log) => (
+                                {maintenanceLogs.map((log) => {
+                                    const parts = log.manual_stock_entries ?? [];
+                                    const partsCost = parts.reduce((sum, e) => sum + parseFloat(e.stock_movement?.total_cost || 0), 0);
+                                    const laborCost = parseFloat(log.cost || 0);
+                                    const totalCost = laborCost + partsCost;
+                                    return (
                                     <div key={log.id} className="p-4 flex items-center justify-between gap-4">
                                         <div>
                                             <p className="text-sm font-medium text-gray-900">{log.description}</p>
@@ -363,8 +393,31 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                                 {log.performed_by?.full_name ? ` · ${log.performed_by.full_name}` : ''}
                                                 {log.next_due_date ? ` · Prochaine échéance : ${formatDate(log.next_due_date)}` : ''}
                                             </p>
+                                            {parts.length > 0 && (
+                                                <p className="text-xs text-teal-700 mt-1">
+                                                    🔧 {parts.map((e) => e.product?.name).filter(Boolean).join(', ')} — {formatMAD(partsCost)}
+                                                </p>
+                                            )}
                                         </div>
-                                        <div className="flex items-center gap-3 shrink-0">
+                                        <div className="flex items-center gap-4 shrink-0">
+                                            {totalCost > 0 && (
+                                                <div className="text-right">
+                                                    <p className="text-sm font-semibold text-gray-900">{formatMAD(totalCost)}</p>
+                                                    {laborCost > 0 && partsCost > 0 && (
+                                                        <p className="text-xs text-gray-400">dont {formatMAD(laborCost)} main d'œuvre</p>
+                                                    )}
+                                                </div>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditMaintenance(log)}
+                                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                title="Modifier"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
                                             {auth.user.role !== 'data_entry' && (
                                                 <button
                                                     type="button"
@@ -379,7 +432,8 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                             )}
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -512,11 +566,11 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                 </form>
             </Modal>
 
-            {/* ADD MAINTENANCE LOG MODAL */}
+            {/* ADD / EDIT MAINTENANCE LOG MODAL */}
             <Modal show={isAddingMaintenance} onClose={closeAddMaintenance}>
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Ajouter une Intervention</h3>
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{editingMaintenanceLog ? "Modifier l'Intervention" : 'Ajouter une Intervention'}</h3>
                         <button onClick={closeAddMaintenance} className="text-gray-400 hover:text-gray-600 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
@@ -554,6 +608,22 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                             </div>
 
                             <div>
+                                <InputLabel htmlFor="maint_cost" value="Coût (MAD)" />
+                                <TextInput
+                                    id="maint_cost"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="mt-1 block w-full"
+                                    value={maintenanceForm.data.cost}
+                                    onChange={(e) => maintenanceForm.setData('cost', e.target.value)}
+                                    placeholder="Ex: 350.00"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Main d'œuvre / facture garage — hors pièces sorties du magasin.</p>
+                                <InputError message={maintenanceForm.errors.cost} className="mt-2" />
+                            </div>
+
+                            <div>
                                 <InputLabel htmlFor="maint_performed_by_id" value="Effectué Par" />
                                 <select
                                     id="maint_performed_by_id"
@@ -586,7 +656,9 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeAddMaintenance}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={maintenanceForm.processing} className="bg-orange-600 hover:bg-orange-700">
-                                {maintenanceForm.processing ? 'Enregistrement...' : "Enregistrer l'Intervention"}
+                                {maintenanceForm.processing
+                                    ? 'Enregistrement...'
+                                    : (editingMaintenanceLog ? "Mettre à Jour l'Intervention" : "Enregistrer l'Intervention")}
                             </PrimaryButton>
                         </div>
                     </form>

@@ -154,6 +154,24 @@ export default function Show({ auth, manualStockEntry }) {
                         </div>
                     </div>
 
+                    {manualStockEntry.maintenance_log && (
+                        <div className="bg-teal-50 border border-teal-200 rounded-2xl p-5 flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-semibold text-teal-700 uppercase tracking-wider">Intervention de Maintenance Liée</p>
+                                <p className="text-sm text-teal-900 mt-1">{manualStockEntry.maintenance_log.description}</p>
+                                <p className="text-xs text-teal-600 mt-1">{formatDate(manualStockEntry.maintenance_log.performed_at)}</p>
+                            </div>
+                            {manualStockEntry.vehicle_id && (
+                                <Link
+                                    href={route('stock.vehicles.show', manualStockEntry.vehicle_id)}
+                                    className="text-teal-700 hover:text-teal-900 text-sm font-semibold shrink-0"
+                                >
+                                    Voir le véhicule →
+                                </Link>
+                            )}
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Location */}
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">

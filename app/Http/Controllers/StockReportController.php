@@ -9,6 +9,7 @@ use App\Models\ManualStockEntry;
 use App\Models\FuelTransaction;
 use App\Models\Product;
 use App\Models\Vehicle;
+use App\Models\VehicleMaintenanceLog;
 use App\Models\Bloc;
 use App\Models\Sector;
 use App\Models\Parcelle;
@@ -227,6 +228,75 @@ class StockReportController extends Controller
 
         return Inertia::render('Stock/Reports/CostPerHectare', [
             'costPerHectareData' => $costPerHectareData,        ]);
+    }
+
+    public function costPerVehicle(Request $request)
+    {
+        $farmId = $this->scopedFarmId($request);
+
+        $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->orderBy('name')
+            ->get();
+
+        $fuelStats = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->whereNotNull('vehicle_id')
+            ->selectRaw('vehicle_id, SUM(total_cost) as fuel_cost, SUM(quantity_liters) as fuel_liters, COUNT(*) as fuel_count')
+            ->groupBy('vehicle_id')
+            ->get()
+            ->keyBy('vehicle_id');
+
+        // Every entry_type counts here (consommation, perte, vol, dommage, maintenance...) —
+        // all of them represent stock value that left the magasin attributed to this vehicle,
+        // matching what Vehicles/Show.jsx already lists under "Historique de Consommation".
+        $partsStats = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->whereNotNull('vehicle_id')
+            ->with('stockMovement')
+            ->get()
+            ->groupBy('vehicle_id')
+            ->map(fn ($entries) => [
+                'parts_cost' => $entries->sum(fn ($entry) => (float) ($entry->stockMovement->total_cost ?? 0)),
+                'parts_count' => $entries->count(),
+            ]);
+
+        $maintenanceStats = VehicleMaintenanceLog::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->selectRaw('vehicle_id, SUM(cost) as maintenance_cost, COUNT(*) as maintenance_count')
+            ->groupBy('vehicle_id')
+            ->get()
+            ->keyBy('vehicle_id');
+
+        $costPerVehicleData = $vehicles->map(function ($vehicle) use ($fuelStats, $partsStats, $maintenanceStats) {
+            $fuel = $fuelStats->get($vehicle->id);
+            $parts = $partsStats->get($vehicle->id);
+            $maintenance = $maintenanceStats->get($vehicle->id);
+
+            $fuelCost = (float) ($fuel->fuel_cost ?? 0);
+            $partsCost = (float) ($parts['parts_cost'] ?? 0);
+            $maintenanceCost = (float) ($maintenance->maintenance_cost ?? 0);
+
+            return [
+                'vehicle_id' => $vehicle->id,
+                'vehicle_name' => $vehicle->name,
+                'asset_type' => $vehicle->asset_type,
+                'type' => $vehicle->type,
+                'plate_number' => $vehicle->plate_number,
+                'serial_number' => $vehicle->serial_number,
+                'is_active' => $vehicle->is_active,
+                'fuel_cost' => $fuelCost,
+                'fuel_liters' => (float) ($fuel->fuel_liters ?? 0),
+                'fuel_count' => (int) ($fuel->fuel_count ?? 0),
+                'parts_cost' => $partsCost,
+                'parts_count' => (int) ($parts['parts_count'] ?? 0),
+                'maintenance_cost' => $maintenanceCost,
+                'maintenance_count' => (int) ($maintenance->maintenance_count ?? 0),
+                'total_cost' => $fuelCost + $partsCost + $maintenanceCost,
+            ];
+        })
+        ->sortByDesc('total_cost')
+        ->values();
+
+        return Inertia::render('Stock/Reports/CostPerVehicle', [
+            'costPerVehicleData' => $costPerVehicleData,
+        ]);
     }
 
     public function stockTurnover(Request $request)

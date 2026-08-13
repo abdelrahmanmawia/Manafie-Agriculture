@@ -13,6 +13,7 @@ use App\Models\Parcelle;
 use App\Models\Operation; // Assuming an Operation model exists
 use App\Models\StockMovement;
 use App\Models\StockInventory;
+use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,11 +33,20 @@ class ManualStockEntryController extends Controller
         abort_unless($farmId && $entry->farm_id === $farmId, 403);
     }
 
+    // Lets the "Intervention liée" select on the sortie form filter, client-side, to the
+    // logs belonging to whichever vehicle is picked — one query, no per-vehicle round trip.
+    private function maintenanceLogsFor(?int $farmId)
+    {
+        return VehicleMaintenanceLog::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->orderByDesc('performed_at')
+            ->get(['id', 'vehicle_id', 'description', 'performed_at']);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
 
-        $query = ManualStockEntry::with('product', 'employee', 'vehicle', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
+        $query = ManualStockEntry::with('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('entry_type')) {
@@ -84,7 +94,9 @@ class ManualStockEntryController extends Controller
             'blocs' => $blocs,
             'sectors' => $sectors,
             'parcelles' => $parcelles,
-            'operations' => $operations,        ]);
+            'operations' => $operations,
+            'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($farmId),
+        ]);
     }
 
     public function store(Request $request)
@@ -99,6 +111,7 @@ class ManualStockEntryController extends Controller
             'quantity' => 'required|numeric|min:0',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
+            'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',
             'pointage_record_id' => 'nullable|exists:pointage_records,id',
             'operation_id' => 'nullable|exists:operations,id',
             'bloc_id' => 'nullable|exists:blocs,id',
@@ -112,6 +125,13 @@ class ManualStockEntryController extends Controller
         $this->validateLocationHierarchy($validated['bloc_id'] ?? null, $validated['sector_id'] ?? null, $validated['parcelle_id'] ?? null);
 
         $farmId = $this->resolveWriteFarmId($request);
+
+        // The intervention picked must actually belong to the vehicle this sortie is for —
+        // otherwise a part could get attributed to the wrong repair's cost.
+        if (! empty($validated['maintenance_log_id'])) {
+            $log = VehicleMaintenanceLog::findOrFail($validated['maintenance_log_id']);
+            abort_unless($log->farm_id === $farmId && $log->vehicle_id == ($validated['vehicle_id'] ?? null), 403);
+        }
 
         return DB::transaction(function () use ($validated, $request, $farmId) {
             $product = Product::findOrFail($validated['product_id']);
@@ -143,6 +163,7 @@ class ManualStockEntryController extends Controller
                 'quantity' => $validated['quantity'],
                 'employee_id' => $validated['employee_id'] ?? null,
                 'vehicle_id' => $validated['vehicle_id'] ?? null,
+                'maintenance_log_id' => $validated['maintenance_log_id'] ?? null,
                 'pointage_record_id' => $validated['pointage_record_id'] ?? null,
                 'operation_id' => $validated['operation_id'] ?? null,
                 'bloc_id' => $validated['bloc_id'] ?? null,
@@ -182,7 +203,7 @@ class ManualStockEntryController extends Controller
     {
         $this->assertEntryInScope($request, $entry);
 
-        $entry->load('product', 'employee', 'vehicle', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
+        $entry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
 
         return Inertia::render('Stock/ManualStockEntries/Show', [
             'manualStockEntry' => $entry,
@@ -219,6 +240,7 @@ class ManualStockEntryController extends Controller
             'sectors' => $sectors,
             'parcelles' => $parcelles,
             'operations' => $operations,
+            'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($entry->farm_id),
         ]);
     }
 
@@ -233,6 +255,7 @@ class ManualStockEntryController extends Controller
             'quantity' => 'sometimes|required|numeric|min:0',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
+            'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',
             'pointage_record_id' => 'nullable|exists:pointage_records,id',
             'operation_id' => 'nullable|exists:operations,id',
             'bloc_id' => 'nullable|exists:blocs,id',
@@ -242,6 +265,13 @@ class ManualStockEntryController extends Controller
             'notes' => 'nullable|string',
             'odometer_km' => 'nullable|numeric|min:0',
         ]);
+
+        // Same cross-check as store(): the intervention must belong to the vehicle this
+        // sortie ends up attached to (whichever value — new or existing — wins).
+        if (! empty($validated['maintenance_log_id'])) {
+            $log = VehicleMaintenanceLog::findOrFail($validated['maintenance_log_id']);
+            abort_unless($log->farm_id === $entry->farm_id && $log->vehicle_id == ($validated['vehicle_id'] ?? $entry->vehicle_id), 403);
+        }
 
         $this->validateLocationHierarchy(
             $validated['bloc_id'] ?? $entry->bloc_id,

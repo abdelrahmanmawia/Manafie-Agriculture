@@ -176,7 +176,8 @@ class VehicleController extends Controller
             'manualStockEntries.employee',
             'manualStockEntries.stockMovement',
             'usages' => fn ($q) => $q->orderByDesc('date'),
-            'maintenanceLogs' => fn ($q) => $q->orderByDesc('performed_at')->with('performedBy'),
+            'maintenanceLogs' => fn ($q) => $q->orderByDesc('performed_at')
+                ->with(['performedBy', 'manualStockEntries.product', 'manualStockEntries.stockMovement']),
         ]);
 
         // Keep the vehicle's currently assigned driver selectable even if they've since gone

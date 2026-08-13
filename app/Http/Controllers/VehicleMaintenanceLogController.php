@@ -33,6 +33,7 @@ class VehicleMaintenanceLogController extends Controller
         $validated = $request->validate([
             'description' => 'required|string',
             'performed_at' => 'required|date',
+            'cost' => 'nullable|numeric|min:0',
             'performed_by_id' => 'nullable|exists:employees,id',
             'next_due_date' => 'nullable|date',
         ]);
@@ -53,6 +54,7 @@ class VehicleMaintenanceLogController extends Controller
         $validated = $request->validate([
             'description' => 'sometimes|required|string',
             'performed_at' => 'sometimes|required|date',
+            'cost' => 'nullable|numeric|min:0',
             'performed_by_id' => 'nullable|exists:employees,id',
             'next_due_date' => 'nullable|date',
         ]);

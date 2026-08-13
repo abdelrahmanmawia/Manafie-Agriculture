@@ -24,12 +24,19 @@ export default function Index({ auth }) {
             icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
             color: 'bg-purple-500'
         },
-        { 
-            name: 'Coût par Hectare', 
-            description: 'Calcul du coût des intrants par hectare pour les blocs.', 
+        {
+            name: 'Coût par Hectare',
+            description: 'Calcul du coût des intrants par hectare pour les blocs.',
             route: 'stock.reports.cost-per-hectare',
             icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
             color: 'bg-orange-500'
+        },
+        {
+            name: 'Coût par Véhicule',
+            description: 'Carburant, pièces et maintenance cumulés par véhicule et matériel.',
+            route: 'stock.reports.cost-per-vehicle',
+            icon: 'M5 13l1.5-4.5A2 2 0 018.4 7h7.2a2 2 0 011.9 1.5L19 13m-14 0h14m-14 0v4a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-4',
+            color: 'bg-teal-500'
         },
         {
             name: 'Rotation des Stocks',

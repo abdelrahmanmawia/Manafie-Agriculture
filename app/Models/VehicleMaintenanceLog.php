@@ -14,6 +14,7 @@ class VehicleMaintenanceLog extends Model
         'farm_id',
         'description',
         'performed_at',
+        'cost',
         'performed_by_id',
         'next_due_date',
         'created_by',
@@ -22,6 +23,7 @@ class VehicleMaintenanceLog extends Model
     protected $casts = [
         'performed_at' => 'date',
         'next_due_date' => 'date',
+        'cost' => 'decimal:2',
     ];
 
     public function vehicle()
@@ -42,5 +44,12 @@ class VehicleMaintenanceLog extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    // Sorties de stock (pièces) rattachées à cette intervention — voir
+    // ManualStockEntry::maintenanceLog() pour le sens inverse.
+    public function manualStockEntries()
+    {
+        return $this->hasMany(ManualStockEntry::class, 'maintenance_log_id');
     }
 }
