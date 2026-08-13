@@ -149,6 +149,9 @@ export default function MovementHistory({ auth, movementHistory }) {
                                                     Effectué par
                                                 </th>
                                                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                    Pris par
+                                                </th>
+                                                <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                     Destination
                                                 </th>
                                                 <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -178,7 +181,10 @@ export default function MovementHistory({ auth, movementHistory }) {
                                                         {movement.performed_by?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        {movement.reference?.bloc?.name || movement.reference?.sector?.name || movement.reference?.parcelle?.name || movement.reference?.vehicle?.name || 'N/A'}
+                                                        {movement.reference?.employee?.full_name || 'N/A'}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                        {[movement.reference?.bloc?.name, movement.reference?.sector?.name, movement.reference?.parcelle?.name].filter(Boolean).join(' / ') || movement.reference?.vehicle?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         {movement.notes || 'N/A'}

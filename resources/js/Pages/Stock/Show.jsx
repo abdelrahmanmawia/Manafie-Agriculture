@@ -124,6 +124,15 @@ export default function Show({ auth, product, categories, unitTypes }) {
         return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
+    // Compact "who took it / where it went" line for a movement, built from its manual
+    // entry reference — empty for movements with no reference (e.g. a plain réception).
+    const movementDestination = (movement) => {
+        const ref = movement.reference;
+        if (!ref) return '';
+        const location = [ref.bloc?.name, ref.sector?.name, ref.parcelle?.name].filter(Boolean).join('/') || ref.vehicle?.name;
+        return [ref.employee?.full_name, location].filter(Boolean).join(' → ');
+    };
+
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -319,7 +328,10 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                                 </div>
                                                 <div>
                                                     <p className="font-medium text-gray-900">{MOVEMENT_TYPE_LABELS[movement.movement_type]?.label || movement.movement_type}</p>
-                                                    <p className="text-sm text-gray-500">{formatDate(movement.date)}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        {formatDate(movement.date)}
+                                                        {movementDestination(movement) && ` · ${movementDestination(movement)}`}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <div className="text-right">

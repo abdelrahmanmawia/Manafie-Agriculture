@@ -92,6 +92,7 @@ export default function Index({ auth, stockMovements, products }) {
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantité</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Coût Total</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Effectué par</th>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pris par</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destination</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</th>
                                         </tr>
@@ -109,8 +110,9 @@ export default function Index({ auth, stockMovements, products }) {
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[movement.product?.unit_type] || movement.product?.unit_type}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.performed_by?.name || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.reference?.employee?.full_name || 'N/A'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                        {movement.reference?.bloc?.name || movement.reference?.sector?.name || movement.reference?.parcelle?.name || movement.reference?.vehicle?.name || 'N/A'}
+                                                        {[movement.reference?.bloc?.name, movement.reference?.sector?.name, movement.reference?.parcelle?.name].filter(Boolean).join(' / ') || movement.reference?.vehicle?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.notes || 'N/A'}</td>
                                                 </tr>

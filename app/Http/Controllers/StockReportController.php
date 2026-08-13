@@ -59,7 +59,7 @@ class StockReportController extends Controller
                 'performedBy',
                 'reference' => function ($morphTo) {
                     $morphTo->morphWith([
-                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
+                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
                         FuelTransaction::class => ['vehicle'],
                     ]);
                 },

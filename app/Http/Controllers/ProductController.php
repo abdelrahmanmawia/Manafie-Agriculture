@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Bloc;
 use App\Models\Employee;
 use App\Models\Farm;
+use App\Models\FuelTransaction;
+use App\Models\ManualStockEntry;
 use App\Models\Operation;
 use App\Models\Parcelle;
 use App\Models\Product;
@@ -152,7 +154,18 @@ class ProductController extends Controller
     {
         $this->assertProductInScope($request, $product);
 
-        $product->load('stockInventory', 'stockMovements', 'stockAlerts');
+        $product->load([
+            'stockInventory',
+            'stockAlerts',
+            'stockMovements' => function ($query) {
+                $query->with(['reference' => function ($morphTo) {
+                    $morphTo->morphWith([
+                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
+                        FuelTransaction::class => ['vehicle'],
+                    ]);
+                }])->orderBy('date', 'desc')->orderBy('created_at', 'desc');
+            },
+        ]);
 
         return Inertia::render('Stock/Show', [
             'product' => $product,
