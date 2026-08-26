@@ -199,40 +199,40 @@ class ManualStockEntryController extends Controller
         });
     }
 
-    public function show(Request $request, ManualStockEntry $entry)
+    public function show(Request $request, ManualStockEntry $manualStockEntry)
     {
-        $this->assertEntryInScope($request, $entry);
+        $this->assertEntryInScope($request, $manualStockEntry);
 
-        $entry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
+        $manualStockEntry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
 
         return Inertia::render('Stock/ManualStockEntries/Show', [
-            'manualStockEntry' => $entry,
+            'manualStockEntry' => $manualStockEntry,
         ]);
     }
 
-    public function edit(Request $request, ManualStockEntry $entry)
+    public function edit(Request $request, ManualStockEntry $manualStockEntry)
     {
-        $this->assertEntryInScope($request, $entry);
+        $this->assertEntryInScope($request, $manualStockEntry);
 
-        $products = Product::where('farm_id', $entry->farm_id)->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
+        $products = Product::where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
         // Keep the entry's currently assigned employee selectable even if they've since gone
         // inactive, so editing the entry doesn't silently drop that field.
-        $employees = Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $entry->farm_id))
-            ->where(function ($q) use ($entry) {
+        $employees = Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $manualStockEntry->farm_id))
+            ->where(function ($q) use ($manualStockEntry) {
                 $q->where('is_active', true);
-                if ($entry->employee_id) {
-                    $q->orWhere('id', $entry->employee_id);
+                if ($manualStockEntry->employee_id) {
+                    $q->orWhere('id', $manualStockEntry->employee_id);
                 }
             })
             ->get(['id', 'full_name']);
-        $vehicles = Vehicle::where('farm_id', $entry->farm_id)->get(['id', 'name', 'plate_number', 'serial_number', 'type', 'asset_type']);
-        $blocs = Bloc::where('farm_id', $entry->farm_id)->get(['id', 'name']);
-        $sectors = Sector::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name', 'bloc_id']);
-        $parcelles = Parcelle::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $entry->farm_id))->get(['id', 'name', 'bloc_id', 'sector_id']);
-        $operations = Operation::where('farm_id', $entry->farm_id)->get(['id', 'name']);
+        $vehicles = Vehicle::where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'plate_number', 'serial_number', 'type', 'asset_type']);
+        $blocs = Bloc::where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name']);
+        $sectors = Sector::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $manualStockEntry->farm_id))->get(['id', 'name', 'bloc_id']);
+        $parcelles = Parcelle::whereHas('bloc', fn ($bq) => $bq->where('farm_id', $manualStockEntry->farm_id))->get(['id', 'name', 'bloc_id', 'sector_id']);
+        $operations = Operation::where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name']);
 
         return Inertia::render('Stock/ManualStockEntries/Edit', [
-            'manualStockEntry' => $entry,
+            'manualStockEntry' => $manualStockEntry,
             'products' => $products,
             'employees' => $employees,
             'vehicles' => $vehicles,
@@ -240,14 +240,14 @@ class ManualStockEntryController extends Controller
             'sectors' => $sectors,
             'parcelles' => $parcelles,
             'operations' => $operations,
-            'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($entry->farm_id),
+            'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($manualStockEntry->farm_id),
         ]);
     }
 
-    public function update(Request $request, ManualStockEntry $entry)
+    public function update(Request $request, ManualStockEntry $manualStockEntry)
     {
         // data_entry is intentionally allowed to update (see test_data_entry_can_update_manual_stock_entry).
-        $this->assertEntryInScope($request, $entry);
+        $this->assertEntryInScope($request, $manualStockEntry);
 
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
@@ -270,24 +270,24 @@ class ManualStockEntryController extends Controller
         // sortie ends up attached to (whichever value — new or existing — wins).
         if (! empty($validated['maintenance_log_id'])) {
             $log = VehicleMaintenanceLog::findOrFail($validated['maintenance_log_id']);
-            abort_unless($log->farm_id === $entry->farm_id && $log->vehicle_id == ($validated['vehicle_id'] ?? $entry->vehicle_id), 403);
+            abort_unless($log->farm_id === $manualStockEntry->farm_id && $log->vehicle_id == ($validated['vehicle_id'] ?? $manualStockEntry->vehicle_id), 403);
         }
 
         $this->validateLocationHierarchy(
-            $validated['bloc_id'] ?? $entry->bloc_id,
-            $validated['sector_id'] ?? $entry->sector_id,
-            $validated['parcelle_id'] ?? $entry->parcelle_id
+            $validated['bloc_id'] ?? $manualStockEntry->bloc_id,
+            $validated['sector_id'] ?? $manualStockEntry->sector_id,
+            $validated['parcelle_id'] ?? $manualStockEntry->parcelle_id
         );
 
-        return DB::transaction(function () use ($validated, $entry) {
-            $oldProductId = $entry->product_id;
-            $oldQuantity = $entry->quantity;
+        return DB::transaction(function () use ($validated, $manualStockEntry) {
+            $oldProductId = $manualStockEntry->product_id;
+            $oldQuantity = $manualStockEntry->quantity;
             $newProductId = $validated['product_id'] ?? $oldProductId;
             $newQuantity = $validated['quantity'] ?? $oldQuantity;
             $productChanged = $newProductId != $oldProductId;
 
             if ($productChanged) {
-                abort_unless(Product::findOrFail($newProductId)->farm_id === $entry->farm_id, 403);
+                abort_unless(Product::findOrFail($newProductId)->farm_id === $manualStockEntry->farm_id, 403);
             }
 
             $oldInventory = StockInventory::where('product_id', $oldProductId)->first();
@@ -308,24 +308,24 @@ class ManualStockEntryController extends Controller
                 ]);
             }
 
-            $entry->update($validated);
+            $manualStockEntry->update($validated);
 
-            $product = Product::findOrFail($entry->product_id);
+            $product = Product::findOrFail($manualStockEntry->product_id);
             $unitCost = $newInventory?->average_cost ?? $product->unit_cost ?? 0;
 
             // Update corresponding stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
-                                    ->where('reference_id', $entry->id)
+                                    ->where('reference_id', $manualStockEntry->id)
                                     ->first();
             if ($movement) {
                 $movement->update([
-                    'product_id' => $entry->product_id,
+                    'product_id' => $manualStockEntry->product_id,
                     'movement_type' => 'out',
-                    'quantity' => $entry->quantity,
+                    'quantity' => $manualStockEntry->quantity,
                     'unit_cost' => $unitCost,
-                    'total_cost' => $unitCost * $entry->quantity,
-                    'date' => $entry->date,
-                    'notes' => "Manual entry: {$entry->entry_type}",
+                    'total_cost' => $unitCost * $manualStockEntry->quantity,
+                    'date' => $manualStockEntry->date,
+                    'notes' => "Manual entry: {$manualStockEntry->entry_type}",
                 ]);
             }
 
@@ -347,16 +347,25 @@ class ManualStockEntryController extends Controller
                 StockAlertService::syncLowStock(Product::findOrFail($oldProductId));
             }
 
-            return redirect()->route('stock.manual-entries.show', $entry)->with('success', 'Entrée mise à jour avec succès.');
+            return redirect()->route('stock.manual-entries.show', $manualStockEntry)->with('success', 'Entrée mise à jour avec succès.');
         });
     }
 
-    public function destroy(Request $request, ManualStockEntry $entry)
+    public function destroy(Request $request, $manualStockEntry)
     {
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
-        $this->assertEntryInScope($request, $entry);
+
+        $entry = ManualStockEntry::find($manualStockEntry);
+        if (!$entry) {
+            abort(404);
+        }
+
+        $farmId = $this->scopedFarmId($request);
+        if ($entry->farm_id !== $farmId) {
+            abort(403);
+        }
 
         return DB::transaction(function () use ($entry) {
             // Revert stock movement
@@ -376,24 +385,24 @@ class ManualStockEntryController extends Controller
 
             StockAlertService::syncLowStock(Product::findOrFail($entry->product_id));
 
-            return redirect()->route('stock.manual-entries.index')->with('success', 'Entrée supprimée avec succès.');
+            return back()->with('success', 'Entrée supprimée avec succès.');
         });
     }
 
-    public function verify(Request $request, ManualStockEntry $entry)
+    public function verify(Request $request, ManualStockEntry $manualStockEntry)
     {
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
-        $this->assertEntryInScope($request, $entry);
+        $this->assertEntryInScope($request, $manualStockEntry);
 
-        $entry->update([
+        $manualStockEntry->update([
             'is_verified' => true,
             'verified_by' => $request->user()->id,
             'verified_at' => now(),
         ]);
 
-        return redirect()->back()->with('success', 'Entrée vérifiée avec succès.');
+        return back()->with('success', 'Entrée vérifiée avec succès.');
     }
 
     // A secteur/parcelle picked independently of its bloc (e.g. a direct API call bypassing

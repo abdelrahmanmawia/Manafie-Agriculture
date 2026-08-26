@@ -19,21 +19,48 @@
         </thead>
     </table>
 @else
+    @php
+        // NET FACTUR J / TOTAL TTC / MARGE are client-invoicing figures — meaningless for a
+        // division with no client billing arrangement (e.g. PERSEALAND, PERSEALAND NON DECLARE:
+        // both use the 'avec_contrat' worker-pay formula but are NOT invoiced to a client), so
+        // hide those three columns entirely rather than show zeros. Same gate/fallback as
+        // PayrollService::calculateInvoicing(), which already returns zeros in that case.
+        $showInvoicing = $quinzaine->enterprise->invoiced_to_client
+            ?? ($quinzaine->enterprise->contract_type === 'avec_contrat');
+        $mainTableCols = count($days) + 12 + ($showInvoicing ? 3 : 0);
+
+        // Whole-division total, shown above the table — every record's net (plain days AND
+        // piece-rate quantity days), not just the flat-rate table below, so it matches what was
+        // really paid out this period.
+        $sommeNet = 0;
+        foreach ($employees as $emp) {
+            foreach (($records[$emp->id] ?? collect()) as $dayEntries) {
+                foreach ($dayEntries as $entry) {
+                    $sommeNet += $entry->net;
+                }
+            }
+        }
+    @endphp
     <table>
         <thead>
         <tr>
-            <th colspan="32" style="font-weight: bold; text-align: center; font-size: 18px; color: #1e40af;">
+            <th colspan="{{ $mainTableCols }}" style="font-weight: bold; text-align: center; font-size: 18px; color: #1e40af;">
                 {{ $quinzaine->label ?: 'SITUATION DE POINTAGE' }}
             </th>
         </tr>
         <tr>
-            <th colspan="32" style="text-align: center; font-size: 12px; color: #6b7280;">
+            <th colspan="{{ $mainTableCols }}" style="text-align: center; font-size: 12px; color: #6b7280;">
                 Période du {{ $quinzaine->start_date->format('d/m/Y') }} au {{ $quinzaine->end_date->format('d/m/Y') }} - {{ $quinzaine->enterprise->name }}
+            </th>
+        </tr>
+        <tr>
+            <th colspan="{{ $mainTableCols }}" style="font-weight: bold; text-align: center; font-size: 14px; background-color: #d1fae5; border: 1px solid #000;">
+                SOMME NET : {{ number_format($sommeNet, 2, ',', ' ') }} DH
             </th>
         </tr>
         <tr><td></td></tr> {{-- SPACING --}}
         <tr>
-            <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000;">N° (Matricule)</th>
+            <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000; text-align: left;">N°</th>
             <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000;">NOM</th>
             <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000;">PRENOM</th>
             <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000;">CIN</th>
@@ -44,13 +71,17 @@
             <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">SAL NET / J</th>
             <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">COMP</th>
             <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">SAL BRUT / J</th>
-            <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">MARGE</th>
+            @if($showInvoicing)
+                <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">MARGE</th>
+            @endif
             <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">TOTAL J</th>
             <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">J.F CH (DH)</th>
             <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">H.S</th>
             <th style="font-weight: bold; background-color: #3b82f6; color: #ffffff; border: 1px solid #000;">TOTAL NET</th>
-            <th style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000;">NET FACTUR J</th>
-            <th style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000;">TOTAL TTC</th>
+            @if($showInvoicing)
+                <th style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000;">NET FACTUR J</th>
+                <th style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000;">TOTAL TTC</th>
+            @endif
         </tr>
         </thead>
         <tbody>
@@ -62,11 +93,21 @@
                 // table's per-day cells and totals would misrepresent both tables.
                 $allEmployeeRecords = $records[$emp->id] ?? collect();
                 $employeeRecords = $allEmployeeRecords->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
-                $totalJours = $employeeRecords->count();
+                // TOTAL J counts only real presence (operation + bloc both set) — an unworked
+                // paid holiday has neither and is not a worked day. J.F CH (DH) is the single
+                // place holiday pay is shown, worked or not: worked adds one bonus day on top of
+                // the normal day already counted in TOTAL J; unworked has no day in TOTAL J at
+                // all, so its whole single-day pay is credited here instead. Mirrors the source
+                // file's own TOTAL / J.F CH columns, which are independent counts, not one folded
+                // into the other.
+                $totalJours = 0;
                 $totalHs = 0;
                 $totalJf = 0;
                 foreach($employeeRecords as $recordList) {
                     $record = $recordList[0];
+                    if ($record->operation_id !== null && $record->bloc_id !== null) {
+                        $totalJours++;
+                    }
                     if(isset($record->hours) && $record->hours > 0) {
                         $totalHs += $record->hours;
                     }
@@ -114,6 +155,7 @@
                 $quinzaineNetFacturJ = $invoicing['net_factur_j'];
                 $quinzaineTotalTtc = $invoicing['total_ttc'];
                 $totalJfAmount = $totalJf * $calc['sal_net_j'];
+                $marge = $quinzaineNetFacturJ - $employeeRate;
 
                 // last_name/first_name are set directly from the source file's own NOM/PRENOM
                 // columns wherever available (the PRS import). For employees created manually
@@ -129,7 +171,7 @@
                 }
             @endphp
             <tr>
-                <td style="border: 1px solid #000;">{{ $emp->matricule }}</td>
+                <td style="border: 1px solid #000; text-align: left;">{{ $emp->matricule }}</td>
                 <td style="border: 1px solid #000;">{{ $nomDisplay }}</td>
                 <td style="border: 1px solid #000;">{{ $prenomDisplay }}</td>
                 <td style="border: 1px solid #000;">{{ $emp->cin }}</td>
@@ -137,7 +179,9 @@
                 @foreach($days as $day)
                     @php $rec = $employeeRecords[$day][0] ?? null; @endphp
                     <td style="border: 1px solid #000; text-align: center; font-size: 8px; @if($rec) background-color: #d1fae5; @endif">
-                        @if($rec)
+                        @if($rec && $rec->operation_id === null)
+                            {{-- unworked paid holiday: highlighted, but left blank in the export --}}
+                        @elseif($rec)
                             {{ $rec->operation->abbreviation ?? $rec->operation->name }} | {{ $rec->bloc->name }} {{ $rec->hours > 0 ? '+'.$rec->hours.'h' : '' }}
                         @endif
                     </td>
@@ -145,13 +189,17 @@
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($calc['sal_net_j'], 2, ',', ' ') }}</td>
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($emp->complement, 2, ',', ' ') }}</td>
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($employeeRate, 2, ',', ' ') }}</td>
-                <td style="border: 1px solid #000; text-align: right;">0,00</td>
+                @if($showInvoicing)
+                    <td style="border: 1px solid #000; text-align: right;">{{ number_format($marge, 2, ',', ' ') }}</td>
+                @endif
                 <td style="border: 1px solid #000; text-align: center;">{{ $totalJours }}</td>
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($totalJfAmount, 2, ',', ' ') }}</td>
                 <td style="border: 1px solid #000; text-align: center;">{{ $totalHs }}</td>
                 <td style="border: 1px solid #000; text-align: right; font-weight: bold;">{{ number_format($quinzaineTotalNet, 2, ',', ' ') }}</td>
-                <td style="border: 1px solid #000; text-align: right;">{{ number_format($quinzaineNetFacturJ, 2, ',', ' ') }}</td>
-                <td style="border: 1px solid #000; text-align: right; font-weight: bold;">{{ number_format($quinzaineTotalTtc, 2, ',', ' ') }}</td>
+                @if($showInvoicing)
+                    <td style="border: 1px solid #000; text-align: right;">{{ number_format($quinzaineNetFacturJ, 2, ',', ' ') }}</td>
+                    <td style="border: 1px solid #000; text-align: right; font-weight: bold;">{{ number_format($quinzaineTotalTtc, 2, ',', ' ') }}</td>
+                @endif
             </tr>
         @endforeach
         </tbody>
@@ -183,13 +231,17 @@
                     $grandTotalNet = 0;
                     $grandTotalFacturJ = 0;
                     $grandTotalTtc = 0;
+                    $grandTotalMarge = 0;
 
                     foreach($employees as $emp) {
                         $empRecords = ($records[$emp->id] ?? collect())->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
-                        $grandTotalJours += $empRecords->count();
                         $empJfCount = 0;
+                        $empJours = 0;
                         foreach($empRecords as $recordList) {
                             $record = $recordList[0];
+                            if ($record->operation_id !== null && $record->bloc_id !== null) {
+                                $empJours++;
+                            }
                             if(isset($record->hours) && $record->hours > 0) {
                                 $grandTotalHs += $record->hours;
                             }
@@ -197,6 +249,7 @@
                                 $empJfCount++;
                             }
                         }
+                        $grandTotalJours += $empJours;
                         $grandTotalJf += $empJfCount;
                         $grandTotalComp += $emp->complement;
 
@@ -227,25 +280,30 @@
                             $quinzaine->enterprise->contract_type,
                             $empRate,
                             $emp->complement,
-                            $empRecords->count(),
+                            $empJours,
                             $empJfCount,
                             $empRecords->sum(fn($r) => $r[0]->hours),
                             $quinzaine->enterprise->invoiced_to_client
                         );
                         $grandTotalTtc += $empInvoicing['total_ttc'];
                         $grandTotalFacturJ = $empInvoicing['net_factur_j'];
+                        $grandTotalMarge += $empInvoicing['net_factur_j'] - $empRate;
                     }
                 @endphp
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalSalNetJ, 2, ',', ' ') }}</td>
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalComp, 2, ',', ' ') }}</td>
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalBrut, 2, ',', ' ') }}</td>
-                <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">0,00</td>
+                @if($showInvoicing)
+                    <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalMarge, 2, ',', ' ') }}</td>
+                @endif
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: center;">{{ $grandTotalJours }}</td>
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalJfAmount, 2, ',', ' ') }}</td>
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: center;">{{ $grandTotalHs }}</td>
                 <td style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalNet, 2, ',', ' ') }}</td>
-                <td style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalFacturJ, 2, ',', ' ') }}</td>
-                <td style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalTtc, 2, ',', ' ') }}</td>
+                @if($showInvoicing)
+                    <td style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalFacturJ, 2, ',', ' ') }}</td>
+                    <td style="font-weight: bold; background-color: #10b981; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalTtc, 2, ',', ' ') }}</td>
+                @endif
             </tr>
         </tfoot>
     </table>
@@ -269,13 +327,13 @@
         <table>
             <thead>
             <tr>
-                <th colspan="32" style="font-weight: bold; text-align: center; font-size: 16px; color: #047857;">
+                <th colspan="{{ count($days) + 6 }}" style="font-weight: bold; text-align: center; font-size: 16px; color: #047857;">
                     POINTAGE À LA QUANTITÉ
                 </th>
             </tr>
             <tr><td></td></tr> {{-- SPACING --}}
             <tr>
-                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">N° (Matricule)</th>
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000; text-align: left;">N°</th>
                 <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">NOM</th>
                 <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">PRENOM</th>
                 <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">CIN</th>
@@ -312,7 +370,7 @@
                     }
                 @endphp
                 <tr>
-                    <td style="border: 1px solid #000;">{{ $emp->matricule }}</td>
+                    <td style="border: 1px solid #000; text-align: left;">{{ $emp->matricule }}</td>
                     <td style="border: 1px solid #000;">{{ $nomDisplay }}</td>
                     <td style="border: 1px solid #000;">{{ $prenomDisplay }}</td>
                     <td style="border: 1px solid #000;">{{ $emp->cin }}</td>
@@ -376,7 +434,7 @@
         <table>
             <thead>
             <tr>
-                <th colspan="20" style="font-weight: bold; font-size: 14px; background-color: #dcfce7; text-align: center; border: 2px solid #000;">
+                <th colspan="{{ count($days) + 2 }}" style="font-weight: bold; font-size: 14px; background-color: #dcfce7; text-align: center; border: 2px solid #000;">
                     SITUATION DES SALAIRES : BLOC {{ $bloc->name }}
                 </th>
             </tr>
@@ -439,4 +497,42 @@
         <table><tr><td></td></tr></table>
         @endif
     @endforeach
+
+    {{-- Unworked paid holidays (is_jf=true, no operation/bloc) can't sit in any bloc table above,
+         but their net is part of TOTAL NET — shown here as its own line so the bloc tables' sum
+         plus this one reconciles exactly to TOTAL NET instead of falling silently short. --}}
+    @php $jfUnworkedTotal = array_sum($jfUnworkedByDay); @endphp
+    @if($jfUnworkedTotal > 0)
+        <table>
+            <thead>
+            <tr>
+                <th colspan="{{ count($days) + 2 }}" style="font-weight: bold; font-size: 14px; background-color: #fee2e2; text-align: center; border: 2px solid #000;">
+                    JOURS FÉRIÉS PAYÉS NON TRAVAILLÉS (non rattachés à un bloc/opération)
+                </th>
+            </tr>
+            <tr>
+                <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000;">-</th>
+                @foreach($days as $day)
+                    <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000; text-align: center;">{{ date('d', strtotime($day)) }}</th>
+                @endforeach
+                <th style="font-weight: bold; background-color: #3b82f6; color: #ffffff; border: 1px solid #000;">TOTAL NET</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td style="border: 1px solid #000; font-weight: bold;">JOUR FÉRIÉ (absent)</td>
+                @foreach($days as $day)
+                    @php $val = $jfUnworkedByDay[$day] ?? 0; @endphp
+                    <td style="border: 1px solid #000; text-align: center; @if($val > 0) background-color: #fee2e2; @endif">
+                        {{ $val > 0 ? number_format($val, 1, ',', ' ') : '-' }}
+                    </td>
+                @endforeach
+                <td style="border: 1px solid #000; text-align: right; font-weight: bold; background-color: #fee2e2;">
+                    {{ number_format($jfUnworkedTotal, 2, ',', ' ') }}
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <table><tr><td></td></tr></table>
+    @endif
 @endif

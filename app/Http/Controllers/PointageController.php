@@ -223,12 +223,48 @@ class PointageController extends Controller
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
         }
 
-        // If operation or bloc is empty, delete the record (mark as absent)
-        if (!$validated['operation_id'] || !$validated['bloc_id']) {
+        // No operation/bloc, and not a paid holiday either -> plain absence, no pay: delete
+        // the record. If is_jf IS set though, this is a public holiday the employee did NOT
+        // work — still owed one day's pay, just never the worked+JF double (see the branch
+        // below and PayrollService::calculate()'s $worked param) — so it falls through to be
+        // saved as a record instead of deleted.
+        if ((!$validated['operation_id'] || !$validated['bloc_id']) && empty($validated['is_jf'])) {
             PointageRecord::where('employee_id', $validated['employee_id'])
                 ->where('quinzaine_id', $validated['quinzaine_id'])
                 ->whereDate('date', $validated['date'])
                 ->delete();
+            return redirect()->back();
+        }
+
+        if (!$validated['operation_id'] || !$validated['bloc_id']) {
+            $calc = $this->payrollService->calculate(
+                $quinzaine->enterprise->contract_type,
+                $quinzaine->enterprise->default_brut_rate,
+                0,
+                $employee->complement,
+                true,
+                $quinzaine->enterprise->invoiced_to_client,
+                false
+            );
+
+            PointageRecord::updateOrCreate(
+                [
+                    'employee_id' => $validated['employee_id'],
+                    'quinzaine_id' => $validated['quinzaine_id'],
+                    'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+                ],
+                [
+                    'operation_id' => null,
+                    'bloc_id' => null,
+                    'hours' => 0,
+                    'quantity' => null,
+                    'is_jf' => true,
+                    'rate' => $quinzaine->enterprise->default_brut_rate,
+                    'brut' => $calc['brut'],
+                    'net' => $calc['total_net'],
+                ]
+            );
+
             return redirect()->back();
         }
 
@@ -292,14 +328,81 @@ class PointageController extends Controller
         return redirect()->back();
     }
 
+    /**
+     * "Coller sur les jours restants" — applies one already-entered day's Operation+Bloc to
+     * several other dates for the same employee in a single request, for the common case of an
+     * ouvrier doing the same job every day of the quinzaine. Deliberately narrower than
+     * updateCell(): no piece-rate (a copied quantity would be meaningless — each day's quantity
+     * is real work, not something to duplicate), no per-day H.S., no JF — those still go through
+     * the single-cell modal so they're entered deliberately, not accidentally propagated.
+     */
+    public function updateCellBulk(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|exists:employees,id',
+            'quinzaine_id' => 'required|exists:quinzaines,id',
+            'operation_id' => 'required|exists:operations,id',
+            'bloc_id' => 'required|exists:blocs,id',
+            'dates' => 'required|array|min:1',
+            'dates.*' => 'date',
+        ]);
+
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+
+        $employee = Employee::findOrFail($validated['employee_id']);
+        abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
+
+        if ($quinzaine->is_closed) {
+            return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        }
+
+        $operation = Operation::find($validated['operation_id']);
+        abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
+
+        $calc = $this->payrollService->calculate(
+            $quinzaine->enterprise->contract_type,
+            $quinzaine->enterprise->default_brut_rate,
+            0,
+            $employee->complement,
+            false,
+            $quinzaine->enterprise->invoiced_to_client
+        );
+
+        foreach ($validated['dates'] as $date) {
+            PointageRecord::updateOrCreate(
+                [
+                    'employee_id' => $employee->id,
+                    'quinzaine_id' => $quinzaine->id,
+                    'date' => Carbon::parse($date)->format('Y-m-d'),
+                ],
+                [
+                    'operation_id' => $validated['operation_id'],
+                    'bloc_id' => $validated['bloc_id'],
+                    'hours' => 0,
+                    'quantity' => null,
+                    'is_jf' => false,
+                    'rate' => $quinzaine->enterprise->default_brut_rate,
+                    'brut' => $calc['brut'],
+                    'net' => $calc['total_net'],
+                ]
+            );
+        }
+
+        return redirect()->back();
+    }
+
     public function summary(Request $request, $quinzaineId)
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request->user(), $quinzaine);
 
+        // Inner-joining operations/blocs would silently drop paid-holiday records that have no
+        // operation/bloc (see PointageController::updateCell()) from dailyTotals — left join so
+        // their net still counts toward the total, they just can't be placed in the matrix below.
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
-            ->join('operations', 'pointage_records.operation_id', '=', 'operations.id')
-            ->join('blocs', 'pointage_records.bloc_id', '=', 'blocs.id')
+            ->leftJoin('operations', 'pointage_records.operation_id', '=', 'operations.id')
+            ->leftJoin('blocs', 'pointage_records.bloc_id', '=', 'blocs.id')
             ->join('employees', 'pointage_records.employee_id', '=', 'employees.id')
             ->select(
                 'pointage_records.*',
@@ -336,7 +439,11 @@ class PointageController extends Controller
             // Operation's unit_rate, not the enterprise's rate/employee's complement, so
             // recomputing here would silently show the wrong total for them.
             $dateKey = $record->date->format('Y-m-d');
-            $blocMatrices[$record->bloc_name][$record->op_name][$dateKey] += $record->net;
+            // A record with no operation/bloc (unworked paid holiday) has nowhere to sit in the
+            // matrix, but its net must still count toward the day's total.
+            if ($record->bloc_name !== null && $record->op_name !== null) {
+                $blocMatrices[$record->bloc_name][$record->op_name][$dateKey] += $record->net;
+            }
             $dailyTotals[$dateKey] += $record->net;
         }
 

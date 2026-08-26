@@ -89,6 +89,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');
     Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions'); // New route
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
+    Route::post('/pointage/cell-bulk', [PointageController::class, 'updateCellBulk'])->name('pointage.cell.bulk');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
 
     // Badge printing
@@ -165,11 +166,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Manual Stock Entries
     Route::get('/stock/manual-entries', [ManualStockEntryController::class, 'index'])->name('stock.manual-entries.index');
     Route::post('/stock/manual-entries', [ManualStockEntryController::class, 'store'])->name('stock.manual-entries.store');
-    Route::get('/stock/manual-entries/{entry}', [ManualStockEntryController::class, 'show'])->name('stock.manual-entries.show');
-    Route::get('/stock/manual-entries/{entry}/edit', [ManualStockEntryController::class, 'edit'])->name('stock.manual-entries.edit');
-    Route::put('/stock/manual-entries/{entry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
-    Route::delete('/stock/manual-entries/{entry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
-    Route::post('/stock/manual-entries/{entry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
+    Route::get('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'show'])->name('stock.manual-entries.show');
+    Route::get('/stock/manual-entries/{manualStockEntry}/edit', [ManualStockEntryController::class, 'edit'])->name('stock.manual-entries.edit');
+    Route::put('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
+    Route::delete('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
+    Route::post('/stock/manual-entries/{manualStockEntry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
 
     // Stock Management - Reports & Analytics
     Route::get('/stock/reports', [StockReportController::class, 'index'])->name('stock.reports.index');

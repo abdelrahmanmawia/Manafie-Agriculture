@@ -27,8 +27,16 @@ class PayrollService
      * not per-day (see calculateInvoicing() below). An earlier version of this method attempted a
      * per-day approximation of them; it was wrong (missing the JF/H.S. period-spread term) and has
      * been removed rather than left as a second, incorrect source of the same numbers.
+     *
+     * @param bool $worked Whether the employee actually worked this day (has an operation/bloc).
+     *                      A day can be flagged is_jf=true either way: worked+JF pays double
+     *                      (the normal day rate PLUS the holiday bonus — the employee showed up on
+     *                      a public holiday); a JF day the employee did NOT work still owes them
+     *                      one single day's pay (a paid holiday), never the double. See
+     *                      PointageController::updateCell() for how a "paid, unworked JF day"
+     *                      record (operation_id/bloc_id both null) is created.
      */
-    public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false, $invoicedToClient = null)
+    public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false, $invoicedToClient = null, $worked = true)
     {
         // The overtime hourly rate is derived from this division's own standard daily net salary
         // (after the worker deduction, but before any complement/prime — never the raw brut rate,
@@ -42,8 +50,10 @@ class PayrollService
             // AGRIPER logic
             $salNetJ = $standardNetJ + $complement;
             $hsPay = $hs * $hsHourlyRate;
-            // JF Pay (Jour Férié) - if active, worker gets another salNetJ
-            $jfPay = $isJf ? $salNetJ : 0;
+            // JF Pay (Jour Férié) - if active AND actually worked, worker gets another salNetJ
+            // on top of the base day rate already in $salNetJ. An unworked paid JF day earns
+            // only the base $salNetJ once — no bonus for a day nobody showed up to.
+            $jfPay = ($isJf && $worked) ? $salNetJ : 0;
             $totalWorkerNet = $salNetJ + $hsPay + $jfPay;
         } else {
             // HAFILATY logic
@@ -118,7 +128,9 @@ class PayrollService
                 $enterprise->default_brut_rate,
                 $record->hours,
                 $record->employee->complement,
-                $record->is_jf
+                $record->is_jf,
+                null,
+                $record->operation_id !== null
             );
 
             $record->update([
@@ -147,7 +159,9 @@ class PayrollService
                     $employee->enterprise->default_brut_rate,
                     $record->hours,
                     $employee->complement,
-                    $record->is_jf
+                    $record->is_jf,
+                    null,
+                    $record->operation_id !== null
                 );
 
                 $record->update([
@@ -175,12 +189,19 @@ class PayrollService
         $employeeAggregates = [];
 
         foreach ($quinzaine->pointageRecords as $record) {
+            // A record with no operation is a paid public holiday the employee did NOT work
+            // (see PointageController::updateCell()) — pays a single day's rate, never the JF
+            // double, and doesn't count as a worked/bonus day for the invoicing spread below.
+            $worked = $record->operation_id !== null;
+
             $calc = $this->calculate(
                 $quinzaine->enterprise->contract_type,
                 $quinzaine->enterprise->default_brut_rate,
                 $record->hours,
                 $record->employee->complement,
-                $record->is_jf
+                $record->is_jf,
+                null,
+                $worked
             );
 
             $totalNet += $calc['total_net'];
@@ -194,18 +215,21 @@ class PayrollService
 
             $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement];
             $employeeAggregates[$employeeId]['days']++;
-            if ($record->is_jf) {
+            if ($record->is_jf && $worked) {
                 $employeeAggregates[$employeeId]['jf']++;
             }
             $employeeAggregates[$employeeId]['hs'] += $record->hours;
 
-            // Breakdown by Operation
-            $opName = $record->operation->name;
-            $opCosts[$opName] = ($opCosts[$opName] ?? 0) + $calc['total_net'];
-
-            // Breakdown by Bloc
-            $blocName = $record->bloc->name;
-            $blocCosts[$blocName] = ($blocCosts[$blocName] ?? 0) + $calc['total_net'];
+            // Breakdown by Operation/Bloc — an unworked paid JF day has neither, so it's
+            // deliberately left out of both breakdowns (its net is still in totalNet above).
+            if ($record->operation) {
+                $opName = $record->operation->name;
+                $opCosts[$opName] = ($opCosts[$opName] ?? 0) + $calc['total_net'];
+            }
+            if ($record->bloc) {
+                $blocName = $record->bloc->name;
+                $blocCosts[$blocName] = ($blocCosts[$blocName] ?? 0) + $calc['total_net'];
+            }
         }
 
         foreach ($employeeAggregates as $agg) {

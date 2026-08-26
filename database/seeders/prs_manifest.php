@@ -101,4 +101,45 @@ return [
         'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 7, 'period' => '2',
         'parser' => fn () => new FixedOperationParser('Transport'),
     ],
+
+    // --- 1QZ Aout 2026 (source: master workbook, same sheet set as 2QZ Juillet) ---
+    // 'is_closed' => false: unlike every prior period here, this quinzaine is still in progress
+    // (today's date falls inside 2026-08-01..08-15) — importEntry() only creates a Quinzaine as
+    // closed by default, so this override is required, not just descriptive.
+    // 'jf_date' => 14: the "J.F CH" column marks who is owed a paid holiday, but not which
+    // calendar day it falls on — confirmed against the source file that every J.F CH=1 employee's
+    // holiday is day-of-month 14 this period (some worked it, most didn't). Without this, the
+    // holiday pay silently lands on whatever day happens to be the employee's last worked day
+    // instead of the real Aug 14, which is wrong both in amount (doubles a non-holiday day instead
+    // of the actual holiday) and in the day itself shown in the grid.
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'A.I',
+        'enterprise' => 'AGRI INTERIM', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'jf_date' => 14,
+    ],
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'P.L',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false,
+    ],
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'IRR',
+        'enterprise' => 'PERSEALAND NON DECLARE', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false,
+    ],
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'UNITE',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false,
+    ],
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'F.B.V',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => StackedOperationParser::class, 'is_closed' => false,
+    ],
+    [
+        'file' => '1r Qz Aout 2026 P.L.xlsm', 'sheet' => 'TRANS',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '1',
+        'parser' => fn () => new FixedOperationParser('Transport'), 'is_closed' => false,
+    ],
 ];

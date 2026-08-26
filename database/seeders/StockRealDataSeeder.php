@@ -22,9 +22,15 @@ use Illuminate\Support\Facades\DB;
  * every row hardcoded below rather than read from the spreadsheets at seed time.
  * Replaces StockSeeder's random demo data for this farm.
  *
- * A few entries could not be filled from the source and are marked accordingly:
+ * Vehicles are always one row per physical unit — a "Quad x3" line in the source becomes
+ * 3 separate rows here, never a single row with quantity=3, since each is individually
+ * driven/registered and needs its own status, driver and maintenance history. Generic
+ * towed implements (broyeur, charrue...) are the opposite: no individual identity is
+ * lost by keeping them as one row with a quantity, so they stay grouped.
+ *
+ * A few plates could not be filled from the source and are marked accordingly:
  *  - plate_number "A RENSEIGNER" — the source had no real plate for this vehicle
- *    (Dacia Duster x3, Quad x3), or listed the same plate twice for two different
+ *    (3x Dacia Duster, 3x Quad), or listed the same plate twice for two different
  *    tractors/drivers (a second "5710"). Needs the real plate confirmed on-site.
  */
 class StockRealDataSeeder extends Seeder
@@ -158,14 +164,10 @@ class StockRealDataSeeder extends Seeder
             ['name' => 'VANNE PAPILLON 150', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'VANNE A OPERCULE 100', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'VANNE DE CONTRÔLE HYDRAULIQUE 100 mm  4"', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
-            ['name' => 'POMPE A ROUE OUVERTE 2,2 KW', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
-            ['name' => 'POMPE A ROUE OUVERTE 1,77 KW', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
-            ['name' => 'POMPE 0,37 KW', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'VANNE A AIR GRAND 1"', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'VANNE A AIR PETIT 1"', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'VANNE A AIR 2 "', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'COLLE  KG', 'category' => 'other', 'unit_type' => 'kg', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
-            ['name' => 'POMPE IMMERGIE', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'TURBINE', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'BOITE DE JONCTION', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'SONDE DE NIVEAU', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
@@ -182,7 +184,6 @@ class StockRealDataSeeder extends Seeder
             ['name' => 'RACCORD DE JONCTION (Joint Jibault) DN 160', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'RACCORD DE JONCTION (Joint Jibault) DN 140', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'RACCORD DE JONCTION (Joint Jibault) DN 125', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
-            ['name' => 'POMPE DE SURPRESSION', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'HUILE 15/40  L', 'category' => 'vehicle_needs', 'unit_type' => 'liters', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
             ['name' => 'GRAISSE  KG', 'category' => 'vehicle_needs', 'unit_type' => 'kg', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
         ];
@@ -224,8 +225,17 @@ class StockRealDataSeeder extends Seeder
             ['asset_type' => 'equipment', 'type' => 'plow', 'name' => 'CHARRUE A DISQUE', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 2, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
             ['asset_type' => 'equipment', 'type' => 'mower', 'name' => 'FAUCHEUSE', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 2, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
             ['asset_type' => 'equipment', 'type' => 'leveler', 'name' => 'LAME NIVELEUSE', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 2, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
-            ['asset_type' => 'vehicle', 'type' => 'car', 'name' => 'DACIA', 'model' => 'DUSTER', 'plate_number' => 'A RENSEIGNER 2', 'serial_number' => null, 'quantity' => 3, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
-            ['asset_type' => 'vehicle', 'type' => 'quad', 'name' => 'QUAD', 'model' => 'LINHAI', 'plate_number' => 'A RENSEIGNER 3', 'serial_number' => null, 'quantity' => 3, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'car', 'name' => 'DACIA', 'model' => 'DUSTER', 'plate_number' => 'A RENSEIGNER 2', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'car', 'name' => 'DACIA', 'model' => 'DUSTER', 'plate_number' => 'A RENSEIGNER 3', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'car', 'name' => 'DACIA', 'model' => 'DUSTER', 'plate_number' => 'A RENSEIGNER 4', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'quad', 'name' => 'QUAD', 'model' => 'LINHAI', 'plate_number' => 'A RENSEIGNER 5', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'quad', 'name' => 'QUAD', 'model' => 'LINHAI', 'plate_number' => 'A RENSEIGNER 6', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'vehicle', 'type' => 'quad', 'name' => 'QUAD', 'model' => 'LINHAI', 'plate_number' => 'A RENSEIGNER 7', 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE A ROUE OUVERTE 2,2 KW', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE A ROUE OUVERTE 1,77 KW', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE 0,37 KW', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE IMMERGIE', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 3, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
+            ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE DE SURPRESSION', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
         ];
 
         foreach ($assetsData as $data) {

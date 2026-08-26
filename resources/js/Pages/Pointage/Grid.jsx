@@ -12,6 +12,29 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [globalOperation, setGlobalOperation] = useState('');
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);
+    const [searchTerm, setSearchTerm] = useState('');
+    // 'all' | 'zero' (not pointé at all yet) | 'worked' (already has at least 1 day)
+    const [dayFilter, setDayFilter] = useState('all');
+    // { operationId, blocId, label } of a copied cell, or null — while set, clicking any other
+    // day cell pastes it directly instead of opening the edit modal (see pasteToCell below).
+    const [clipboard, setClipboard] = useState(null);
+    const [pasting, setPasting] = useState(false);
+
+    // Total days pointé this quinzaine for one employee — the same count shown in the
+    // desktop table's own JOURS column, factored out so both views and the filter agree.
+    const dayCountFor = (empId) => Object.keys(existingRecords[empId] || {}).length;
+
+    const filteredEmployees = employees.filter(emp => {
+        const term = searchTerm.trim().toLowerCase();
+        const matchesSearch = !term
+            || emp.full_name.toLowerCase().includes(term)
+            || (emp.matricule || '').toLowerCase().includes(term);
+        const days = dayCountFor(emp.id);
+        const matchesDayFilter = dayFilter === 'all'
+            || (dayFilter === 'zero' && days === 0)
+            || (dayFilter === 'worked' && days > 0);
+        return matchesSearch && matchesDayFilter;
+    });
 
     // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
     // JS-observable "download finished" event, so this just gives brief visual feedback that
@@ -60,6 +83,63 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             hours: record?.hours || 0,
             quantity: record?.quantity || '',
             is_jf: record?.is_jf || false,
+        });
+    };
+
+    // Copies one already-filled, non-piece-rate cell's Operation+Bloc so it can be pasted onto
+    // other days — for the common case of an ouvrier doing the same job every day, this saves
+    // re-picking both dropdowns 15 times. Piece-rate cells are excluded: their quantity is real
+    // per-day work, not something that makes sense to duplicate.
+    const copyCell = (e, employeeId, date) => {
+        e.stopPropagation();
+        const record = existingRecords[employeeId]?.[date]?.[0];
+        if (!record || !record.operation_id) return;
+        const op = operations.find(o => o.id === record.operation_id);
+        if (op?.unit_rate) return;
+        const bloc = blocs.find(b => b.id === record.bloc_id);
+        setClipboard({
+            operationId: record.operation_id,
+            blocId: record.bloc_id,
+            label: `${op?.abbreviation || op?.name || ''} @ ${bloc?.name || ''}`,
+        });
+    };
+
+    // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
+    // is held; see the day-cell onClick below.
+    const pasteToCell = (employeeId, date) => {
+        if (!clipboard || quinzaine.is_closed || pasting) return;
+        setPasting(true);
+        router.post(route('pointage.cell'), {
+            employee_id: employeeId,
+            quinzaine_id: quinzaine.id,
+            date,
+            operation_id: clipboard.operationId,
+            bloc_id: clipboard.blocId,
+        }, {
+            preserveScroll: true,
+            onSuccess: fetchSummary,
+            onFinish: () => setPasting(false),
+        });
+    };
+
+    // "Coller sur les jours restants" — fills every day this employee has NO record for yet
+    // with the clipboard's Operation+Bloc, in one request. Never touches a day that's already
+    // filled (JF, a different job, an absence someone already resolved) — only empty ones.
+    const pasteRemainingDays = (employeeId) => {
+        if (!clipboard || quinzaine.is_closed || pasting) return;
+        const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0]);
+        if (emptyDays.length === 0) return;
+        setPasting(true);
+        router.post(route('pointage.cell.bulk'), {
+            employee_id: employeeId,
+            quinzaine_id: quinzaine.id,
+            operation_id: clipboard.operationId,
+            bloc_id: clipboard.blocId,
+            dates: emptyDays,
+        }, {
+            preserveScroll: true,
+            onSuccess: fetchSummary,
+            onFinish: () => setPasting(false),
         });
     };
 
@@ -187,8 +267,30 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             )}
                         </div>
 
+                        <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-4 sticky top-[92px] z-20 space-y-2">
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Rechercher un ouvrier..."
+                                className="w-full text-xs font-bold rounded-lg border-gray-200 bg-gray-50"
+                            />
+                            <select
+                                value={dayFilter}
+                                onChange={(e) => setDayFilter(e.target.value)}
+                                className="w-full text-xs font-bold rounded-lg border-gray-200 bg-gray-50"
+                            >
+                                <option value="all">Tous les ouvriers</option>
+                                <option value="zero">Non pointés (0 jour)</option>
+                                <option value="worked">Déjà pointés</option>
+                            </select>
+                        </div>
+
                         <div className="space-y-3">
-                            {employees.map(emp => {
+                            {filteredEmployees.length === 0 && (
+                                <p className="text-center text-xs font-bold text-gray-400 uppercase py-8">Aucun ouvrier trouvé</p>
+                            )}
+                            {filteredEmployees.map(emp => {
                                 const record = dailyRecords[emp.id];
                                 const isPresent = !!record;
                                 return (
@@ -273,13 +375,39 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
                     {/* 1. THE MAIN POINTAGE MATRIX */}
                     <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-blue-600 overflow-hidden">
-                        <div className="p-6 bg-gray-50 border-b flex justify-between items-center">
+                        <div className="p-6 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
                             <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">1. Pointage du Personnel (Journalier)</h3>
-                            <div className="flex gap-4">
-                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Présent</div>
-                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span> Jour Férié</div>
+                            <div className="flex flex-wrap items-center gap-3">
+                                <input
+                                    type="text"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    placeholder="Rechercher un ouvrier..."
+                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <select
+                                    value={dayFilter}
+                                    onChange={(e) => setDayFilter(e.target.value)}
+                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="all">Tous les ouvriers</option>
+                                    <option value="zero">Non pointés (0 jour)</option>
+                                    <option value="worked">Déjà pointés</option>
+                                </select>
+                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{filteredEmployees.length} / {employees.length}</span>
+                                <div className="flex gap-4 ml-2">
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Présent</div>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span> Jour Férié</div>
+                                </div>
                             </div>
                         </div>
+                        {clipboard && (
+                            <div className="px-6 py-3 bg-blue-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller</span>
+                                <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-blue-800 hover:bg-blue-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
+                            </div>
+                        )}
                         <div className="overflow-x-auto p-4">
                             <table className="min-w-full border-collapse border border-gray-200 text-[10px]">
                                 <thead>
@@ -296,7 +424,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {employees.map(emp => {
+                                    {filteredEmployees.length === 0 && (
+                                        <tr>
+                                            <td colSpan={days.length + 4} className="p-6 text-center text-xs font-bold text-gray-400 uppercase">Aucun ouvrier trouvé</td>
+                                        </tr>
+                                    )}
+                                    {filteredEmployees.map(emp => {
                                         const employeeRecords = existingRecords[emp.id] || {};
                                         const totalJours = Object.keys(employeeRecords).length;
                                         const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0);
@@ -307,18 +440,33 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         return (
                                             <tr key={emp.id} className="hover:bg-blue-50 transition-colors group">
                                                 <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-blue-50">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{emp.full_name}</span>
-                                                        <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}</span>
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{emp.full_name}</span>
+                                                            <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}</span>
+                                                        </div>
+                                                        {clipboard && (
+                                                            <button
+                                                                type="button"
+                                                                title="Coller sur les jours restants"
+                                                                onClick={() => pasteRemainingDays(emp.id)}
+                                                                disabled={pasting}
+                                                                className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 disabled:opacity-50 transition-colors"
+                                                            >
+                                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 {days.map(day => {
                                                     const record = employeeRecords[day]?.[0];
+                                                    const recordOp = record ? operations.find(o => o.id === record.operation_id) : null;
+                                                    const canCopy = record && record.operation_id && !recordOp?.unit_rate;
                                                     return (
                                                         <td
                                                             key={day}
-                                                            onClick={() => openForm(emp.id, day)}
-                                                            className={`border border-gray-200 p-1 text-center cursor-pointer transition-all ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'}`}
+                                                            onClick={() => clipboard ? pasteToCell(emp.id, day) : openForm(emp.id, day)}
+                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''}`}
                                                         >
                                                             {record ? (
                                                                 <div className="font-black leading-tight">
@@ -333,6 +481,16 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                     {record.hours > 0 && <div className="text-blue-600 text-[8px]">+{record.hours}h</div>}
                                                                 </div>
                                                             ) : '-'}
+                                                            {canCopy && !clipboard && (
+                                                                <button
+                                                                    type="button"
+                                                                    title="Copier ce jour"
+                                                                    onClick={(e) => copyCell(e, emp.id, day)}
+                                                                    className="hidden group-hover/cell:flex absolute top-0 right-0 bg-gray-900/70 hover:bg-gray-900 text-white rounded-bl items-center justify-center w-4 h-4"
+                                                                >
+                                                                    <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                                                </button>
+                                                            )}
                                                         </td>
                                                     );
                                                 })}
@@ -469,8 +627,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         <div className="relative">
                                             <label htmlFor="cell_operation_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
                                             <select id="cell_operation_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.operation_id} onChange={e => setData('operation_id', e.target.value)}>
-                                                <option value="">🚫 ABSENCE</option>
-                                                {operations.map(o => <option key={o.id} value={o.id}>📌 {o.name.toUpperCase()}</option>)}
+                                                <option value="">ABSENCE</option>
+                                                {operations.map(o => <option key={o.id} value={o.id}>{o.name.toUpperCase()}</option>)}
                                             </select>
                                         </div>
                                         <div className="relative">
@@ -500,7 +658,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <div className="group">
                                                     <label htmlFor="cell_hours" className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
                                                     <div className="relative">
-                                                        <input id="cell_hours" type="number" step="0.5" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                        <input id="cell_hours" type="number" step="0.1" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
                                                         <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
                                                     </div>
                                                 </div>

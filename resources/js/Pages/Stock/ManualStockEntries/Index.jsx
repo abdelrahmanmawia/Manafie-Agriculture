@@ -1,9 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
+import DangerButton from '@/Components/DangerButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
@@ -14,6 +15,8 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
+    const [deletingEntry, setDeletingEntry] = useState(null);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         product_id: products.length > 0 ? products[0].id : '',
@@ -90,6 +93,35 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     };
 
     const getEntryTypeLabel = (type) => ENTRY_TYPE_LABELS[type] || type;
+
+    const handleVerify = (entryId) => {
+        router.post(route('stock.manual-entries.verify', entryId), {}, {
+            onSuccess: () => {
+                // Entry will be reloaded from server
+            },
+        });
+    };
+
+    const handleDelete = () => {
+        if (deletingEntry) {
+            router.delete(route('stock.manual-entries.destroy', deletingEntry.id), {
+                onSuccess: () => {
+                    setIsDeleteModalOpen(false);
+                    setDeletingEntry(null);
+                },
+            });
+        }
+    };
+
+    const openDeleteModal = (entry) => {
+        setDeletingEntry(entry);
+        setIsDeleteModalOpen(true);
+    };
+
+    const closeDeleteModal = () => {
+        setIsDeleteModalOpen(false);
+        setDeletingEntry(null);
+    };
 
     return (
         <AuthenticatedLayout
@@ -267,6 +299,17 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex items-center justify-end space-x-2">
+                                                        {!entry.is_verified && (
+                                                            <button
+                                                                onClick={() => handleVerify(entry.id)}
+                                                                className="text-gray-400 hover:text-green-600 transition-colors"
+                                                                title="Vérifier"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
                                                         <Link
                                                             href={route('stock.manual-entries.show', entry.id)}
                                                             className="text-gray-400 hover:text-indigo-600 transition-colors"
@@ -286,6 +329,17 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                             </svg>
                                                         </Link>
+                                                        {!entry.is_verified && (
+                                                            <button
+                                                                onClick={() => openDeleteModal(entry)}
+                                                                className="text-gray-400 hover:text-red-600 transition-colors"
+                                                                title="Supprimer"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                                </svg>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -552,6 +606,39 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                             </PrimaryButton>
                         </div>
                     </form>
+                </div>
+            </Modal>
+
+            {/* DELETE CONFIRMATION MODAL */}
+            <Modal show={isDeleteModalOpen} onClose={closeDeleteModal}>
+                <div className="p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-bold text-gray-900">Confirmer la suppression</h3>
+                            <p className="text-sm text-gray-500">Cette action est irréversible</p>
+                        </div>
+                    </div>
+                    {deletingEntry && (
+                        <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-gray-600">
+                                <span className="font-medium">Produit:</span> {deletingEntry.product?.name}<br />
+                                <span className="font-medium">Quantité:</span> {formatNumber(deletingEntry.quantity)} {UNIT_TYPE_LABELS[deletingEntry.product?.unit_type] || deletingEntry.product?.unit_type}<br />
+                                <span className="font-medium">Date:</span> {formatDate(deletingEntry.date)}
+                            </p>
+                        </div>
+                    )}
+                    <p className="text-sm text-gray-600 mb-6">
+                        Êtes-vous sûr de vouloir supprimer cette sortie de stock ? Cette action annulera également le mouvement de stock correspondant.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <SecondaryButton onClick={closeDeleteModal}>Annuler</SecondaryButton>
+                        <DangerButton onClick={handleDelete}>Supprimer</DangerButton>
+                    </div>
                 </div>
             </Modal>
         </AuthenticatedLayout>

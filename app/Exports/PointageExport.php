@@ -48,6 +48,14 @@ class PointageExport implements FromView, ShouldAutoSize, WithTitle // Implement
             ->with(['employee', 'operation', 'bloc'])
             ->get();
 
+        // Only export employees who actually worked at least one day this period — an unworked
+        // paid holiday (operation_id/bloc_id both null) or zero records at all doesn't count.
+        $workedEmployeeIds = $records
+            ->filter(fn ($r) => $r->operation_id !== null && $r->bloc_id !== null)
+            ->pluck('employee_id')
+            ->unique();
+        $employees = $employees->filter(fn ($e) => $workedEmployeeIds->contains($e->id))->values();
+
         $groupedRecords = $records->groupBy(['employee_id', function ($item) {
             return $item->date->format('Y-m-d');
         }]);
@@ -61,17 +69,26 @@ class PointageExport implements FromView, ShouldAutoSize, WithTitle // Implement
             }
         }
 
+        // A record with no operation/bloc is a paid public holiday the employee did NOT work
+        // (see PointageController::updateCell()) — it has no real bloc/operation to sit in the
+        // matrix above, but its net still counts toward TOTAL NET, so it needs its own line
+        // rather than being silently dropped (which used to make the bloc tables' sum fall short
+        // of TOTAL NET by exactly this amount).
+        $jfUnworkedByDay = array_fill_keys($days, 0);
+
         foreach ($records as $record) {
-            $calc = $this->payrollService->calculate(
-                $enterprise->contract_type, // Use enterprise's contract type
-                $enterprise->default_brut_rate, // Use enterprise's default brut rate
-                $record->hours,
-                $record->employee->complement,
-                $record->is_jf,
-                $enterprise->invoiced_to_client
-            );
+            // Read the record's own stored net directly rather than recomputing via calculate()
+            // — recomputing would use the employee's CURRENT complement/rate instead of what was
+            // actually in effect when this day was entered, silently drifting the bloc/operation
+            // tables away from what was really paid (and, for piece-rate records, calculate()
+            // ignores quantity entirely and is simply wrong). Same fix already applied to
+            // PointageController::summary() and this table's own TOTAL NET column.
             $dateKey = $record->date->format('Y-m-d');
-            $blocMatrices[$record->bloc->name][$record->operation->abbreviation ?? $record->operation->name][$dateKey] += $calc['total_net'];
+            if ($record->operation_id === null) {
+                $jfUnworkedByDay[$dateKey] += $record->net;
+                continue;
+            }
+            $blocMatrices[$record->bloc->name][$record->operation->abbreviation ?? $record->operation->name][$dateKey] += $record->net;
         }
 
         return view('exports.pointage', [
@@ -80,6 +97,7 @@ class PointageExport implements FromView, ShouldAutoSize, WithTitle // Implement
             'days' => $days,
             'records' => $groupedRecords,
             'payrollService' => $this->payrollService,
+            'jfUnworkedByDay' => $jfUnworkedByDay,
             'operations' => $operations,
             'blocs' => $blocs,
             'blocMatrices' => $blocMatrices
