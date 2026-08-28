@@ -8,12 +8,20 @@ import SecondaryButton from '@/Components/SecondaryButton';
 export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const { props } = usePage();
     const [isCreating, setIsCreating] = useState(false);
+    const [isEditing, setIsEditing] = useState(false);
+    const [editingQuinzaine, setEditingQuinzaine] = useState(null);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         label: '',
         start_date: '',
         end_date: '',
         enterprise_id: auth.user.enterprise_id || (enterprises?.[0]?.id || ''),
+    });
+
+    const { data: editData, setData: setEditData, put: put, processing: editProcessing, reset: editReset, errors: editErrors } = useForm({
+        label: '',
+        start_date: '',
+        end_date: '',
     });
 
     const [selectedGlobalQuinzaineId, setSelectedGlobalQuinzaineId] = useState(quinzaines.length > 0 ? quinzaines[0].id : '');
@@ -75,6 +83,38 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
         });
     };
 
+    const openEditModal = (quinzaine) => {
+        setEditingQuinzaine(quinzaine);
+        const formatDateForInput = (dateStr) => {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toISOString().split('T')[0];
+        };
+        setEditData({
+            label: quinzaine.label || '',
+            start_date: formatDateForInput(quinzaine.start_date),
+            end_date: formatDateForInput(quinzaine.end_date),
+        });
+        setIsEditing(true);
+    };
+
+    const submitEdit = (e) => {
+        e.preventDefault();
+        put(route('settings.quinzaine.update', editingQuinzaine.id), {
+            onSuccess: () => {
+                editReset();
+                setIsEditing(false);
+                setEditingQuinzaine(null);
+            },
+        });
+    };
+
+    const deleteQuinzaine = (quinzaine) => {
+        if (confirm('Êtes-vous sûr de vouloir supprimer cette période ? Cette action est irréversible.')) {
+            router.delete(route('settings.quinzaine.delete', quinzaine.id));
+        }
+    };
+
     const handleFilterChange = (e) => {
         const newEnterpriseId = e.target.value;
         setFilterEnterpriseId(newEnterpriseId);
@@ -133,15 +173,15 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                     </select>
                                 </div>
                                 <a
-                                    href={selectedPeriodKey ? route('pointage.exportAllDivisions', uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) : '#'}
+                                    href={selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id ? route('pointage.exportAllDivisions', uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) : '#'}
                                     target="_blank"
                                     className={`inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors justify-center ${
-                                        selectedPeriodKey
+                                        selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id
                                             ? 'bg-blue-600 hover:bg-blue-700'
                                             : 'bg-gray-400 cursor-not-allowed opacity-75'
                                     }`}
                                     onClick={(e) => {
-                                        if (!selectedPeriodKey) { e.preventDefault(); return; }
+                                        if (!selectedPeriodKey || !uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) { e.preventDefault(); return; }
                                         triggerDownload('all-divisions');
                                     }}
                                 >
@@ -252,15 +292,29 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                 </div>
 
                                                 {!q.is_closed && auth.user.role !== 'data_entry' && (
-                                                    <Link
-                                                        method="post"
-                                                        as="button"
-                                                        href={route('settings.quinzaine.close', q.id)}
-                                                        onBefore={() => confirm('Clôturer cette période ? Le pointage ne pourra plus être modifié une fois clôturée.')}
-                                                        className="w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
-                                                    >
-                                                        CLÔTURER CETTE PÉRIODE
-                                                    </Link>
+                                                    <div className="grid grid-cols-2 gap-2">
+                                                        <button
+                                                            onClick={() => openEditModal(q)}
+                                                            className="w-full text-center py-2 text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                                                        >
+                                                            MODIFIER
+                                                        </button>
+                                                        <button
+                                                            onClick={() => deleteQuinzaine(q)}
+                                                            className="w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
+                                                        >
+                                                            SUPPRIMER
+                                                        </button>
+                                                        <Link
+                                                            method="post"
+                                                            as="button"
+                                                            href={route('settings.quinzaine.close', q.id)}
+                                                            onBefore={() => confirm('Clôturer cette période ? Le pointage ne pourra plus être modifié une fois clôturée.')}
+                                                            className="col-span-2 w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
+                                                        >
+                                                            CLÔTURER CETTE PÉRIODE
+                                                        </Link>
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -321,6 +375,46 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing}>Ouvrir la Période</PrimaryButton>
+                        </div>
+                    </form>
+                </div>
+            </Modal>
+
+            {/* EDIT QUINZAINE MODAL */}
+            <Modal show={isEditing} onClose={() => setIsEditing(false)}>
+                <div className="p-8">
+                    <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Modifier la Quinzaine</h3>
+                    <form onSubmit={submitEdit} className="space-y-6">
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé / Nom de la Période (Optionnel)</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Première Quinzaine Juin"
+                                    className="w-full rounded-lg border-gray-300"
+                                    value={editData.label}
+                                    onChange={e => setEditData('label', e.target.value)}
+                                />
+                                {editErrors.label && <div className="text-red-500 text-xs mt-1">{editErrors.label}</div>}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Début</label>
+                                    <input type="date" className="w-full rounded-lg border-gray-300" value={editData.start_date} onChange={e => setEditData('start_date', e.target.value)} />
+                                    {editErrors.start_date && <div className="text-red-500 text-xs mt-1">{editErrors.start_date}</div>}
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Fin</label>
+                                    <input type="date" className="w-full rounded-lg border-gray-300" value={editData.end_date} onChange={e => setEditData('end_date', e.target.value)} />
+                                    {editErrors.end_date && <div className="text-red-500 text-xs mt-1">{editErrors.end_date}</div>}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                            <SecondaryButton onClick={() => setIsEditing(false)}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={editProcessing}>Enregistrer</PrimaryButton>
                         </div>
                     </form>
                 </div>

@@ -82,15 +82,28 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     Cette division facture un client (ex: agence d'intérim) — à ne cocher que si elle émet une facture (net à facturer/TTC), pas juste le salaire des ouvriers
                                 </label>
                             </div>
-                            <div className="md:col-span-3">
-                                <button
-                                    type="submit"
-                                    disabled={editForm.processing}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
-                                >
-                                    Enregistrer les modifications
-                                </button>
-                                {editForm.wasSuccessful && <span className="ml-4 text-green-600 text-xs font-bold">Enregistré !</span>}
+                            <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-4">
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={editForm.processing}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
+                                    >
+                                        Enregistrer les modifications
+                                    </button>
+                                    {editForm.wasSuccessful && <span className="ml-4 text-green-600 text-xs font-bold">Enregistré !</span>}
+                                </div>
+                                {auth.user.role !== 'data_entry' && (
+                                    <Link
+                                        href={route('enterprises.destroy', enterprise.id)}
+                                        method="delete"
+                                        as="button"
+                                        onBefore={() => confirm('ATTENTION : Cette action supprimera définitivement cette division, toutes ses quinzaines et pointages. Les salariés rattachés seront conservés mais détachés de cette division. Continuer ?')}
+                                        className="text-red-600 hover:text-red-700 font-black uppercase text-xs tracking-widest"
+                                    >
+                                        Supprimer cette Division
+                                    </Link>
+                                )}
                             </div>
                         </form>
                     </div>

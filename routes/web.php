@@ -62,6 +62,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('/enterprises', [EnterpriseController::class, 'store'])->name('enterprises.store');
     Route::patch('/enterprises/{enterprise}', [EnterpriseController::class, 'update'])->name('enterprises.update');
+    Route::delete('/enterprises/{enterprise}', [EnterpriseController::class, 'destroy'])->name('enterprises.destroy');
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -79,6 +80,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings/bloc', [EnterpriseController::class, 'addBloc'])->name('settings.bloc');
     Route::delete('/settings/bloc/{bloc}', [EnterpriseController::class, 'deleteBloc'])->name('settings.bloc.destroy');
     Route::post('/settings/quinzaine', [EnterpriseController::class, 'createQuinzaine'])->name('settings.quinzaine');
+    Route::put('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'updateQuinzaine'])->name('settings.quinzaine.update');
+    Route::delete('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'deleteQuinzaine'])->name('settings.quinzaine.delete');
     Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
 
     Route::middleware('farm.selected')->group(function () {

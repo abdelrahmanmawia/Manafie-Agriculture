@@ -179,8 +179,10 @@ class PointageController extends Controller
             $days[] = $date->format('Y-m-d');
         }
 
-        // Fetch existing records for this quinzaine
+        // Fetch existing records for this quinzaine, filtering to only those within the date range
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
+            ->whereDate('date', '>=', $quinzaine->start_date)
+            ->whereDate('date', '<=', $quinzaine->end_date)
             ->get()
             ->groupBy(['employee_id', function ($item) {
                 return $item->date->format('Y-m-d');
@@ -247,23 +249,26 @@ class PointageController extends Controller
                 false
             );
 
-            PointageRecord::updateOrCreate(
-                [
-                    'employee_id' => $validated['employee_id'],
-                    'quinzaine_id' => $validated['quinzaine_id'],
-                    'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
-                ],
-                [
-                    'operation_id' => null,
-                    'bloc_id' => null,
-                    'hours' => 0,
-                    'quantity' => null,
-                    'is_jf' => true,
-                    'rate' => $quinzaine->enterprise->default_brut_rate,
-                    'brut' => $calc['brut'],
-                    'net' => $calc['total_net'],
-                ]
-            );
+            // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
+            PointageRecord::where('employee_id', $validated['employee_id'])
+                ->where('quinzaine_id', $validated['quinzaine_id'])
+                ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
+                ->delete();
+
+            // Create a new record
+            PointageRecord::create([
+                'employee_id' => $validated['employee_id'],
+                'quinzaine_id' => $validated['quinzaine_id'],
+                'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+                'operation_id' => null,
+                'bloc_id' => null,
+                'hours' => 0,
+                'quantity' => null,
+                'is_jf' => true,
+                'rate' => $quinzaine->enterprise->default_brut_rate,
+                'brut' => $calc['brut'],
+                'net' => $calc['total_net'],
+            ]);
 
             return redirect()->back();
         }
@@ -274,23 +279,27 @@ class PointageController extends Controller
         if ($operation->unit_rate && $quantity > 0) {
             // Piece-rate: pay = quantity * the operation's own rate, independent of the
             // enterprise's rate/employee's complement — no HS/JF concept for piece-rate work.
-            PointageRecord::updateOrCreate(
-                [
-                    'employee_id' => $validated['employee_id'],
-                    'quinzaine_id' => $validated['quinzaine_id'],
-                    'date' => Carbon::parse($validated['date'])->format('Y-m-d')
-                ],
-                [
-                    'operation_id' => $validated['operation_id'],
-                    'bloc_id' => $validated['bloc_id'],
-                    'hours' => 0,
-                    'quantity' => $quantity,
-                    'is_jf' => false,
-                    'rate' => $operation->unit_rate,
-                    'brut' => $operation->unit_rate,
-                    'net' => $quantity * $operation->unit_rate,
-                ]
-            );
+
+            // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
+            PointageRecord::where('employee_id', $validated['employee_id'])
+                ->where('quinzaine_id', $validated['quinzaine_id'])
+                ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
+                ->delete();
+
+            // Create a new record
+            PointageRecord::create([
+                'employee_id' => $validated['employee_id'],
+                'quinzaine_id' => $validated['quinzaine_id'],
+                'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+                'operation_id' => $validated['operation_id'],
+                'bloc_id' => $validated['bloc_id'],
+                'hours' => 0,
+                'quantity' => $quantity,
+                'is_jf' => false,
+                'rate' => $operation->unit_rate,
+                'brut' => $operation->unit_rate,
+                'net' => $quantity * $operation->unit_rate,
+            ]);
 
             return redirect()->back();
         }
@@ -307,25 +316,28 @@ class PointageController extends Controller
             $quinzaine->enterprise->invoiced_to_client
         );
 
-        PointageRecord::updateOrCreate(
-            [
-                'employee_id' => $validated['employee_id'],
-                'quinzaine_id' => $validated['quinzaine_id'],
-                'date' => Carbon::parse($validated['date'])->format('Y-m-d')
-            ],
-            [
-                'operation_id' => $validated['operation_id'],
-                'bloc_id' => $validated['bloc_id'],
-                'hours' => $hs,
-                'quantity' => null,
-                'is_jf' => $isJf,
-                'rate' => $quinzaine->enterprise->default_brut_rate,
-                'brut' => $calc['brut'],
-                'net' => $calc['total_net'],
-            ]
-        );
+        // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
+        PointageRecord::where('employee_id', $validated['employee_id'])
+            ->where('quinzaine_id', $validated['quinzaine_id'])
+            ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
+            ->delete();
 
-        return redirect()->back();
+        // Create a new record
+        PointageRecord::create([
+            'employee_id' => $validated['employee_id'],
+            'quinzaine_id' => $validated['quinzaine_id'],
+            'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+            'operation_id' => $validated['operation_id'],
+            'bloc_id' => $validated['bloc_id'],
+            'hours' => $hs,
+            'quantity' => null,
+            'is_jf' => $isJf,
+            'rate' => $quinzaine->enterprise->default_brut_rate,
+            'brut' => $calc['brut'],
+            'net' => $calc['total_net'],
+        ]);
+
+        return back();
     }
 
     /**
@@ -335,16 +347,19 @@ class PointageController extends Controller
      * updateCell(): no piece-rate (a copied quantity would be meaningless — each day's quantity
      * is real work, not something to duplicate), no per-day H.S., no JF — those still go through
      * the single-cell modal so they're entered deliberately, not accidentally propagated.
+     * Also supports clearing days when operation_id and bloc_id are null.
      */
     public function updateCellBulk(Request $request)
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:employees,id',
             'quinzaine_id' => 'required|exists:quinzaines,id',
-            'operation_id' => 'required|exists:operations,id',
-            'bloc_id' => 'required|exists:blocs,id',
+            'operation_id' => 'nullable|exists:operations,id',
+            'bloc_id' => 'nullable|exists:blocs,id',
             'dates' => 'required|array|min:1',
             'dates.*' => 'date',
+            'hours' => 'nullable|numeric|min:0',
+            'is_jf' => 'nullable|boolean',
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
@@ -355,6 +370,17 @@ class PointageController extends Controller
 
         if ($quinzaine->is_closed) {
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        }
+
+        // If operation_id is null, this is a clear operation - delete all records for the dates
+        if (!$validated['operation_id'] || !$validated['bloc_id']) {
+            foreach ($validated['dates'] as $date) {
+                PointageRecord::where('employee_id', $employee->id)
+                    ->where('quinzaine_id', $quinzaine->id)
+                    ->whereDate('date', Carbon::parse($date)->format('Y-m-d'))
+                    ->delete();
+            }
+            return back();
         }
 
         $operation = Operation::find($validated['operation_id']);
@@ -434,11 +460,16 @@ class PointageController extends Controller
         $dailyTotals = array_fill_keys($days, 0);
 
         foreach ($records as $record) {
+            // Skip records that fall outside the current date range (e.g., after editing quinzaine dates)
+            $dateKey = $record->date->format('Y-m-d');
+            if (!in_array($dateKey, $days)) {
+                continue;
+            }
+
             // Read the record's own stored net directly rather than recomputing via
             // calculate() — piece-rate records (quantity set) were computed from the
             // Operation's unit_rate, not the enterprise's rate/employee's complement, so
             // recomputing here would silently show the wrong total for them.
-            $dateKey = $record->date->format('Y-m-d');
             // A record with no operation/bloc (unworked paid holiday) has nowhere to sit in the
             // matrix, but its net must still count toward the day's total.
             if ($record->bloc_name !== null && $record->op_name !== null) {

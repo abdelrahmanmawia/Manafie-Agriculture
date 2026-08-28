@@ -13,6 +13,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
+    const [operationSearchTerm, setOperationSearchTerm] = useState('');
+    const [showOperationDropdown, setShowOperationDropdown] = useState(false);
     // 'all' | 'zero' (not pointé at all yet) | 'worked' (already has at least 1 day)
     const [dayFilter, setDayFilter] = useState('all');
     // { operationId, blocId, label } of a copied cell, or null — while set, clicking any other
@@ -34,6 +36,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             || (dayFilter === 'zero' && days === 0)
             || (dayFilter === 'worked' && days > 0);
         return matchesSearch && matchesDayFilter;
+    });
+
+    const filteredOperations = operations.filter(op => {
+        const term = operationSearchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return op.name.toLowerCase().includes(term)
+            || (op.abbreviation || '').toLowerCase().includes(term);
     });
 
     // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
@@ -74,6 +83,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
         const record = existingRecords[employeeId]?.[date]?.[0];
         setSelectedCell({ employeeId, date });
+        setOperationSearchTerm('');
+        setShowOperationDropdown(false);
         setData({
             employee_id: employeeId,
             quinzaine_id: quinzaine.id,
@@ -86,28 +97,45 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         });
     };
 
-    // Copies one already-filled, non-piece-rate cell's Operation+Bloc so it can be pasted onto
-    // other days — for the common case of an ouvrier doing the same job every day, this saves
-    // re-picking both dropdowns 15 times. Piece-rate cells are excluded: their quantity is real
-    // per-day work, not something that makes sense to duplicate.
+    // Copies a cell's Operation+Bloc so it can be pasted onto other days.
+    // Can also copy empty cells to facilitate clearing days.
     const copyCell = (e, employeeId, date) => {
         e.stopPropagation();
         const record = existingRecords[employeeId]?.[date]?.[0];
-        if (!record || !record.operation_id) return;
+        if (!record || !record.operation_id) {
+            // Copy empty cell for cleaning
+            setClipboard({
+                operationId: null,
+                blocId: null,
+                label: 'VIDE (Nettoyage)',
+                isEmpty: true,
+            });
+            return;
+        }
         const op = operations.find(o => o.id === record.operation_id);
-        if (op?.unit_rate) return;
+        if (op?.unit_rate) return; // Piece-rate cells excluded
         const bloc = blocs.find(b => b.id === record.bloc_id);
         setClipboard({
             operationId: record.operation_id,
             blocId: record.bloc_id,
             label: `${op?.abbreviation || op?.name || ''} @ ${bloc?.name || ''}`,
+            isEmpty: false,
         });
     };
 
     // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
-    // is held; see the day-cell onClick below.
+    // is held; see the day-cell onClick below. Replaces existing data if present.
     const pasteToCell = (employeeId, date) => {
         if (!clipboard || quinzaine.is_closed || pasting) return;
+        const existingRecord = existingRecords[employeeId]?.[date]?.[0];
+
+        // If replacing existing data, confirm first
+        if (existingRecord && existingRecord.operation_id && !clipboard.isEmpty) {
+            if (!confirm('Cette journée contient déjà des données. Voulez-vous les remplacer ?')) {
+                return;
+            }
+        }
+
         setPasting(true);
         router.post(route('pointage.cell'), {
             employee_id: employeeId,
@@ -115,6 +143,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             date,
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
+            hours: clipboard.isEmpty ? 0 : undefined,
+            is_jf: clipboard.isEmpty ? false : undefined,
         }, {
             preserveScroll: true,
             onSuccess: fetchSummary,
@@ -123,19 +153,47 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
 
     // "Coller sur les jours restants" — fills every day this employee has NO record for yet
-    // with the clipboard's Operation+Bloc, in one request. Never touches a day that's already
-    // filled (JF, a different job, an absence someone already resolved) — only empty ones.
+    // with the clipboard's Operation+Bloc, in one request. If clipboard is empty, clears all days.
     const pasteRemainingDays = (employeeId) => {
         if (!clipboard || quinzaine.is_closed || pasting) return;
-        const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0]);
-        if (emptyDays.length === 0) return;
+
+        if (clipboard.isEmpty) {
+            // Clear all days for this employee
+            if (!confirm('Voulez-vous effacer toutes les données de cet ouvrier pour cette période ?')) {
+                return;
+            }
+            const allDays = days.filter(d => existingRecords[employeeId]?.[d]?.[0]);
+            if (allDays.length === 0) return;
+            setPasting(true);
+            router.post(route('pointage.cell.bulk'), {
+                employee_id: employeeId,
+                quinzaine_id: quinzaine.id,
+                dates: allDays,
+                operation_id: null,
+                bloc_id: null,
+                hours: 0,
+                is_jf: false,
+            }, {
+                preserveScroll: true,
+                onSuccess: fetchSummary,
+                onFinish: () => setPasting(false),
+            });
+            return;
+        }
+
+        // For full records, fill ALL days (replacing existing ones)
+        if (!confirm('Voulez-vous remplacer toutes les données de cet ouvrier avec cette opération ?')) {
+            return;
+        }
+
+        const allDays = days;
         setPasting(true);
         router.post(route('pointage.cell.bulk'), {
             employee_id: employeeId,
             quinzaine_id: quinzaine.id,
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
-            dates: emptyDays,
+            dates: allDays,
         }, {
             preserveScroll: true,
             onSuccess: fetchSummary,
@@ -180,12 +238,20 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
 
     const fetchSummary = async () => {
-        const response = await axios.get(route('pointage.summary', quinzaine.id));
-        setSummaryData(response.data);
+        try {
+            const response = await axios.get(route('pointage.summary', quinzaine.id));
+            setSummaryData(response.data);
+        } catch (error) {
+            if (error.response?.status === 404 || error.response?.status === 500) {
+                router.visit(route('pointage.quinzaines'));
+            }
+        }
     };
 
     const submit = (e) => {
         e.preventDefault();
+        setOperationSearchTerm('');
+        setShowOperationDropdown(false);
         post(route('pointage.cell'), {
             onSuccess: () => {
                 setSelectedCell(null);
@@ -249,7 +315,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             <div className="grid grid-cols-2 gap-3">
                                 <select value={globalOperation} onChange={(e) => setGlobalOperation(e.target.value)} className="text-xs font-bold rounded-lg border-gray-100 bg-gray-50">
                                     <option value="">-- Opération --</option>
-                                    {operations.map(op => <option key={op.id} value={op.id}>{op.name}</option>)}
+                                    {operations.map(op => <option key={op.id} value={op.id}>{op.name} {op.abbreviation ? `(${op.abbreviation})` : ''}</option>)}
                                 </select>
                                 <select value={globalBloc} onChange={(e) => setGlobalBloc(e.target.value)} className="text-xs font-bold rounded-lg border-gray-100 bg-gray-50">
                                     <option value="">-- Bloc --</option>
@@ -461,7 +527,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {days.map(day => {
                                                     const record = employeeRecords[day]?.[0];
                                                     const recordOp = record ? operations.find(o => o.id === record.operation_id) : null;
-                                                    const canCopy = record && record.operation_id && !recordOp?.unit_rate;
+                                                    const canCopy = (!record && !clipboard) || (record && record.operation_id && !recordOp?.unit_rate);
                                                     return (
                                                         <td
                                                             key={day}
@@ -626,10 +692,47 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     <div className="space-y-6">
                                         <div className="relative">
                                             <label htmlFor="cell_operation_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
-                                            <select id="cell_operation_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.operation_id} onChange={e => setData('operation_id', e.target.value)}>
-                                                <option value="">ABSENCE</option>
-                                                {operations.map(o => <option key={o.id} value={o.id}>{o.name.toUpperCase()}</option>)}
-                                            </select>
+                                            <input
+                                                id="cell_operation_id"
+                                                className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all"
+                                                value={data.operation_id ? operations.find(o => o.id === data.operation_id)?.name.toUpperCase() + (operations.find(o => o.id === data.operation_id)?.abbreviation ? ` (${operations.find(o => o.id === data.operation_id).abbreviation.toUpperCase()})` : '') : operationSearchTerm}
+                                                onChange={e => {
+                                                    setOperationSearchTerm(e.target.value);
+                                                    setShowOperationDropdown(true);
+                                                }}
+                                                onFocus={() => setShowOperationDropdown(true)}
+                                                placeholder="Rechercher par nom ou abréviation..."
+                                                readOnly={!!data.operation_id}
+                                            />
+                                            {showOperationDropdown && (
+                                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setData('operation_id', '');
+                                                            setOperationSearchTerm('');
+                                                            setShowOperationDropdown(false);
+                                                        }}
+                                                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors font-black text-sm border-b border-gray-100"
+                                                    >
+                                                        ABSENCE
+                                                    </button>
+                                                    {filteredOperations.map(o => (
+                                                        <button
+                                                            key={o.id}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setData('operation_id', o.id);
+                                                                setOperationSearchTerm('');
+                                                                setShowOperationDropdown(false);
+                                                            }}
+                                                            className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors font-black text-sm"
+                                                        >
+                                                            {o.name.toUpperCase()} {o.abbreviation ? `(${o.abbreviation.toUpperCase()})` : ''}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                         <div className="relative">
                                             <label htmlFor="cell_bloc_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>

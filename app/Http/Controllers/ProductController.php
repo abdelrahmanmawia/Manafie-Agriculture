@@ -217,11 +217,15 @@ class ProductController extends Controller
             $validated['is_active'] = $request->boolean('is_active');
         }
 
+        // Only update image if a new file is provided
         if ($request->hasFile('image')) {
             if ($product->image) {
                 Storage::disk('public')->delete($product->image);
             }
             $validated['image'] = $request->file('image')->store('products', 'public');
+        } else {
+            // No file uploaded - remove image from validated data to keep existing image
+            unset($validated['image']);
         }
 
         $product->update($validated);

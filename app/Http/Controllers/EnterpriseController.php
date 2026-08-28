@@ -260,6 +260,26 @@ class EnterpriseController extends Controller
         return redirect()->back()->with('success', 'Division mise à jour.');
     }
 
+    public function destroy(Request $request, Enterprise $enterprise)
+    {
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+
+        // Employees are farm-scoped but still reference a division; the FK cascades on
+        // enterprise delete, so detach first to keep the worker records.
+        Employee::where('enterprise_id', $enterprise->id)->update(['enterprise_id' => null]);
+
+        try {
+            $enterprise->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer cette division : des données liées l\'en empêchent.'
+            );
+        }
+
+        return redirect()->route('dashboard')->with('success', 'Division supprimée.');
+    }
+
     public function closeQuinzaine(Request $request, Quinzaine $quinzaine)
     {
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
@@ -330,6 +350,58 @@ class EnterpriseController extends Controller
         ]);
 
         return redirect()->back();
+    }
+
+    public function updateQuinzaine(Request $request, Quinzaine $quinzaine)
+    {
+        abort_if($quinzaine->is_closed, 403, 'Cannot edit a closed quinzaine.');
+
+        $request->validate([
+            'label' => 'nullable|string|max:255',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
+        ]);
+
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+
+        // Check for duplicate dates (excluding current quinzaine)
+        $duplicate = Quinzaine::where('enterprise_id', $quinzaine->enterprise_id)
+            ->where('id', '!=', $quinzaine->id)
+            ->whereDate('start_date', $request->start_date)
+            ->whereDate('end_date', $request->end_date)
+            ->exists();
+        abort_if($duplicate, 422, 'Une période existe déjà pour ces dates dans cette division.');
+
+        // Check if there are pointage records that would fall outside the new date range
+        $hasRecordsOutsideRange = PointageRecord::where('quinzaine_id', $quinzaine->id)
+            ->where(function ($query) use ($request) {
+                $query->whereDate('date', '<', $request->start_date)
+                      ->orWhereDate('date', '>', $request->end_date);
+            })
+            ->exists();
+
+        if ($hasRecordsOutsideRange) {
+            abort(422, 'Impossible de modifier les dates : il existe des enregistrements de pointage en dehors de la nouvelle période. Veuillez supprimer ces enregistrements ou choisir une période qui les inclut.');
+        }
+
+        $quinzaine->update([
+            'label' => $request->label,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
+        ]);
+
+        return redirect()->back()->with('success', 'Quinzaine updated successfully.');
+    }
+
+    public function deleteQuinzaine(Request $request, Quinzaine $quinzaine)
+    {
+        abort_if($quinzaine->is_closed, 403, 'Cannot delete a closed quinzaine.');
+
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+
+        $quinzaine->delete();
+
+        return redirect()->back()->with('success', 'Quinzaine deleted successfully.');
     }
 
     public function deleteOperation(Request $request, Operation $operation)

@@ -21,7 +21,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
 
     const { data, setData, post, transform, processing, reset, errors, clearErrors } = useForm({
         name: '',
-        image: null,
+        image: undefined,
         category: categories.length > 0 ? categories[0] : '',
         unit_type: unitTypes.length > 0 ? unitTypes[0] : '',
         min_stock_level: 0,
@@ -93,14 +93,14 @@ export default function Index({ auth, products, categories, unitTypes, employees
         clearErrors();
         setData({
             name: product.name,
-            image: null,
+            image: undefined, // Don't send image field unless changed
             category: product.category,
             unit_type: product.unit_type,
             min_stock_level: product.min_stock_level || 0,
             unit_cost: product.unit_cost || '',
             is_active: product.is_active,
         });
-        setImagePreview(null);
+        setImagePreview(product.image_url || null);
         setIsCreating(true);
     };
 
@@ -116,7 +116,14 @@ export default function Index({ auth, products, categories, unitTypes, employees
             // PHP only parses multipart/form-data bodies into $_POST/$_FILES for a real
             // POST, never for PUT — a real PUT with the image file attached would arrive
             // empty. Route it as POST with a spoofed _method field instead.
-            transform((data) => ({ ...data, _method: 'put' }));
+            transform((data) => {
+                // Only include image field if it's actually set (not undefined)
+                const submitData = { ...data, _method: 'put' };
+                if (submitData.image === undefined) {
+                    delete submitData.image;
+                }
+                return submitData;
+            });
             post(route('stock.products.update', editingProduct.id), {
                 onSuccess: () => closeProductModal(),
             });
