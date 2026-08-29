@@ -120,12 +120,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Products
     Route::get('/stock/products', [ProductController::class, 'index'])->name('stock.products.index');
     Route::post('/stock/products', [ProductController::class, 'store'])->name('stock.products.store');
-    Route::get('/stock/products/categories', [ProductController::class, 'categories'])->name('stock.products.categories');
     Route::get('/stock/products/unit-types', [ProductController::class, 'unitTypes'])->name('stock.products.unit-types');
     Route::get('/stock/products/low-stock', [ProductController::class, 'lowStock'])->name('stock.products.low-stock');
     Route::get('/stock/products/{product}', [ProductController::class, 'show'])->name('stock.products.show');
     Route::put('/stock/products/{product}', [ProductController::class, 'update'])->name('stock.products.update');
     Route::delete('/stock/products/{product}', [ProductController::class, 'destroy'])->name('stock.products.destroy');
+
+    Route::post('/stock/categories', [ProductController::class, 'storeCategory'])->name('stock.categories.store');
+    Route::put('/stock/categories/{category}', [ProductController::class, 'updateCategory'])->name('stock.categories.update');
+    Route::delete('/stock/categories/{category}', [ProductController::class, 'destroyCategory'])->name('stock.categories.destroy');
     Route::post('/stock/products/{product}/toggle-active', [ProductController::class, 'toggleActive'])->name('stock.products.toggle-active');
 
     // Stock Management - Vehicles

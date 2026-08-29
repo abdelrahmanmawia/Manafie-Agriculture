@@ -5,6 +5,7 @@ namespace Tests\Feature\Stock;
 use App\Models\Farm;
 use App\Models\ManualStockEntry;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\StockAlert;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
@@ -27,6 +28,7 @@ class StockDataEntryRoleTest extends TestCase
     private User $dataEntry;
     private User $farmManager;
     private Product $product;
+    private ProductCategory $category;
     private Vehicle $vehicle;
 
     protected function setUp(): void
@@ -45,10 +47,15 @@ class StockDataEntryRoleTest extends TestCase
             'farm_id' => $this->farm->id,
         ]);
 
+        $this->category = ProductCategory::create([
+            'farm_id' => $this->farm->id,
+            'name' => 'Engrais',
+        ]);
+
         $this->product = Product::create([
             'farm_id' => $this->farm->id,
             'name' => 'Engrais Test',
-            'category' => 'fertilizers',
+            'category_id' => $this->category->id,
             'unit_type' => 'kg',
             'min_stock_level' => 100,
             'unit_cost' => 10,
@@ -75,7 +82,7 @@ class StockDataEntryRoleTest extends TestCase
     {
         return array_merge([
             'name' => 'Nouveau Produit',
-            'category' => 'seeds',
+            'category_id' => $this->category->id,
             'unit_type' => 'units',
             'min_stock_level' => 10,
         ], $overrides);

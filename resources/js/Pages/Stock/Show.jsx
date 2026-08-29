@@ -10,19 +10,21 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
-import { CATEGORY_LABELS, UNIT_TYPE_LABELS, ALERT_TYPE_LABELS, MOVEMENT_TYPE_LABELS } from '@/utils/stockLabels';
+import { UNIT_TYPE_LABELS, ALERT_TYPE_LABELS, MOVEMENT_TYPE_LABELS } from '@/utils/stockLabels';
+import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
 
 export default function Show({ auth, product, categories, unitTypes }) {
     const [confirmingProductDeletion, setConfirmingProductDeletion] = useState(false);
     const [showImagePreview, setShowImagePreview] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isManagingCategories, setIsManagingCategories] = useState(false);
     const [imagePreview, setImagePreview] = useState(null);
     const { delete: destroy, processing } = useForm();
 
     const editForm = useForm({
         name: product.name,
         image: null,
-        category: product.category,
+        category_id: product.category_id,
         unit_type: product.unit_type,
         min_stock_level: product.min_stock_level || 0,
         unit_cost: product.unit_cost || '',
@@ -52,7 +54,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
         editForm.setData({
             name: product.name,
             image: null,
-            category: product.category,
+            category_id: product.category_id,
             unit_type: product.unit_type,
             min_stock_level: product.min_stock_level || 0,
             unit_cost: product.unit_cost || '',
@@ -97,6 +99,9 @@ export default function Show({ auth, product, categories, unitTypes }) {
     
     const getStockStatus = () => {
         if (currentStock === 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600', bgColor: 'bg-red-50' };
+        // Without a configured threshold there's no basis to call this stock "Bon" — a product
+        // nobody has ever set a minimum for shouldn't look safer than one that has.
+        if (minStock <= 0) return { status: 'Seuil non défini', color: 'bg-gray-400', textColor: 'text-gray-500', bgColor: 'bg-gray-50' };
         if (currentStock <= minStock) return { status: 'Faible', color: 'bg-orange-500', textColor: 'text-orange-600', bgColor: 'bg-orange-50' };
         if (currentStock <= minStock * 1.5) return { status: 'Normal', color: 'bg-yellow-500', textColor: 'text-yellow-600', bgColor: 'bg-yellow-50' };
         return { status: 'Bon', color: 'bg-green-500', textColor: 'text-green-600', bgColor: 'bg-green-50' };
@@ -104,19 +109,6 @@ export default function Show({ auth, product, categories, unitTypes }) {
 
     const stockStatus = getStockStatus();
 
-    const getCategoryColor = (category) => {
-        const colors = {
-            'seeds': 'bg-green-100 text-green-800',
-            'fertilizers': 'bg-blue-100 text-blue-800',
-            'pesticides': 'bg-red-100 text-red-800',
-            'tools': 'bg-gray-100 text-gray-800',
-            'packaging': 'bg-yellow-100 text-yellow-800',
-            'equipment': 'bg-purple-100 text-purple-800',
-            'fuel': 'bg-orange-100 text-orange-800',
-            'other': 'bg-indigo-100 text-indigo-800',
-        };
-        return colors[category] || 'bg-gray-100 text-gray-800';
-    };
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -207,8 +199,8 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                     <div>
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{product.name}</h3>
                                         <div className="flex items-center gap-3 mt-2">
-                                            <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
-                                                {CATEGORY_LABELS[product.category] || product.category}
+                                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                                {product.category?.name ?? 'Sans catégorie'}
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <span className={`text-sm ${product.is_active ? 'text-green-600' : 'text-gray-400'}`}>
@@ -482,19 +474,28 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                 </div>
 
                                 <div>
-                                    <InputLabel htmlFor="edit_category" value="Catégorie *" />
+                                    <div className="flex items-center justify-between">
+                                        <InputLabel htmlFor="edit_category" value="Catégorie *" />
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsManagingCategories(true)}
+                                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                                        >
+                                            Gérer les catégories
+                                        </button>
+                                    </div>
                                     <select
                                         id="edit_category"
                                         className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
-                                        value={editForm.data.category}
-                                        onChange={(e) => editForm.setData('category', e.target.value)}
+                                        value={editForm.data.category_id}
+                                        onChange={(e) => editForm.setData('category_id', e.target.value)}
                                         required
                                     >
                                         {categories.map((cat) => (
-                                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
                                         ))}
                                     </select>
-                                    <InputError message={editForm.errors.category} className="mt-2" />
+                                    <InputError message={editForm.errors.category_id} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -588,6 +589,12 @@ export default function Show({ auth, product, categories, unitTypes }) {
                     />
                 </div>
             )}
+
+            <ManageCategoriesModal
+                show={isManagingCategories}
+                onClose={() => setIsManagingCategories(false)}
+                categories={categories}
+            />
         </AuthenticatedLayout>
     );
 }

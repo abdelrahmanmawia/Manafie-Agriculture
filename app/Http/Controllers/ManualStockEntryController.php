@@ -75,7 +75,7 @@ class ManualStockEntryController extends Controller
 
         $manualStockEntries = $query->orderBy('date', 'desc')->get();
 
-        $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
+        $products = Product::with('category')->when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
         $employees = Employee::where('is_active', true)
             ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
             ->get(['id', 'full_name']);
@@ -218,7 +218,7 @@ class ManualStockEntryController extends Controller
     {
         $this->assertEntryInScope($request, $manualStockEntry);
 
-        $products = Product::where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'category', 'unit_type', 'unit_cost']);
+        $products = Product::with('category')->where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
         // Keep the entry's currently assigned employee selectable even if they've since gone
         // inactive, so editing the entry doesn't silently drop that field.
         $employees = Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $manualStockEntry->farm_id))

@@ -26,7 +26,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
     });
 
     const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
-    const isVehicleConsumable = ['fuel', 'vehicle_needs'].includes(selectedProduct?.category);
+    const isVehicleConsumable = Boolean(selectedProduct?.category?.is_vehicle_related);
     const selectedVehicle = vehicles.find((v) => String(v.id) === String(data.vehicle_id));
     const hidesFieldContext = selectedVehicle && ['car', 'van'].includes(selectedVehicle.type);
 

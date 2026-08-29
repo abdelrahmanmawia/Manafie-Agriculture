@@ -64,7 +64,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
 
     // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
     const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
-    const isVehicleConsumable = ['fuel', 'vehicle_needs'].includes(selectedProduct?.category);
+    const isVehicleConsumable = Boolean(selectedProduct?.category?.is_vehicle_related);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -376,7 +376,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     value={data.product_id}
                                     onChange={(e) => {
                                         const nextProduct = products.find((p) => String(p.id) === e.target.value);
-                                        const nextIsVehicleConsumable = ['fuel', 'vehicle_needs'].includes(nextProduct?.category);
+                                        const nextIsVehicleConsumable = Boolean(nextProduct?.category?.is_vehicle_related);
                                         setData((prev) => ({
                                             ...prev,
                                             product_id: e.target.value,

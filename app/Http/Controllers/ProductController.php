@@ -10,6 +10,7 @@ use App\Models\ManualStockEntry;
 use App\Models\Operation;
 use App\Models\Parcelle;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Sector;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
@@ -33,15 +34,28 @@ class ProductController extends Controller
         abort_unless($farmId && $product->farm_id === $farmId, 403);
     }
 
+    private function assertCategoryInScope(Request $request, ProductCategory $category): void
+    {
+        $farmId = $this->scopedFarmId($request);
+        abort_unless($farmId && $category->farm_id === $farmId, 403);
+    }
+
+    private function categoriesFor(?int $farmId)
+    {
+        return ProductCategory::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->orderBy('name')
+            ->get(['id', 'name', 'is_vehicle_related', 'is_active']);
+    }
+
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
 
-        $query = Product::with('stockInventory')
+        $query = Product::with(['stockInventory', 'category'])
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
 
         if ($request->has('category')) {
-            $query->where('category', $request->category);
+            $query->where('category_id', $request->category);
         }
 
         if ($request->has('search')) {
@@ -53,14 +67,11 @@ class ProductController extends Controller
         }
 
         $products = $query->orderBy('name')->get();
-
-        // Get categories and unit types
-        $categories = $this->categories()->original; // Get the array from the JsonResponse
         $unitTypes = $this->unitTypes()->original; // Get the array from the JsonResponse
 
         return Inertia::render('Stock/Index', [
             'products' => $products,
-            'categories' => $categories,
+            'categories' => $this->categoriesFor($farmId),
             'unitTypes' => $unitTypes,
             'employees' => Employee::where('is_active', true)
                 ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
@@ -76,23 +87,6 @@ class ProductController extends Controller
                 ->orderByDesc('performed_at')
                 ->get(['id', 'vehicle_id', 'description', 'performed_at']),
         ]);
-    }
-
-    public function categories(): JsonResponse
-    {
-        $categories = [
-            'seeds',
-            'fertilizers',
-            'pesticides',
-            'tools',
-            'packaging',
-            'equipment',
-            'fuel',
-            'vehicle_needs',
-            'other'
-        ];
-
-        return response()->json($categories);
     }
 
     public function unitTypes(): JsonResponse
@@ -130,9 +124,11 @@ class ProductController extends Controller
             abort(403);
         }
 
+        $farmId = $this->resolveWriteFarmId($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'category' => 'required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
+            'category_id' => ['required', Rule::exists('product_categories', 'id')->where('farm_id', $farmId)],
             'unit_type' => 'required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
@@ -141,10 +137,10 @@ class ProductController extends Controller
         ]);
 
         $product = Product::create([
-            'farm_id' => $this->resolveWriteFarmId($request),
+            'farm_id' => $farmId,
             'name' => $validated['name'],
             'image' => $request->hasFile('image') ? $request->file('image')->store('products', 'public') : null,
-            'category' => $validated['category'],
+            'category_id' => $validated['category_id'],
             'unit_type' => $validated['unit_type'],
             'min_stock_level' => $validated['min_stock_level'] ?? 0,
             'unit_cost' => $validated['unit_cost'] ?? null,
@@ -161,6 +157,7 @@ class ProductController extends Controller
         $this->assertProductInScope($request, $product);
 
         $product->load([
+            'category',
             'stockInventory',
             'stockAlerts',
             'stockMovements' => function ($query) {
@@ -175,7 +172,7 @@ class ProductController extends Controller
 
         return Inertia::render('Stock/Show', [
             'product' => $product,
-            'categories' => $this->categories()->original,
+            'categories' => $this->categoriesFor($product->farm_id),
             'unitTypes' => $this->unitTypes()->original,
         ]);
     }
@@ -200,7 +197,7 @@ class ProductController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
-            'category' => 'sometimes|required|in:seeds,fertilizers,pesticides,tools,packaging,equipment,fuel,vehicle_needs,other',
+            'category_id' => ['sometimes', 'required', Rule::exists('product_categories', 'id')->where('farm_id', $product->farm_id)],
             'unit_type' => 'sometimes|required|in:kg,liters,units,boxes,bags',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
@@ -251,5 +248,68 @@ class ProductController extends Controller
         $product->delete();
 
         return redirect()->route('stock.products.index')->with('success', 'Produit supprimé avec succès.');
+    }
+
+    // Categories are structural configuration (like Operations/Blocs), not day-to-day stock
+    // entry — data_entry can log products against a category but not add/rename/remove one.
+
+    public function storeCategory(Request $request)
+    {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+
+        $farmId = $this->resolveWriteFarmId($request);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $farmId)],
+            'is_vehicle_related' => 'boolean',
+        ]);
+
+        ProductCategory::create([
+            'farm_id' => $farmId,
+            'name' => $validated['name'],
+            'is_vehicle_related' => $validated['is_vehicle_related'] ?? false,
+        ]);
+
+        return redirect()->back()->with('success', 'Catégorie créée avec succès.');
+    }
+
+    public function updateCategory(Request $request, ProductCategory $category)
+    {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+        $this->assertCategoryInScope($request, $category);
+
+        $validated = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $category->farm_id)->ignore($category->id)],
+            'is_vehicle_related' => 'boolean',
+            'is_active' => 'boolean',
+        ]);
+
+        $category->update($validated);
+
+        return redirect()->back()->with('success', 'Catégorie mise à jour.');
+    }
+
+    public function destroyCategory(Request $request, ProductCategory $category)
+    {
+        if ($request->user()->role === 'data_entry') {
+            abort(403);
+        }
+        $this->assertCategoryInScope($request, $category);
+
+        // The FK is restrictOnDelete, so this would fail at the DB level anyway — checked here
+        // first so the user gets an actionable message instead of a raw SQL error.
+        if ($category->products()->exists()) {
+            return redirect()->back()->withErrors([
+                'category' => 'Cette catégorie est utilisée par au moins un produit et ne peut pas être supprimée. Désactivez-la plutôt.',
+            ]);
+        }
+
+        $category->delete();
+
+        return redirect()->back()->with('success', 'Catégorie supprimée avec succès.');
     }
 }

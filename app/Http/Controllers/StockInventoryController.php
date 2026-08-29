@@ -57,6 +57,7 @@ class StockInventoryController extends Controller
 
         $inventory->load([
             'product',
+            'product.category',
             'product.stockMovements.performedBy',
             'product.stockMovements.reference' => function ($morphTo) {
                 $morphTo->morphWith([

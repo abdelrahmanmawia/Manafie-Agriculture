@@ -1,17 +1,8 @@
 // Shared French labels for the raw English enum values stored in the DB, used across every
 // Stock page so the UI never leaks an English category/type/status to the user.
 
-export const CATEGORY_LABELS = {
-    seeds: 'Semences',
-    fertilizers: 'Engrais',
-    pesticides: 'Pesticides',
-    tools: 'Outils',
-    packaging: 'Emballage',
-    equipment: 'Équipement',
-    fuel: 'Carburant',
-    vehicle_needs: 'Besoins Véhicule',
-    other: 'Autre',
-};
+// Categories are now a real per-farm table (ProductCategory) with their own name typed in
+// directly by the user — no fixed English-key-to-French-label map needed anymore.
 
 export const UNIT_TYPE_LABELS = {
     kg: 'kg',

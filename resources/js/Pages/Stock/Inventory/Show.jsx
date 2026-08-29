@@ -2,7 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { formatNumber, formatMAD } from '@/utils/number';
-import { CATEGORY_LABELS, UNIT_TYPE_LABELS, MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS } from '@/utils/stockLabels';
+import { UNIT_TYPE_LABELS, MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS } from '@/utils/stockLabels';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -106,7 +106,7 @@ export default function Show({ auth, stockInventory }) {
                                     <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{stockInventory.product.name}</h3>
                                     <div className="flex items-center gap-3 mt-2">
                                         <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
-                                            {CATEGORY_LABELS[stockInventory.product.category] || stockInventory.product.category}
+                                            {stockInventory.product.category?.name ?? 'Sans catégorie'}
                                         </span>
                                         {stockInventory.batch_number && (
                                             <span className="text-sm text-gray-500">Lot: {stockInventory.batch_number}</span>

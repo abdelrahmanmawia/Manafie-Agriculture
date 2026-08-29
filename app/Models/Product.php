@@ -15,7 +15,7 @@ class Product extends Model
         'farm_id',
         'name',
         'image',
-        'category',
+        'category_id',
         'unit_type',
         'min_stock_level',
         'unit_cost',
@@ -33,6 +33,11 @@ class Product extends Model
     public function farm()
     {
         return $this->belongsTo(Farm::class);
+    }
+
+    public function category()
+    {
+        return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
     public function stockInventory()

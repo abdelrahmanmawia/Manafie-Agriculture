@@ -8,6 +8,7 @@ use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\User;
@@ -49,13 +50,16 @@ class StockCrossFarmScopingTest extends TestCase
             'farm_id' => $this->farmA->id,
         ]);
 
+        $categoryA = ProductCategory::create(['farm_id' => $this->farmA->id, 'name' => 'Engrais']);
+        $categoryB = ProductCategory::create(['farm_id' => $this->farmB->id, 'name' => 'Engrais']);
+
         $this->productA = Product::create([
-            'farm_id' => $this->farmA->id, 'name' => 'Product A', 'category' => 'fertilizers',
+            'farm_id' => $this->farmA->id, 'name' => 'Product A', 'category_id' => $categoryA->id,
             'unit_type' => 'kg', 'min_stock_level' => 10, 'unit_cost' => 5, 'is_active' => true,
         ]);
 
         $this->productB = Product::create([
-            'farm_id' => $this->farmB->id, 'name' => 'Product B', 'category' => 'fertilizers',
+            'farm_id' => $this->farmB->id, 'name' => 'Product B', 'category_id' => $categoryB->id,
             'unit_type' => 'kg', 'min_stock_level' => 10, 'unit_cost' => 5, 'is_active' => true,
         ]);
 
@@ -108,7 +112,7 @@ class StockCrossFarmScopingTest extends TestCase
     {
         $this->actingAs($this->managerA)
             ->put('/stock/products/' . $this->productB->id, [
-                'name' => 'Hijacked', 'category' => 'fertilizers', 'unit_type' => 'kg',
+                'name' => 'Hijacked', 'unit_type' => 'kg',
             ])
             ->assertForbidden();
     }

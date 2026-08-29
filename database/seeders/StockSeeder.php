@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use App\Models\Farm;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\Vehicle;
 use App\Models\StockInventory;
 use App\Models\FuelTransaction;
@@ -33,6 +34,7 @@ class StockSeeder extends Seeder
         DB::statement('PRAGMA foreign_keys = OFF;');
 
         Product::truncate();
+        ProductCategory::truncate();
         Vehicle::truncate();
         StockInventory::truncate();
         FuelTransaction::truncate();
@@ -82,9 +84,33 @@ class StockSeeder extends Seeder
                 ['name' => 'Huile Moteur', 'category' => 'vehicle_needs', 'unit_type' => 'liters', 'min_stock_level' => 20, 'unit_cost' => 60.00],
             ];
 
+            // Categories are a real per-farm table (ProductCategory), not a fixed enum — resolve
+            // each demo product's category key to a row (creating it if this farm has none yet).
+            $categoryIdsByKey = [];
+            $vehicleRelatedKeys = ['fuel', 'vehicle_needs'];
+            $categoryLabels = [
+                'seeds' => 'Semences', 'fertilizers' => 'Engrais', 'pesticides' => 'Pesticides',
+                'tools' => 'Outils', 'packaging' => 'Emballage', 'fuel' => 'Carburant',
+                'vehicle_needs' => 'Besoins Véhicule',
+            ];
+
             $products = collect();
             foreach ($productsData as $data) {
-                $products->push(Product::create(array_merge($data, ['farm_id' => $farm->id])));
+                $categoryKey = $data['category'];
+                if (! isset($categoryIdsByKey[$categoryKey])) {
+                    $categoryIdsByKey[$categoryKey] = ProductCategory::firstOrCreate(
+                        ['farm_id' => $farm->id, 'name' => $categoryLabels[$categoryKey] ?? ucfirst($categoryKey)],
+                        ['is_vehicle_related' => in_array($categoryKey, $vehicleRelatedKeys, true)]
+                    )->id;
+                }
+
+                $productData = array_merge($data, [
+                    'farm_id' => $farm->id,
+                    'category_id' => $categoryIdsByKey[$categoryKey],
+                ]);
+                unset($productData['category']);
+
+                $products->push(Product::create($productData));
             }
 
             // 2. Vehicles
@@ -152,7 +178,7 @@ class StockSeeder extends Seeder
 
             // 4. Fuel Transactions — draws down Gasoil. About half are attributed to a bloc/opération
             // (a tractor working a field), the rest are plain déplacement (a car/van, no bloc).
-            $fuelProduct = $products->where('category', 'fuel')->first();
+            $fuelProduct = $products->where('name', 'Gasoil')->first();
             if ($fuelProduct && $vehicles->isNotEmpty()) {
                 $fuelInventory = $inventories->get($fuelProduct->id);
 
@@ -209,7 +235,7 @@ class StockSeeder extends Seeder
                 $inventory = $inventories->get($product->id);
                 $quantity = rand(1, 50);
                 $employee = $farmEmployees->isNotEmpty() ? $farmEmployees->random() : null;
-                $isVehicleConsumable = in_array($product->category, ['fuel', 'vehicle_needs']);
+                $isVehicleConsumable = (bool) $product->category?->is_vehicle_related;
                 $vehicle = $isVehicleConsumable && $vehicles->isNotEmpty() ? $vehicles->random() : null;
 
                 // Secteur/parcelle must actually belong to the chosen bloc — matching the

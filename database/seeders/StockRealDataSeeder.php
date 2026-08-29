@@ -7,6 +7,7 @@ use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\StockAlert;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
@@ -188,11 +189,30 @@ class StockRealDataSeeder extends Seeder
             ['name' => 'GRAISSE  KG', 'category' => 'vehicle_needs', 'unit_type' => 'kg', 'min_stock_level' => 0, 'quantity_on_hand' => 0],
         ];
 
+        // Categories became a real per-farm table (ProductCategory) rather than a fixed enum —
+        // resolved once per distinct key here instead of on every row.
+        $legacyLabels = [
+            'seeds' => 'Semences', 'fertilizers' => 'Engrais', 'pesticides' => 'Pesticides',
+            'tools' => 'Outils', 'packaging' => 'Emballage', 'equipment' => 'Équipement',
+            'fuel' => 'Carburant', 'vehicle_needs' => 'Besoins Véhicule', 'other' => 'Autre',
+        ];
+        $vehicleRelatedKeys = ['fuel', 'vehicle_needs'];
+        $categoryIdsByKey = [];
+        $resolveCategoryId = function (string $key) use (&$categoryIdsByKey, $legacyLabels, $vehicleRelatedKeys, $farm) {
+            if (! isset($categoryIdsByKey[$key])) {
+                $categoryIdsByKey[$key] = ProductCategory::firstOrCreate(
+                    ['farm_id' => $farm->id, 'name' => $legacyLabels[$key] ?? ucfirst($key)],
+                    ['is_vehicle_related' => in_array($key, $vehicleRelatedKeys, true)]
+                )->id;
+            }
+            return $categoryIdsByKey[$key];
+        };
+
         foreach ($productsData as $data) {
             $product = Product::create([
                 'farm_id' => $farm->id,
                 'name' => $data['name'],
-                'category' => $data['category'],
+                'category_id' => $resolveCategoryId($data['category']),
                 'unit_type' => $data['unit_type'],
                 'min_stock_level' => $data['min_stock_level'],
                 'is_active' => true,

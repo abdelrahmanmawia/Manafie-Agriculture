@@ -9,7 +9,8 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
-import { CATEGORY_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
 
 export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
     const [isCreating, setIsCreating] = useState(false);
@@ -18,11 +19,12 @@ export default function Index({ auth, products, categories, unitTypes, employees
     const [selectedCategory, setSelectedCategory] = useState('');
     const [imagePreview, setImagePreview] = useState(null);
     const [movementModal, setMovementModal] = useState(null); // { product, type: 'in' | 'out' }
+    const [isManagingCategories, setIsManagingCategories] = useState(false);
 
     const { data, setData, post, transform, processing, reset, errors, clearErrors } = useForm({
         name: '',
         image: undefined,
-        category: categories.length > 0 ? categories[0] : '',
+        category_id: categories.length > 0 ? categories[0].id : '',
         unit_type: unitTypes.length > 0 ? unitTypes[0] : '',
         min_stock_level: 0,
         unit_cost: '',
@@ -94,7 +96,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
         setData({
             name: product.name,
             image: undefined, // Don't send image field unless changed
-            category: product.category,
+            category_id: product.category_id,
             unit_type: product.unit_type,
             min_stock_level: product.min_stock_level || 0,
             unit_cost: product.unit_cost || '',
@@ -192,27 +194,14 @@ export default function Index({ auth, products, categories, unitTypes, employees
 
     const filteredProducts = products.filter(product => {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesCategory = !selectedCategory || product.category === selectedCategory;
+        const matchesCategory = !selectedCategory || String(product.category_id) === String(selectedCategory);
         return matchesSearch && matchesCategory;
     });
 
-    const getCategoryColor = (category) => {
-        const colors = {
-            'seeds': 'bg-green-100 text-green-800',
-            'fertilizers': 'bg-blue-100 text-blue-800',
-            'pesticides': 'bg-red-100 text-red-800',
-            'tools': 'bg-gray-100 text-gray-800',
-            'packaging': 'bg-yellow-100 text-yellow-800',
-            'equipment': 'bg-purple-100 text-purple-800',
-            'fuel': 'bg-orange-100 text-orange-800',
-            'vehicle_needs': 'bg-orange-100 text-orange-800',
-            'other': 'bg-indigo-100 text-indigo-800',
-        };
-        return colors[category] || 'bg-gray-100 text-gray-800';
-    };
-
-    // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
-    const isVehicleConsumable = (product) => ['fuel', 'vehicle_needs'].includes(product?.category);
+    // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the
+    // magasin — driven by the category's own "usage véhicule" flag (Gérer les Catégories)
+    // rather than a fixed list of category names, so it still works if categories are renamed.
+    const isVehicleConsumable = (product) => Boolean(product?.category?.is_vehicle_related);
 
     const getCurrentStock = (product) =>
         (product.stock_inventory ?? []).reduce((sum, inv) => sum + parseFloat(inv.quantity_on_hand || 0), 0);
@@ -240,15 +229,26 @@ export default function Index({ auth, products, categories, unitTypes, employees
                         <p className="text-sm text-gray-500 mt-1">Gérez votre catalogue de produits et niveaux de stock</p>
                     </div>
                     {auth.user.role !== 'data_entry' && (
-                        <button
-                            onClick={openCreate}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Nouveau Produit
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setIsManagingCategories(true)}
+                                className="bg-white hover:bg-gray-50 text-gray-700 px-5 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm border border-gray-200 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                                </svg>
+                                Catégories
+                            </button>
+                            <button
+                                onClick={openCreate}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Nouveau Produit
+                            </button>
+                        </div>
                     )}
                 </div>
             }
@@ -284,7 +284,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                 >
                                     <option value="">Toutes les catégories</option>
                                     {categories.map((cat) => (
-                                        <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
                                     ))}
                                 </select>
                             </div>
@@ -369,8 +369,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getCategoryColor(product.category)}`}>
-                                                            {CATEGORY_LABELS[product.category] || product.category}
+                                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                                            {product.category?.name ?? 'Sans catégorie'}
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
@@ -516,15 +516,15 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                     <select
                                         id="category"
                                         className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
-                                        value={data.category}
-                                        onChange={(e) => setData('category', e.target.value)}
+                                        value={data.category_id}
+                                        onChange={(e) => setData('category_id', e.target.value)}
                                         required
                                     >
                                         {categories.map((cat) => (
-                                            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
                                         ))}
                                     </select>
-                                    <InputError message={errors.category} className="mt-2" />
+                                    <InputError message={errors.category_id} className="mt-2" />
                                 </div>
 
                                 <div>
@@ -941,6 +941,12 @@ export default function Index({ auth, products, categories, unitTypes, employees
                     </div>
                 )}
             </Modal>
+
+            <ManageCategoriesModal
+                show={isManagingCategories}
+                onClose={() => setIsManagingCategories(false)}
+                categories={categories}
+            />
         </AuthenticatedLayout>
     );
 }
