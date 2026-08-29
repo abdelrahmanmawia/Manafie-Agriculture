@@ -45,7 +45,6 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
         is_active: vehicle.is_active,
         is_location: vehicle.is_location,
         default_daily_rate: vehicle.default_daily_rate ?? '',
-        purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
         notes: vehicle.notes || '',
     });
 
@@ -85,7 +84,6 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
             default_daily_rate: vehicle.default_daily_rate ?? '',
-            purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
             notes: vehicle.notes || '',
         });
         setIsEditing(true);
@@ -828,18 +826,6 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                     onChange={(e) => editForm.setData('model', e.target.value)}
                                 />
                                 <InputError message={editForm.errors.model} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="edit_purchase_date" value="Date d'Achat" />
-                                <TextInput
-                                    id="edit_purchase_date"
-                                    type="date"
-                                    className="mt-1 block w-full"
-                                    value={editForm.data.purchase_date}
-                                    onChange={(e) => editForm.setData('purchase_date', e.target.value)}
-                                />
-                                <InputError message={editForm.errors.purchase_date} className="mt-2" />
                             </div>
 
                             {editForm.data.asset_type === 'vehicle' && (

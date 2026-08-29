@@ -65,7 +65,6 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
         is_active: true,
         is_location: false,
         default_daily_rate: '',
-        purchase_date: '',
         notes: '',
     });
 
@@ -107,7 +106,6 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
             is_active: vehicle.is_active,
             is_location: vehicle.is_location,
             default_daily_rate: vehicle.default_daily_rate ?? '',
-            purchase_date: vehicle.purchase_date ? String(vehicle.purchase_date).slice(0, 10) : '',
             notes: vehicle.notes || '',
         });
         setIsCreating(true);
@@ -562,18 +560,6 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                                     <InputError message={errors.default_driver_id} className="mt-2" />
                                 </div>
                             )}
-
-                            <div>
-                                <InputLabel htmlFor="purchase_date" value="Date d'Achat" />
-                                <TextInput
-                                    id="purchase_date"
-                                    type="date"
-                                    className="mt-1 block w-full"
-                                    value={data.purchase_date}
-                                    onChange={(e) => setData('purchase_date', e.target.value)}
-                                />
-                                <InputError message={errors.purchase_date} className="mt-2" />
-                            </div>
 
                             <div className="md:col-span-2">
                                 <InputLabel htmlFor="notes" value="Notes" />
