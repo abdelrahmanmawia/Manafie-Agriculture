@@ -346,10 +346,6 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                 </div>
                             )}
                             <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50 md:border-t md:pt-4 md:mt-2">
-                                <span className="text-gray-500">Date d'Achat</span>
-                                <span className="font-medium text-gray-900">{vehicle.purchase_date ? formatDate(vehicle.purchase_date) : 'N/A'}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50 md:border-t md:pt-4 md:mt-2">
                                 <span className="text-gray-500">Capacité du Réservoir</span>
                                 <span className="font-medium text-gray-900">{vehicle.capacity_liters ? `${formatNumber(vehicle.capacity_liters, 0)} L` : 'N/A'}</span>
                             </div>
