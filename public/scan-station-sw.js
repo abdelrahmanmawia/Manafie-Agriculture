@@ -34,6 +34,13 @@ self.addEventListener('fetch', (event) => {
                 caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
                 return response;
             })
-            .catch(() => caches.match(event.request))
+            .catch(() =>
+                caches.match(event.request).then(
+                    // respondWith() requires an actual Response — caches.match() resolves to
+                    // undefined on a miss, which the browser can't coerce into one (throws
+                    // "Failed to convert value to 'Response'" and fails the whole navigation).
+                    (cached) => cached || new Response('', { status: 503, statusText: 'Offline' })
+                )
+            )
     );
 });

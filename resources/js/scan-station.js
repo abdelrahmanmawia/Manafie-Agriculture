@@ -375,7 +375,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 30000);
 
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/scan-station-sw.js').catch(() => {});
+        // Scoped to this page only — without it, the default scope is site-wide (the script is
+        // served from the root), so this worker would intercept every other page's requests too
+        // (e.g. /pointage) long after the user leaves the scan station, including ones it has no
+        // cached response for.
+        navigator.serviceWorker.register('/scan-station-sw.js', { scope: '/pointage/scan-station' }).catch(() => {});
     }
 
     loadStationData();
