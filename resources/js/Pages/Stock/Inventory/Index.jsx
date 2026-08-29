@@ -1,8 +1,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import TextInput from '@/Components/TextInput';
+import InputLabel from '@/Components/InputLabel';
+import InputError from '@/Components/InputError';
 
 function getStockStatus(currentStock, minStock) {
     if (currentStock <= 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600' };
@@ -16,10 +22,29 @@ function getStockStatus(currentStock, minStock) {
 
 export default function Index({ auth, stockInventory }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [countingItem, setCountingItem] = useState(null);
+    const countForm = useForm({ product_id: '', counted_quantity: '' });
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const openCount = (item) => {
+        countForm.setData({ product_id: item.product.id, counted_quantity: item.quantity_on_hand });
+        countForm.clearErrors();
+        setCountingItem(item);
+    };
+    const closeCount = () => {
+        setCountingItem(null);
+        countForm.reset();
+    };
+    const submitCount = (e) => {
+        e.preventDefault();
+        countForm.post(route('stock.inventory.count'), {
+            preserveScroll: true,
+            onSuccess: () => setCountingItem(null),
+        });
     };
 
     const filtered = stockInventory.filter((item) =>
@@ -143,9 +168,18 @@ export default function Index({ auth, stockInventory }) {
                                                         {formatDate(item.last_count_date)}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                        <Link href={route('stock.inventory.show', item.id)} className="text-green-600 hover:text-green-800 font-medium">
-                                                            Détails
-                                                        </Link>
+                                                        <div className="flex items-center justify-end gap-4">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => openCount(item)}
+                                                                className="text-gray-500 hover:text-gray-800 font-medium"
+                                                            >
+                                                                Compter
+                                                            </button>
+                                                            <Link href={route('stock.inventory.show', item.id)} className="text-green-600 hover:text-green-800 font-medium">
+                                                                Détails
+                                                            </Link>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -157,6 +191,53 @@ export default function Index({ auth, stockInventory }) {
                     </div>
                 </div>
             </div>
+
+            <Modal show={countingItem !== null} onClose={closeCount}>
+                {countingItem && (
+                    <div className="p-8">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Compter le Stock</h3>
+                            <button onClick={closeCount} className="text-gray-400 hover:text-gray-600 transition-colors">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <form onSubmit={submitCount} className="space-y-6">
+                            <p className="text-sm text-gray-500">
+                                Quantité système actuelle pour <span className="font-semibold text-gray-700">{countingItem.product.name}</span> :{' '}
+                                <span className="font-semibold text-gray-700">
+                                    {formatNumber(countingItem.quantity_on_hand)} {UNIT_TYPE_LABELS[countingItem.product.unit_type] || countingItem.product.unit_type}
+                                </span>.
+                                Entrez ce qui a été réellement compté — un mouvement d'ajustement sera enregistré pour la différence.
+                            </p>
+
+                            <div>
+                                <InputLabel htmlFor="counted_quantity" value="Quantité Comptée *" />
+                                <TextInput
+                                    id="counted_quantity"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    className="mt-1 block w-full"
+                                    value={countForm.data.counted_quantity}
+                                    onChange={(e) => countForm.setData('counted_quantity', e.target.value)}
+                                    required
+                                    autoFocus
+                                />
+                                <InputError message={countForm.errors.counted_quantity} className="mt-2" />
+                            </div>
+
+                            <div className="flex justify-end gap-4 pt-6 border-t">
+                                <SecondaryButton type="button" onClick={closeCount}>Annuler</SecondaryButton>
+                                <PrimaryButton disabled={countForm.processing} className="bg-green-600 hover:bg-green-700">
+                                    {countForm.processing ? 'Enregistrement...' : 'Enregistrer le Comptage'}
+                                </PrimaryButton>
+                            </div>
+                        </form>
+                    </div>
+                )}
+            </Modal>
         </AuthenticatedLayout>
     );
 }
