@@ -113,6 +113,11 @@ class VehicleUsageController extends Controller
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
         $farmId = $this->resolveWriteFarmId($request);
 
+        // Without this, a vehicle_id from another farm would still pass the `exists:vehicles,id`
+        // rule above and get a usage/rental-cost day silently attached to the wrong farm's log.
+        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
+        abort_unless($vehicle->farm_id === $farmId, 403);
+
         // Never trust the client's own greyed-out styling — re-check server-side that this date
         // doesn't fall inside a closed Quinzaine before writing anything, same guard
         // PointageController::updateCell applies for pointage itself.
@@ -136,7 +141,6 @@ class VehicleUsageController extends Controller
             return redirect()->back();
         }
 
-        $vehicle = Vehicle::findOrFail($validated['vehicle_id']);
         if (!$vehicle->default_daily_rate) {
             return redirect()->back()->withErrors([
                 'daily_rate' => 'Ce véhicule n\'a pas de tarif journalier par défaut. Renseignez-le depuis "Modifier" sur la page Véhicules.',

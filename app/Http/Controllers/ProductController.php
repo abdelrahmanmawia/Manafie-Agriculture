@@ -242,6 +242,7 @@ class ProductController extends Controller
         if ($request->user()->role === 'data_entry') {
             abort(403);
         }
+        $this->assertProductInScope($request, $product);
 
         // Archiving the product makes any open low-stock alert for it moot — resolve so it
         // doesn't linger unactionable on the Alerts page.
