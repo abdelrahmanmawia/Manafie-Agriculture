@@ -172,12 +172,22 @@ export default function Index({ auth, stockInventory }) {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => openCount(item)}
-                                                                className="text-gray-500 hover:text-gray-800 font-medium"
+                                                                className="text-gray-400 hover:text-green-600 transition-colors"
+                                                                title="Compter"
                                                             >
-                                                                Compter
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+                                                                </svg>
                                                             </button>
-                                                            <Link href={route('stock.inventory.show', item.id)} className="text-green-600 hover:text-green-800 font-medium">
-                                                                Détails
+                                                            <Link
+                                                                href={route('stock.inventory.show', item.id)}
+                                                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                                title="Détails"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                                </svg>
                                                             </Link>
                                                         </div>
                                                     </td>
