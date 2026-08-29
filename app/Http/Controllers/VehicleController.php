@@ -132,7 +132,18 @@ class VehicleController extends Controller
             'fuel_type' => 'nullable|string|max:50',
             'capacity_liters' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:operational,in_repair,retired',
-            'quantity' => 'nullable|integer|min:1',
+            // quantity > 1 is a bulk count for equipment with no individual identity (e.g. ten
+            // shovels as one row) — every maintenance log, fuel transaction, and manual stock
+            // entry hangs off a single vehicle_id, so a real vehicle (unique plate) needs its own
+            // row per unit rather than sharing one with a multiplier.
+            'quantity' => [
+                'nullable', 'integer', 'min:1',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($request->input('asset_type') === 'vehicle' && $value > 1) {
+                        $fail('Un véhicule a une identité individuelle (plaque unique) et ne peut pas avoir une quantité > 1. Créez un véhicule séparé pour chaque unité, ou utilisez "Équipement" pour un lot sans suivi individuel.');
+                    }
+                },
+            ],
             'default_driver_id' => 'nullable|exists:employees,id',
             'is_active' => 'boolean',
             'is_location' => 'boolean',
@@ -229,7 +240,15 @@ class VehicleController extends Controller
             'fuel_type' => 'nullable|string|max:50',
             'capacity_liters' => 'nullable|numeric|min:0',
             'status' => 'nullable|in:operational,in_repair,retired',
-            'quantity' => 'nullable|integer|min:1',
+            // Same guard as store() — see the comment there.
+            'quantity' => [
+                'nullable', 'integer', 'min:1',
+                function ($attribute, $value, $fail) use ($effectiveAssetType) {
+                    if ($effectiveAssetType === 'vehicle' && $value > 1) {
+                        $fail('Un véhicule a une identité individuelle (plaque unique) et ne peut pas avoir une quantité > 1. Créez un véhicule séparé pour chaque unité, ou utilisez "Équipement" pour un lot sans suivi individuel.');
+                    }
+                },
+            ],
             'default_driver_id' => 'nullable|exists:employees,id',
             'is_active' => 'boolean',
             'is_location' => 'boolean',

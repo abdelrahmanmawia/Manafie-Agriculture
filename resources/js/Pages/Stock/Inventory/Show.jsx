@@ -1,7 +1,14 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { CATEGORY_LABELS, UNIT_TYPE_LABELS, MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS } from '@/utils/stockLabels';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
+import TextInput from '@/Components/TextInput';
+import InputLabel from '@/Components/InputLabel';
+import InputError from '@/Components/InputError';
 
 function destinationOf(movement) {
     const ref = movement.reference;
@@ -15,15 +22,42 @@ export default function Show({ auth, stockInventory }) {
         return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
+    const [isCounting, setIsCounting] = useState(false);
+    const countForm = useForm({
+        product_id: stockInventory.product.id,
+        counted_quantity: stockInventory.quantity_on_hand,
+    });
+
+    const openCount = () => {
+        countForm.setData('counted_quantity', stockInventory.quantity_on_hand);
+        countForm.clearErrors();
+        setIsCounting(true);
+    };
+    const closeCount = () => {
+        setIsCounting(false);
+        countForm.reset();
+    };
+    const submitCount = (e) => {
+        e.preventDefault();
+        countForm.post(route('stock.inventory.count'), {
+            preserveScroll: true,
+            onSuccess: () => setIsCounting(false),
+        });
+    };
+
     const currentStock = parseFloat(stockInventory.quantity_on_hand || 0);
     const minStock = parseFloat(stockInventory.product.min_stock_level || 0);
+    // Without a configured threshold there's no basis to call this stock "Bon" — a product
+    // nobody has ever set a minimum for shouldn't look safer than one that has.
     const stockStatus = currentStock <= 0
         ? { status: 'Épuisé', bgColor: 'bg-red-50', textColor: 'text-red-600', color: 'bg-red-500' }
-        : currentStock <= minStock
-            ? { status: 'Faible', bgColor: 'bg-orange-50', textColor: 'text-orange-600', color: 'bg-orange-500' }
-            : currentStock <= minStock * 1.5
-                ? { status: 'Normal', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600', color: 'bg-yellow-500' }
-                : { status: 'Bon', bgColor: 'bg-green-50', textColor: 'text-green-600', color: 'bg-green-500' };
+        : minStock <= 0
+            ? { status: 'Seuil non défini', bgColor: 'bg-gray-50', textColor: 'text-gray-500', color: 'bg-gray-400' }
+            : currentStock <= minStock
+                ? { status: 'Faible', bgColor: 'bg-orange-50', textColor: 'text-orange-600', color: 'bg-orange-500' }
+                : currentStock <= minStock * 1.5
+                    ? { status: 'Normal', bgColor: 'bg-yellow-50', textColor: 'text-yellow-600', color: 'bg-yellow-500' }
+                    : { status: 'Bon', bgColor: 'bg-green-50', textColor: 'text-green-600', color: 'bg-green-500' };
 
     const movements = stockInventory.product.stock_movements ?? [];
 
@@ -43,12 +77,20 @@ export default function Show({ auth, stockInventory }) {
                             <p className="text-sm text-gray-500 mt-1">{stockInventory.product.name}</p>
                         </div>
                     </div>
-                    <Link
-                        href={route('stock.products.show', stockInventory.product.id)}
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
-                    >
-                        Voir le Produit
-                    </Link>
+                    <div className="flex items-center gap-3">
+                        <button
+                            onClick={openCount}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
+                        >
+                            Compter le Stock
+                        </button>
+                        <Link
+                            href={route('stock.products.show', stockInventory.product.id)}
+                            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
+                        >
+                            Voir le Produit
+                        </Link>
+                    </div>
                 </div>
             }
         >
@@ -170,6 +212,49 @@ export default function Show({ auth, stockInventory }) {
                     </div>
                 </div>
             </div>
+
+            <Modal show={isCounting} onClose={closeCount}>
+                <div className="p-8">
+                    <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Compter le Stock</h3>
+                        <button onClick={closeCount} className="text-gray-400 hover:text-gray-600 transition-colors">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <form onSubmit={submitCount} className="space-y-6">
+                        <p className="text-sm text-gray-500">
+                            Quantité système actuelle pour <span className="font-semibold text-gray-700">{stockInventory.product.name}</span> :{' '}
+                            <span className="font-semibold text-gray-700">{formatNumber(stockInventory.quantity_on_hand)} {UNIT_TYPE_LABELS[stockInventory.product.unit_type] || stockInventory.product.unit_type}</span>.
+                            Entrez ce qui a été réellement compté — un mouvement d'ajustement sera enregistré pour la différence.
+                        </p>
+
+                        <div>
+                            <InputLabel htmlFor="counted_quantity" value="Quantité Comptée *" />
+                            <TextInput
+                                id="counted_quantity"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                className="mt-1 block w-full"
+                                value={countForm.data.counted_quantity}
+                                onChange={(e) => countForm.setData('counted_quantity', e.target.value)}
+                                required
+                                autoFocus
+                            />
+                            <InputError message={countForm.errors.counted_quantity} className="mt-2" />
+                        </div>
+
+                        <div className="flex justify-end gap-4 pt-6 border-t">
+                            <SecondaryButton onClick={closeCount}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={countForm.processing} className="bg-green-600 hover:bg-green-700">
+                                {countForm.processing ? 'Enregistrement...' : 'Enregistrer le Comptage'}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

@@ -2,23 +2,20 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\StockInventory;
 use App\Models\Product;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia; // Import Inertia
 
 class StockInventoryController extends Controller
 {
     /**
-     * show()/movements() trusted the route-bound model with no ownership check, and
-     * adjust()/count() only validated product_id with exists:products,id — any
-     * authenticated user could view or adjust another farm's inventory by walking IDs.
+     * show()/count() trusted the route-bound/validated product with no ownership check —
+     * any authenticated user could view or adjust another farm's inventory by walking IDs.
      */
     private function assertProductInScope(Request $request, Product $product): void
     {
@@ -74,7 +71,13 @@ class StockInventoryController extends Controller
         ]);
     }
 
-    public function adjust(Request $request): JsonResponse
+    // The magasinier's physical stock count: what's actually on the shelf vs. what the system
+    // thinks is there. Superseded the older adjust() (kept no reason a count doesn't already
+    // capture via the previous/counted note below) and no longer keys the inventory row by
+    // batch_number — every other write path (stockIn, and this one) treats StockInventory as one
+    // row per product, so scoping by batch here too would silently create a second, disconnected
+    // row instead of updating the one the rest of the app already reads.
+    public function count(Request $request)
     {
         if ($request->user()->role === 'data_entry') {
             abort(403);
@@ -82,11 +85,10 @@ class StockInventoryController extends Controller
 
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'quantity' => 'required|numeric|min:0',
-            'reason' => 'required|string|max:255',
+            'counted_quantity' => 'required|numeric|min:0',
         ]);
 
-        $inventory = DB::transaction(function () use ($validated, $request) {
+        DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
             $this->assertProductInScope($request, $product);
 
@@ -99,62 +101,10 @@ class StockInventoryController extends Controller
             );
 
             $oldQuantity = $inventory->quantity_on_hand;
-            $inventory->quantity_on_hand = $validated['quantity'];
-            $inventory->last_count_date = now();
-            $inventory->save();
-
-            // Create stock movement for adjustment
-            $inventory->product->stockMovements()->create([
-                'movement_type' => 'adjustment',
-                'quantity' => $validated['quantity'] - $oldQuantity,
-                'unit_cost' => $product->unit_cost,
-                'total_cost' => $product->unit_cost * ($validated['quantity'] - $oldQuantity),
-                'performed_by' => $request->user()->id,
-                'date' => now(),
-                'notes' => "Manual adjustment: {$validated['reason']}",
-            ]);
-
-            StockAlertService::syncLowStock($product);
-
-            return $inventory;
-        });
-
-        return response()->json($inventory);
-    }
-
-    public function count(Request $request): JsonResponse
-    {
-        if ($request->user()->role === 'data_entry') {
-            abort(403);
-        }
-
-        $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'counted_quantity' => 'required|numeric|min:0',
-            'batch_number' => 'nullable|string',
-        ]);
-
-        $inventory = DB::transaction(function () use ($validated, $request) {
-            $product = Product::findOrFail($validated['product_id']);
-            $this->assertProductInScope($request, $product);
-
-            $inventory = StockInventory::firstOrCreate(
-                [
-                    'product_id' => $product->id,
-                    'batch_number' => $validated['batch_number'] ?? null,
-                ],
-                [
-                    'quantity_on_hand' => 0,
-                    'quantity_reserved' => 0,
-                ]
-            );
-
-            $oldQuantity = $inventory->quantity_on_hand;
             $inventory->quantity_on_hand = $validated['counted_quantity'];
             $inventory->last_count_date = now();
             $inventory->save();
 
-            // Create stock movement for count adjustment
             $difference = $validated['counted_quantity'] - $oldQuantity;
             $inventory->product->stockMovements()->create([
                 'movement_type' => 'adjustment',
@@ -163,32 +113,12 @@ class StockInventoryController extends Controller
                 'total_cost' => $product->unit_cost * $difference,
                 'performed_by' => $request->user()->id,
                 'date' => now(),
-                'notes' => "Stock count adjustment. Previous: {$oldQuantity}, Counted: {$validated['counted_quantity']}",
+                'notes' => "Comptage de stock. Précédent : {$oldQuantity}, Compté : {$validated['counted_quantity']}",
             ]);
 
             StockAlertService::syncLowStock($product);
-
-            return $inventory;
         });
 
-        return response()->json($inventory);
-    }
-
-    public function movements(Request $request, Product $product): JsonResponse
-    {
-        $this->assertProductInScope($request, $product);
-
-        $movements = $product->stockMovements()
-            ->with(['performedBy', 'reference' => function ($morphTo) {
-                $morphTo->morphWith([
-                    ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle'],
-                    FuelTransaction::class => ['vehicle'],
-                ]);
-            }])
-            ->orderBy('date', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        return response()->json($movements);
+        return redirect()->back()->with('success', 'Comptage de stock enregistré avec succès.');
     }
 }

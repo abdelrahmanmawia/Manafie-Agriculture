@@ -148,9 +148,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Inventory
     Route::get('/stock/inventory', [StockInventoryController::class, 'index'])->name('stock.inventory.index');
     Route::get('/stock/inventory/{inventory}', [StockInventoryController::class, 'show'])->name('stock.inventory.show');
-    Route::post('/stock/inventory/adjust', [StockInventoryController::class, 'adjust'])->name('stock.inventory.adjust');
     Route::post('/stock/inventory/count', [StockInventoryController::class, 'count'])->name('stock.inventory.count');
-    Route::get('/stock/inventory/movements/{product}', [StockInventoryController::class, 'movements'])->name('stock.inventory.movements');
 
     // Stock Management - Movements
     Route::get('/stock/movements', [StockMovementController::class, 'index'])->name('stock.movements.index');

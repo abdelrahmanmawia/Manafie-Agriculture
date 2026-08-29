@@ -422,19 +422,6 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- StockInventoryController ---
 
-    public function test_data_entry_cannot_adjust_stock_inventory(): void
-    {
-        $this->actingAs($this->dataEntry)
-            ->post(route('stock.inventory.adjust'), [
-                'product_id' => $this->product->id,
-                'quantity' => 999,
-                'reason' => 'Test adjustment',
-            ])
-            ->assertForbidden();
-
-        $this->assertDatabaseHas('stock_inventory', ['product_id' => $this->product->id, 'quantity_on_hand' => 500]);
-    }
-
     public function test_data_entry_cannot_count_stock_inventory(): void
     {
         $this->actingAs($this->dataEntry)

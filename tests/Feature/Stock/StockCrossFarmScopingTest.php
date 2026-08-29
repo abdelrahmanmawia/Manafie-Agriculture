@@ -186,19 +186,12 @@ class StockCrossFarmScopingTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_farm_manager_cannot_adjust_another_farms_stock_inventory(): void
+    public function test_farm_manager_cannot_count_another_farms_stock_inventory(): void
     {
         $this->actingAs($this->managerA)
-            ->post('/stock/inventory/adjust', [
-                'product_id' => $this->productB->id, 'quantity' => 999, 'reason' => 'test',
+            ->post('/stock/inventory/count', [
+                'product_id' => $this->productB->id, 'counted_quantity' => 999,
             ])
-            ->assertForbidden();
-    }
-
-    public function test_farm_manager_cannot_view_another_farms_stock_movements(): void
-    {
-        $this->actingAs($this->managerA)
-            ->get('/stock/inventory/movements/' . $this->productB->id)
             ->assertForbidden();
     }
 

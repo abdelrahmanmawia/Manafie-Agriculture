@@ -107,8 +107,12 @@ class ManualStockEntryController extends Controller
 
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
-            'entry_type' => 'required|in:consumption,transfer,loss,theft,damage,maintenance',
-            'quantity' => 'required|numeric|min:0',
+            // 'transfer' removed: bloc-to-bloc transfers don't happen in this business — see the
+            // deleted StockMovementController::transfer() and CLAUDE.md's Stock domain notes. A
+            // sortie has no receiving side, so labeling one "Transfert" implied stock went
+            // somewhere trackable when it just left the magasin like any other consumption.
+            'entry_type' => 'required|in:consumption,loss,theft,damage,maintenance',
+            'quantity' => 'required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',
@@ -251,8 +255,8 @@ class ManualStockEntryController extends Controller
 
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
-            'entry_type' => 'sometimes|required|in:consumption,transfer,loss,theft,damage,maintenance',
-            'quantity' => 'sometimes|required|numeric|min:0',
+            'entry_type' => 'sometimes|required|in:consumption,loss,theft,damage,maintenance',
+            'quantity' => 'sometimes|required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',

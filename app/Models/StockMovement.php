@@ -50,14 +50,4 @@ class StockMovement extends Model
     {
         return $this->morphTo();
     }
-
-    public function isInbound()
-    {
-        return in_array($this->movement_type, ['in', 'production']);
-    }
-
-    public function isOutbound()
-    {
-        return in_array($this->movement_type, ['out', 'transfer', 'loss']);
-    }
 }

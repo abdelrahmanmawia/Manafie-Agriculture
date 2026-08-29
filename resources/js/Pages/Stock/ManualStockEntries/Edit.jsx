@@ -102,7 +102,6 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         required
                                     >
                                         <option value="consumption">Consommation</option>
-                                        <option value="transfer">Transfert</option>
                                         <option value="loss">Perte</option>
                                         <option value="theft">Vol</option>
                                         <option value="damage">Dommage</option>
@@ -117,6 +116,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         id="quantity"
                                         type="number"
                                         step="0.01"
+                                        min="0.01"
                                         className="mt-1 block w-full"
                                         value={data.quantity}
                                         onChange={(e) => setData('quantity', e.target.value)}

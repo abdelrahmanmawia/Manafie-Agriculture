@@ -327,7 +327,11 @@ class StockReportController extends Controller
             $inventory = $inventories->get($product->id);
             $valuationCost = (float) ($inventory->average_cost ?? $product->unit_cost ?? 1);
 
-            $beginningInventory = (float) ($inventory->quantity_on_hand ?? 0); // Simplified: current stock as beginning
+            // quantity_on_hand is a live snapshot — today's ending inventory, the one figure we
+            // actually know. There's no historical point-in-time snapshot for "$periodInDays ago",
+            // so beginning inventory is derived algebraically from it instead: ending = beginning
+            // + purchases - consumption, solved for beginning.
+            $endingInventory = (float) ($inventory->quantity_on_hand ?? 0);
 
             $productMovements = $movementSums->get($product->id, collect());
             $purchases = (float) ($productMovements->firstWhere('movement_type', 'in')->total_quantity ?? 0);
@@ -335,11 +339,17 @@ class StockReportController extends Controller
             $salesOrConsumption = (float) ($outRow->total_quantity ?? 0);
             $costOfGoodsSold = (float) ($outRow->total_cost_sum ?? 0);
 
-            $endingInventory = $beginningInventory + $purchases - $salesOrConsumption; // Simplified calculation
+            $beginningInventory = $endingInventory - $purchases + $salesOrConsumption;
 
             $averageInventory = ($beginningInventory + $endingInventory) / 2;
 
-            $stockTurnoverRatio = $averageInventory > 0 ? $costOfGoodsSold / ($averageInventory * $valuationCost) : 0;
+            // valuationCost can be a real, explicit 0 (not null) — a product whose average_cost
+            // was recorded as free/zero-cost — which the ?? fallback above never catches. A
+            // turnover ratio is meaningless for a $0-valued product either way, so treat it the
+            // same as no average inventory to move.
+            $stockTurnoverRatio = ($averageInventory > 0 && $valuationCost > 0)
+                ? $costOfGoodsSold / ($averageInventory * $valuationCost)
+                : 0;
 
             return [
                 'product_name' => $product->name,

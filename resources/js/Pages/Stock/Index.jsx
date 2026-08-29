@@ -222,6 +222,9 @@ export default function Index({ auth, products, categories, unitTypes, employees
         const minStock = product.min_stock_level || 0;
 
         if (currentStock === 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600' };
+        // Without a configured threshold there's no basis to call this stock "Bon" — a product
+        // nobody has ever set a minimum for shouldn't look safer than one that has.
+        if (minStock <= 0) return { status: 'Seuil non défini', color: 'bg-gray-400', textColor: 'text-gray-500' };
         if (currentStock <= minStock) return { status: 'Faible', color: 'bg-orange-500', textColor: 'text-orange-600' };
         if (currentStock <= minStock * 1.5) return { status: 'Normal', color: 'bg-yellow-500', textColor: 'text-yellow-600' };
         return { status: 'Bon', color: 'bg-green-500', textColor: 'text-green-600' };
@@ -736,7 +739,6 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             required
                                         >
                                             <option value="consumption">Consommation</option>
-                                            <option value="transfer">Transfert</option>
                                             <option value="loss">Perte</option>
                                             <option value="theft">Vol</option>
                                             <option value="damage">Dommage</option>
