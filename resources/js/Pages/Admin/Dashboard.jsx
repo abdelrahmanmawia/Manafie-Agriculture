@@ -3,7 +3,31 @@ import { Head, Link } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
 import StatCard from '@/Components/StatCard';
 
-export default function Dashboard({ auth, enterprise, stats }) {
+export default function Dashboard({ auth, enterprise, stats, error = null }) {
+    // A user with no enterprise_id assigned yet has nothing to render a dashboard for —
+    // show the error message instead of crashing on enterprise.name below.
+    if (!enterprise) {
+        return (
+            <AuthenticatedLayout
+                user={auth.user}
+                header={<h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('admin_dashboard')}</h2>}
+            >
+                <Head title={t('admin_dashboard')} />
+                <div className="py-12">
+                    <div className="max-w-3xl mx-auto sm:px-6 lg:px-8">
+                        <div className="bg-white rounded-2xl shadow-sm border border-amber-200 p-10 text-center">
+                            <svg className="w-12 h-12 text-amber-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <p className="text-gray-700 font-bold">{error || 'Aucune division ne vous est assignée.'}</p>
+                            <p className="text-sm text-gray-500 mt-2">Contactez un administrateur pour qu'une division vous soit assignée.</p>
+                        </div>
+                    </div>
+                </div>
+            </AuthenticatedLayout>
+        );
+    }
+
     return (
         <AuthenticatedLayout
             user={auth.user}
