@@ -12,7 +12,7 @@ A farm/agriculture management system ("Pointage" = time-tracking in French) cove
 - **Frontend**: React 18 + Inertia.js (`@inertiajs/react`) — no separate SPA API, controllers return `Inertia::render()`
 - **Build**: Vite + `laravel-vite-plugin`, Tailwind CSS, Headless UI
 - **Auth/scaffolding**: Laravel Breeze (React variant) + Laravel Sanctum
-- **DB**: SQLite by default (`.env` has `DB_CONNECTION=sqlite`); `config/database.php` default is `mysql` — check `.env` before assuming
+- **DB**: MySQL (`.env` has `DB_CONNECTION=mysql`, database `farm_management`, matching `config/database.php`'s own default) — check `.env` before assuming, since this has changed before
 - **Excel/PDF**: `maatwebsite/excel` (payroll/pointage exports), `barryvdh/laravel-dompdf` (payslips)
 - **Charts**: `recharts` (frontend)
 
@@ -43,7 +43,7 @@ vendor/bin/phpunit tests/Feature/SomeTest.php
 vendor/bin/pint          # Laravel Pint formatter
 ```
 
-Note: `phpunit.xml` has the sqlite in-memory test DB lines commented out, so `php artisan test` currently runs against whatever `DB_CONNECTION`/`DB_DATABASE` is set in `.env`/environment — be aware this is not isolated per test run.
+Note: `phpunit.xml` sets `DB_CONNECTION=sqlite` / `DB_DATABASE=:memory:` under its `<php>` block, which overrides `.env` during `php artisan test` — the suite runs against an isolated in-memory SQLite DB regardless of the app's own MySQL connection, so it never touches real data and also nothing there validates MySQL-specific behavior. Verify anything DB-engine-specific (raw SQL, generated columns, FK behavior) against the real MySQL connection directly (e.g. `php artisan migrate:fresh` or a tinker query), not through the test suite.
 
 ## Architecture
 
