@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\Employee;
+use App\Models\Farm;
 use App\Models\Operation;
 use App\Models\Bloc;
 use App\Models\Parcelle;
@@ -71,10 +72,11 @@ class PointageController extends Controller
     }
 
     /**
-     * /pointage — the zone's landing page: a grid of divisions (mirrors
-     * Admin/FarmDashboard's "Divisions de la Ferme" cards), each with general info
-     * (workers, periods) and a link into that division's quinzaine list. The actual
-     * quinzaine list/management lives at quinzaines() below.
+     * /pointage — the zone's landing page: division management (create a division, see its
+     * workers/periods, jump into its quinzaine list) plus a farm-wide totals row. This is the
+     * one place that owns the "Divisions de la Ferme" grid — it used to be duplicated onto the
+     * Accueil/FarmDashboard page as well, which now only links here instead of repeating it.
+     * The actual quinzaine list/management lives at quinzaines() below.
      */
     public function dashboard(Request $request)
     {
@@ -86,12 +88,18 @@ class PointageController extends Controller
             'quinzaines as open_quinzaines_count' => fn ($q) => $q->where('is_closed', false),
         ];
 
+        // Only super_admin/farm_manager (and a farm-scoped data_entry with no single enterprise)
+        // manage divisions at the farm level — mirrors assertEnterpriseManagerAccess() in
+        // EnterpriseController, which is what actually enforces this on the create endpoint.
+        $farmId = null;
         if ($user->role === 'super_admin') {
-            $enterprises = \App\Models\Enterprise::where('farm_id', session('active_farm_id'))
+            $farmId = session('active_farm_id');
+            $enterprises = \App\Models\Enterprise::where('farm_id', $farmId)
                 ->withCount($withCounts)
                 ->get();
         } elseif ($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id)) {
-            $enterprises = \App\Models\Enterprise::where('farm_id', $user->farm_id)
+            $farmId = $user->farm_id;
+            $enterprises = \App\Models\Enterprise::where('farm_id', $farmId)
                 ->withCount($withCounts)
                 ->get();
         } elseif ($user->enterprise_id) {
@@ -105,6 +113,11 @@ class PointageController extends Controller
 
         return Inertia::render('Pointage/Index', [
             'enterprises' => $enterprises,
+            'farm' => $farmId ? Farm::find($farmId, ['id', 'name']) : null,
+            'totals' => [
+                'employees' => $enterprises->sum('employees_count'),
+                'open_quinzaines' => $enterprises->sum('open_quinzaines_count'),
+            ],
         ]);
     }
 

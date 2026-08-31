@@ -49,13 +49,10 @@ class EnterpriseController extends Controller
 
         if ($user->role === 'super_admin') {
             if ($farmId) {
-                $farm = Farm::with(['enterprises' => function($q) {
-                    $q->withCount(['employees', 'quinzaines']);
-                }])->findOrFail($farmId);
+                $farm = Farm::findOrFail($farmId);
 
                 return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                     'farm' => $farm,
-                    'enterprises' => $farm->enterprises,
                     'stats' => [
                         'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
                         'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
@@ -73,15 +70,13 @@ class EnterpriseController extends Controller
             if (!$user->farm_id) {
                 return Inertia::render('Admin/FarmDashboard', [
                     'farm' => null,
-                    'enterprises' => [],
                     'stats' => ['employees_count' => 0, 'open_quinzaines' => 0],
                     'error' => 'Aucune ferme ne vous est assignée.'
                 ]);
             }
-            $farm = \App\Models\Farm::with('enterprises')->findOrFail($user->farm_id);
+            $farm = \App\Models\Farm::findOrFail($user->farm_id);
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
-                'enterprises' => Enterprise::where('farm_id', $farm->id)->withCount(['employees', 'quinzaines'])->get(),
                 'stats' => [
                     'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
                     'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
@@ -91,10 +86,9 @@ class EnterpriseController extends Controller
 
         // Data Entry or other roles
         if ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id) {
-            $farm = \App\Models\Farm::with('enterprises')->findOrFail($user->farm_id);
+            $farm = \App\Models\Farm::findOrFail($user->farm_id);
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
-                'enterprises' => Enterprise::where('farm_id', $farm->id)->withCount(['employees', 'quinzaines'])->get(),
                 'stats' => [
                     'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
                     'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
@@ -125,10 +119,11 @@ class EnterpriseController extends Controller
     }
 
     /**
-     * Pointage + Stock data merged onto the farm-level Accueil dashboard: a payroll cost
-     * trend (last 6 quinzaine periods across every enterprise in the farm — Stock has no
-     * enterprise concept, so this view is deliberately farm-wide, not per-division), harvest
-     * totals over that same window, and the Stock dashboard's own KPIs (see
+     * Farm-wide content unique to the Accueil dashboard: a payroll cost trend (last 6 quinzaine
+     * periods across every enterprise in the farm — Stock has no enterprise concept, so this
+     * view is deliberately farm-wide, not per-division), harvest totals over that same window,
+     * and a couple of headline Stock counts (just the numbers, not the full recent-activity
+     * lists — those live on Stock's own dashboard so they aren't duplicated here; see
      * StockController::summaryFor()).
      */
     private function farmDashboardExtras(Farm $farm): array
@@ -173,7 +168,7 @@ class EnterpriseController extends Controller
                 'total_kg' => (float) (clone $harvestQuery)->sum('quantity_kg'),
                 'total_revenue' => (float) (clone $harvestQuery)->sum('total_revenue_dh'),
             ],
-            'stockSummary' => StockController::summaryFor($farm->id),
+            'stockStats' => StockController::summaryFor($farm->id)['stats'],
         ];
     }
 
