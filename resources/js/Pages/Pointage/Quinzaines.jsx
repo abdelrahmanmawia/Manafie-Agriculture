@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
+import DangerButton from '@/Components/DangerButton';
 
 export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const { props } = usePage();
@@ -109,10 +110,34 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
         });
     };
 
-    const deleteQuinzaine = (quinzaine) => {
-        if (confirm('Êtes-vous sûr de vouloir supprimer cette période ? Cette action est irréversible.')) {
-            router.delete(route('settings.quinzaine.delete', quinzaine.id));
-        }
+    const [confirmingQuinzaineDeletion, setConfirmingQuinzaineDeletion] = useState(null);
+    const [isDeletingQuinzaine, setIsDeletingQuinzaine] = useState(false);
+    const confirmQuinzaineDeletion = (quinzaine) => setConfirmingQuinzaineDeletion(quinzaine);
+    const closeDeleteModal = () => setConfirmingQuinzaineDeletion(null);
+    const executeQuinzaineDeletion = (e) => {
+        e.preventDefault();
+        setIsDeletingQuinzaine(true);
+        router.delete(route('settings.quinzaine.delete', confirmingQuinzaineDeletion.id), {
+            onFinish: () => {
+                setIsDeletingQuinzaine(false);
+                closeDeleteModal();
+            },
+        });
+    };
+
+    const [confirmingQuinzaineClosure, setConfirmingQuinzaineClosure] = useState(null);
+    const [isClosingQuinzaine, setIsClosingQuinzaine] = useState(false);
+    const confirmQuinzaineClosure = (quinzaine) => setConfirmingQuinzaineClosure(quinzaine);
+    const closeClosureModal = () => setConfirmingQuinzaineClosure(null);
+    const executeQuinzaineClosure = (e) => {
+        e.preventDefault();
+        setIsClosingQuinzaine(true);
+        router.post(route('settings.quinzaine.close', confirmingQuinzaineClosure.id), {}, {
+            onFinish: () => {
+                setIsClosingQuinzaine(false);
+                closeClosureModal();
+            },
+        });
     };
 
     const handleFilterChange = (e) => {
@@ -294,26 +319,35 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                 {!q.is_closed && auth.user.role !== 'data_entry' && (
                                                     <div className="grid grid-cols-2 gap-2">
                                                         <button
+                                                            type="button"
                                                             onClick={() => openEditModal(q)}
-                                                            className="w-full text-center py-2 text-[10px] font-bold text-blue-600 hover:text-blue-800 hover:underline"
+                                                            title="Modifier"
+                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-blue-600 transition-colors"
                                                         >
-                                                            MODIFIER
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
                                                         </button>
                                                         <button
-                                                            onClick={() => deleteQuinzaine(q)}
-                                                            className="w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
+                                                            type="button"
+                                                            onClick={() => confirmQuinzaineDeletion(q)}
+                                                            title="Supprimer"
+                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-red-600 transition-colors"
                                                         >
-                                                            SUPPRIMER
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
                                                         </button>
-                                                        <Link
-                                                            method="post"
-                                                            as="button"
-                                                            href={route('settings.quinzaine.close', q.id)}
-                                                            onBefore={() => confirm('Clôturer cette période ? Le pointage ne pourra plus être modifié une fois clôturée.')}
-                                                            className="col-span-2 w-full text-center py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => confirmQuinzaineClosure(q)}
+                                                            className="col-span-2 w-full flex items-center justify-center gap-2 py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
                                                         >
+                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                                            </svg>
                                                             CLÔTURER CETTE PÉRIODE
-                                                        </Link>
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>
@@ -418,6 +452,58 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         </div>
                     </form>
                 </div>
+            </Modal>
+
+            <Modal show={confirmingQuinzaineDeletion !== null} onClose={closeDeleteModal}>
+                {confirmingQuinzaineDeletion && (
+                    <form onSubmit={executeQuinzaineDeletion} className="p-8">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
+                                Supprimer la période
+                            </h2>
+                        </div>
+                        <p className="text-gray-600 mb-6">
+                            Êtes-vous sûr de vouloir supprimer la période <strong>{confirmingQuinzaineDeletion.label || `${formatDate(confirmingQuinzaineDeletion.start_date)} — ${formatDate(confirmingQuinzaineDeletion.end_date)}`}</strong> ? Cette action est irréversible.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <SecondaryButton type="button" onClick={closeDeleteModal}>Annuler</SecondaryButton>
+                            <DangerButton className="rounded-xl" disabled={isDeletingQuinzaine}>
+                                {isDeletingQuinzaine ? 'Suppression...' : 'Supprimer'}
+                            </DangerButton>
+                        </div>
+                    </form>
+                )}
+            </Modal>
+
+            <Modal show={confirmingQuinzaineClosure !== null} onClose={closeClosureModal}>
+                {confirmingQuinzaineClosure && (
+                    <form onSubmit={executeQuinzaineClosure} className="p-8">
+                        <div className="flex items-center gap-4 mb-4">
+                            <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
+                                <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
+                                Clôturer la période
+                            </h2>
+                        </div>
+                        <p className="text-gray-600 mb-6">
+                            Clôturer la période <strong>{confirmingQuinzaineClosure.label || `${formatDate(confirmingQuinzaineClosure.start_date)} — ${formatDate(confirmingQuinzaineClosure.end_date)}`}</strong> ? Le pointage ne pourra plus être modifié une fois clôturée.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <SecondaryButton type="button" onClick={closeClosureModal}>Annuler</SecondaryButton>
+                            <PrimaryButton className="rounded-xl !bg-amber-600 hover:!bg-amber-700 focus:!bg-amber-700 active:!bg-amber-900" disabled={isClosingQuinzaine}>
+                                {isClosingQuinzaine ? 'Clôture...' : 'Clôturer'}
+                            </PrimaryButton>
+                        </div>
+                    </form>
+                )}
             </Modal>
         </AuthenticatedLayout>
     );

@@ -1,10 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link, router } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { formatNumber } from '@/Helpers/formatNumber';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import PrimaryButton from '@/Components/PrimaryButton';
+import DangerButton from '@/Components/DangerButton';
 import { t } from '@/Helpers/i18n';
 
 export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery }) {
@@ -12,6 +13,8 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
     const [isEditingEmployee, setIsEditingEmployee] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
+    const [confirmingEmployeeDeletion, setConfirmingEmployeeDeletion] = useState(null);
+    const { delete: destroy, processing: deleteProcessing } = useForm();
 
     const { data, setData, post, transform, processing, reset, errors } = useForm({
         matricule: '',
@@ -85,6 +88,18 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
 
     const handleToggleActive = (employee) => {
         router.post(route('employees.toggle-active', employee.id));
+    };
+
+    const confirmEmployeeDeletion = (employee) => setConfirmingEmployeeDeletion(employee);
+    const closeDeleteModal = () => setConfirmingEmployeeDeletion(null);
+    const deleteEmployee = (e) => {
+        e.preventDefault();
+        destroy(route('employees.destroy', confirmingEmployeeDeletion.id), {
+            preserveScroll: true,
+            onSuccess: closeDeleteModal,
+            onError: closeDeleteModal,
+            onFinish: closeDeleteModal,
+        });
     };
 
     const handleFilterChange = (e) => {
@@ -221,17 +236,27 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                                             </label>
                                             {auth.user.role !== 'data_entry' && (
-                                                <div className="flex gap-4">
-                                                    <button onClick={() => handleEdit(emp)} className="text-blue-600 font-bold text-xs uppercase">{t('edit')}</button>
-                                                    <Link
-                                                        href={route('employees.destroy', emp.id)}
-                                                        method="delete"
-                                                        as="button"
-                                                        onBefore={() => confirm(`Supprimer définitivement ${emp.full_name} ? Cette action est irréversible.`)}
-                                                        className="text-red-600 font-bold text-xs uppercase"
+                                                <div className="flex items-center justify-end gap-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleEdit(emp)}
+                                                        title="Modifier"
+                                                        className="text-gray-400 hover:text-gray-700 transition-colors"
                                                     >
-                                                        {t('delete')}
-                                                    </Link>
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => confirmEmployeeDeletion(emp)}
+                                                        title="Supprimer"
+                                                        className="text-gray-400 hover:text-red-600 transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
                                                 </div>
                                             )}
                                         </div>
@@ -318,22 +343,27 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             </td>
                                             <td className="px-4 py-3 text-center">
                                                 {auth.user.role !== 'data_entry' && (
-                                                    <div className="flex gap-2 justify-center">
+                                                    <div className="flex items-center justify-center gap-3">
                                                         <button
+                                                            type="button"
                                                             onClick={() => handleEdit(emp)}
-                                                            className="text-blue-600 hover:text-blue-900 font-bold text-xs transition-colors uppercase"
+                                                            title="Modifier"
+                                                            className="text-gray-400 hover:text-gray-700 transition-colors"
                                                         >
-                                                            {t('edit')}
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
                                                         </button>
-                                                        <Link
-                                                            href={route('employees.destroy', emp.id)}
-                                                            method="delete"
-                                                            as="button"
-                                                            onBefore={() => confirm(`Supprimer définitivement ${emp.full_name} ? Cette action est irréversible.`)}
-                                                            className="text-red-600 hover:text-red-900 font-bold text-xs transition-colors uppercase"
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => confirmEmployeeDeletion(emp)}
+                                                            title="Supprimer"
+                                                            className="text-gray-400 hover:text-red-600 transition-colors"
                                                         >
-                                                            {t('delete')}
-                                                        </Link>
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
                                                     </div>
                                                 )}
                                             </td>
@@ -509,6 +539,31 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                         </div>
                     </form>
                 </div>
+            </Modal>
+
+            {/* DELETE EMPLOYEE MODAL */}
+            <Modal show={confirmingEmployeeDeletion !== null} onClose={closeDeleteModal}>
+                <form onSubmit={deleteEmployee} className="p-8">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
+                            Supprimer l'employé
+                        </h2>
+                    </div>
+                    <p className="text-gray-600 mb-6">
+                        Êtes-vous sûr de vouloir supprimer définitivement <strong>{confirmingEmployeeDeletion?.full_name}</strong> ? Cette action est irréversible.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <SecondaryButton type="button" onClick={closeDeleteModal}>Annuler</SecondaryButton>
+                        <DangerButton className="rounded-xl" disabled={deleteProcessing}>
+                            {deleteProcessing ? 'Suppression...' : "Supprimer l'Employé"}
+                        </DangerButton>
+                    </div>
+                </form>
             </Modal>
         </AuthenticatedLayout>
     );

@@ -159,9 +159,16 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     {!alert.is_resolved && auth.user.role !== 'data_entry' && (
-                                                        <PrimaryButton onClick={() => confirmResolveAlert(alert)}>
-                                                            Résoudre
-                                                        </PrimaryButton>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => confirmResolveAlert(alert)}
+                                                            title="Résoudre"
+                                                            className="text-gray-400 hover:text-green-600 transition-colors"
+                                                        >
+                                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                            </svg>
+                                                        </button>
                                                     )}
                                                 </td>
                                             </tr>

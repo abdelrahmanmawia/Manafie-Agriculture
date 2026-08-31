@@ -22,6 +22,7 @@ import {
 
 export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, employees }) {
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
+    const [confirmingMaintenanceLogDeletion, setConfirmingMaintenanceLogDeletion] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
     const [isAddingMaintenance, setIsAddingMaintenance] = useState(false);
     const [editingMaintenanceLog, setEditingMaintenanceLog] = useState(null);
@@ -146,9 +147,16 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
         }
     };
 
-    const deleteMaintenanceLog = (log) => {
-        if (!confirm('Supprimer cette intervention de maintenance ?')) return;
-        router.delete(route('stock.vehicles.maintenance-logs.destroy', log.id), { preserveScroll: true });
+    const confirmMaintenanceLogDeletion = (log) => setConfirmingMaintenanceLogDeletion(log);
+    const closeMaintenanceLogDeleteModal = () => setConfirmingMaintenanceLogDeletion(null);
+    const deleteMaintenanceLog = (e) => {
+        e.preventDefault();
+        destroy(route('stock.vehicles.maintenance-logs.destroy', confirmingMaintenanceLogDeletion.id), {
+            preserveScroll: true,
+            onSuccess: closeMaintenanceLogDeleteModal,
+            onError: closeMaintenanceLogDeleteModal,
+            onFinish: closeMaintenanceLogDeleteModal,
+        });
     };
 
     const handleToggleActive = () => {
@@ -415,7 +423,7 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                                             {auth.user.role !== 'data_entry' && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => deleteMaintenanceLog(log)}
+                                                    onClick={() => confirmMaintenanceLogDeletion(log)}
                                                     className="text-gray-400 hover:text-red-600 transition-colors"
                                                     title="Supprimer"
                                                 >
@@ -555,6 +563,23 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
                         <SecondaryButton onClick={closeModal}>Annuler</SecondaryButton>
                         <DangerButton className="ml-3" disabled={processing}>
                             Supprimer le Véhicule
+                        </DangerButton>
+                    </div>
+                </form>
+            </Modal>
+
+            <Modal show={confirmingMaintenanceLogDeletion !== null} onClose={closeMaintenanceLogDeleteModal}>
+                <form onSubmit={deleteMaintenanceLog} className="p-6">
+                    <h2 className="text-lg font-medium text-gray-900">
+                        Êtes-vous sûr de vouloir supprimer cette intervention de maintenance ?
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-600">
+                        Cette action est irréversible.
+                    </p>
+                    <div className="mt-6 flex justify-end">
+                        <SecondaryButton type="button" onClick={closeMaintenanceLogDeleteModal}>Annuler</SecondaryButton>
+                        <DangerButton className="ml-3" disabled={processing}>
+                            Supprimer
                         </DangerButton>
                     </div>
                 </form>

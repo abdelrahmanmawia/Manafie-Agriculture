@@ -1,13 +1,28 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, Link } from '@inertiajs/react';
+import { Head, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import PrimaryButton from '@/Components/PrimaryButton';
+import DangerButton from '@/Components/DangerButton';
 import { t } from '@/Helpers/i18n';
 
 export default function Users({ auth, users, farms = [], enterprises = [], selectedFarmId, selectedEnterpriseId }) {
     const [isAddingUser, setIsAddingUser] = useState(false);
+    const [confirmingUserDeletion, setConfirmingUserDeletion] = useState(null);
+    const { delete: destroy, processing: deleteProcessing } = useForm();
+
+    const confirmUserDeletion = (user) => setConfirmingUserDeletion(user);
+    const closeDeleteModal = () => setConfirmingUserDeletion(null);
+    const deleteUser = (e) => {
+        e.preventDefault();
+        destroy(route('users.destroy', confirmingUserDeletion.id), {
+            preserveScroll: true,
+            onSuccess: closeDeleteModal,
+            onError: closeDeleteModal,
+            onFinish: closeDeleteModal,
+        });
+    };
 
     const { data, setData, post, processing, reset, errors } = useForm({
         name: '',
@@ -87,15 +102,18 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             {user.role !== 'super_admin' && (
-                                                <Link
-                                                    href={route('users.destroy', user.id)}
-                                                    method="delete"
-                                                    as="button"
-                                                    onBefore={() => confirm(`Supprimer définitivement le compte de ${user.name} ? Cette action est irréversible.`)}
-                                                    className="text-red-600 hover:text-red-900 font-bold transition-colors"
-                                                >
-                                                    {t('delete')}
-                                                </Link>
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        title="Supprimer"
+                                                        onClick={() => confirmUserDeletion(user)}
+                                                        className="text-gray-400 hover:text-red-600 transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
                                             )}
                                         </td>
                                     </tr>
@@ -172,6 +190,30 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                         </div>
                     </form>
                 </div>
+            </Modal>
+
+            <Modal show={confirmingUserDeletion !== null} onClose={closeDeleteModal}>
+                <form onSubmit={deleteUser} className="p-8">
+                    <div className="flex items-center gap-4 mb-4">
+                        <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
+                            Supprimer l'utilisateur
+                        </h2>
+                    </div>
+                    <p className="text-gray-600 mb-6">
+                        Supprimer définitivement le compte de <strong>{confirmingUserDeletion?.name}</strong> ? Cette action est irréversible.
+                    </p>
+                    <div className="flex justify-end gap-3">
+                        <SecondaryButton type="button" onClick={closeDeleteModal}>Annuler</SecondaryButton>
+                        <DangerButton className="rounded-xl" disabled={deleteProcessing}>
+                            {deleteProcessing ? 'Suppression...' : 'Supprimer'}
+                        </DangerButton>
+                    </div>
+                </form>
             </Modal>
         </AuthenticatedLayout>
     );
