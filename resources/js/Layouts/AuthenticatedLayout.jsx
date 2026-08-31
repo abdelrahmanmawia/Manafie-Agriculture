@@ -84,6 +84,7 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Carburant', href: 'stock.fuel-transactions.index', match: 'stock.fuel-transactions.*', icon: ICONS.fuel },
         { label: 'Sorties de Stock', href: 'stock.manual-entries.index', match: 'stock.manual-entries.*', icon: ICONS.pencil },
         { label: 'Rapports', href: 'stock.reports.index', match: 'stock.reports.*', icon: ICONS.chart },
+        ...(farmSettingsItem ? [farmSettingsItem] : []),
     ];
 
     const activeSubNav = isStockZone
