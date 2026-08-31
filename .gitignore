@@ -7,6 +7,12 @@
 # Real employee payroll source files used one-time by database/seeders/PrsRealDataSeeder.php —
 # contains real names/CINs, never commit.
 /storage/app/prs_archive
+# Same reason — CurrentDataSeeder's raw table-row fixtures (employees.json has real names/CINs,
+# users.json has password hashes). Kept on disk so the seeder works locally; never committed.
+/database/seeders/data
+# Local-only DB snapshots taken before destructive cleanup/reseed operations — contains the
+# same real employee data as above.
+/storage/backups
 /vendor
 .env
 .env.backup
