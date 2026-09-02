@@ -62,8 +62,16 @@ class PointageController extends Controller
     // New method for exporting all divisions
     public function exportAllDivisions(Request $request, Quinzaine $quinzaine)
     {
+        $user = $request->user();
+
+        // Unlike export() (one division's own quinzaine), this pulls payroll data for every
+        // division on the farm at once — assertQuinzaineInScope() below only confirms the
+        // requester can see the ONE quinzaine passed in, which let an enterprise-scoped
+        // data_entry export every other division's payroll by passing their own quinzaine id.
+        abort_unless(in_array($user->role, ['super_admin', 'farm_manager']), 403);
+
         $quinzaine->loadMissing('enterprise');
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($user, $quinzaine);
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';

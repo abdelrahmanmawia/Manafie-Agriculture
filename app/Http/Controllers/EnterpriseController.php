@@ -214,10 +214,10 @@ class EnterpriseController extends Controller
 
         $enterprise = Enterprise::findOrFail($enterpriseId);
 
-        // Security: Ensure farm manager only accesses their own farm's enterprises
-        if ($request->user()->role === 'farm_manager' && $enterprise->farm_id != $request->user()->farm_id) {
-            abort(403);
-        }
+        // Ensure farm_manager only accesses their own farm's enterprises, and super_admin only
+        // the farm they've activated in session — the ?enterprise_id= query param otherwise
+        // lets either read/manage any other farm's division settings.
+        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
 
         $quinzaines = Quinzaine::where('enterprise_id', $enterprise->id)->latest()->get();
 
