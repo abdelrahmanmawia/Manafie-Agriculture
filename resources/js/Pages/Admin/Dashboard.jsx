@@ -62,16 +62,16 @@ export default function Dashboard({ auth, enterprise, stats, error = null }) {
                     <div className="bg-white overflow-hidden shadow-sm sm:rounded-2xl border border-gray-100 p-8">
                         <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">{t('quick_actions')}</h3>
                         <div className="flex flex-wrap gap-4">
-                            <Link href={route('pointage.quinzaines')} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-md hover:bg-blue-700 transition-all flex items-center gap-3">
+                            <Link href={route('pointage.quinzaines')} className="bg-primary-600 text-white px-8 py-4 rounded-full font-black uppercase tracking-widest text-sm shadow-md hover:bg-primary-700 transition-all flex items-center gap-3">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                                 </svg>
                                 {t('enter_daily_pointage_btn')}
                             </Link>
-                            <Link href={route('employees.index')} className="bg-gray-800 text-white px-6 py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-md hover:bg-gray-900 transition-all flex items-center gap-2">
+                            <Link href={route('employees.index')} className="bg-gray-900 text-white px-6 py-4 rounded-full font-black uppercase tracking-widest text-sm shadow-md hover:bg-gray-800 transition-all flex items-center gap-2">
                                 {t('manage_personnel')}
                             </Link>
-                            <Link href={route('settings.index')} className="bg-green-600 text-white px-6 py-4 rounded-xl font-black uppercase tracking-widest text-sm shadow-md hover:bg-green-700 transition-all flex items-center gap-2">
+                            <Link href={route('settings.index')} className="bg-success-600 text-white px-6 py-4 rounded-full font-black uppercase tracking-widest text-sm shadow-md hover:bg-success-700 transition-all flex items-center gap-2">
                                 {t('settings')}
                             </Link>
                         </div>

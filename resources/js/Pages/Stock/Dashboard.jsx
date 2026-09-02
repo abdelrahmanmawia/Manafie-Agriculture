@@ -104,7 +104,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
                                 <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">Alertes récentes</h3>
-                                <Link href={route('stock.alerts.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                <Link href={route('stock.alerts.index')} className="text-sm font-medium text-primary-600 hover:text-primary-800">
                                     Tout voir
                                 </Link>
                             </div>
@@ -133,7 +133,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
                                 <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">Mouvements récents</h3>
-                                <Link href={route('stock.movements.index')} className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                <Link href={route('stock.movements.index')} className="text-sm font-medium text-primary-600 hover:text-primary-800">
                                     Tout voir
                                 </Link>
                             </div>

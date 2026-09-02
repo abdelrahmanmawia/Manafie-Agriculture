@@ -113,7 +113,7 @@ export default function Index({ auth, vehicles, days, startDate, endDate, existi
                                 onChange={e => setCustomEnd(e.target.value)}
                                 className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50 py-1.5"
                             />
-                            <button type="submit" className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-lg font-bold text-xs">
+                            <button type="submit" className="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1.5 rounded-full font-bold text-xs">
                                 Filtrer
                             </button>
                         </form>

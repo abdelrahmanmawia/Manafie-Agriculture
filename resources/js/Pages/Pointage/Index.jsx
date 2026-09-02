@@ -112,7 +112,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
                             {farm && (
                                 <button
                                     onClick={() => setShowEntForm(!showEntForm)}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-sm uppercase tracking-widest transition-all shadow-md"
+                                    className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-md"
                                 >
                                     {showEntForm ? 'Annuler' : '+ Nouvelle Division'}
                                 </button>
@@ -120,7 +120,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
                         </div>
 
                         {showEntForm && (
-                            <div className="bg-white p-8 shadow-xl rounded-2xl border-2 border-blue-500 animate-in fade-in slide-in-from-top-4 duration-300">
+                            <div className="bg-white p-8 shadow-xl rounded-2xl border-2 border-primary-500 animate-in fade-in slide-in-from-top-4 duration-300">
                                 <form onSubmit={submitEnt} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                                     <div className="md:col-span-1">
                                         <label className="block text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Nom de la Division</label>
@@ -168,7 +168,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
                                         </label>
                                     </div>
                                     <div className="md:col-span-3">
-                                        <button type="submit" disabled={entForm.processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md">
+                                        <button type="submit" disabled={entForm.processing} className="w-full bg-primary-600 hover:bg-primary-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md">
                                             Créer la Division
                                         </button>
                                     </div>
@@ -178,7 +178,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {enterprises.map(ent => (
-                                <div key={ent.id} className="bg-white overflow-hidden shadow-sm sm:rounded-2xl p-8 border border-gray-100 hover:shadow-lg transition-all border-t-4 border-t-blue-500">
+                                <div key={ent.id} className="bg-white overflow-hidden shadow-sm sm:rounded-2xl p-8 border border-gray-100 hover:shadow-lg transition-all border-t-4 border-t-primary-500">
                                     <div className="flex justify-between items-start mb-6">
                                         <h4 className="text-2xl font-black text-gray-900 uppercase leading-tight">{ent.name}</h4>
                                         <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${ent.contract_type === 'avec_contrat' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
@@ -202,7 +202,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
                                     <div className="flex flex-col gap-2">
                                         <Link
                                             href={route('pointage.quinzaines', { enterprise_id: ent.id })}
-                                            className="w-full text-center bg-blue-600 text-white hover:bg-blue-700 py-3 rounded-xl font-bold text-xs transition-colors uppercase tracking-widest"
+                                            className="w-full text-center bg-primary-600 text-white hover:bg-primary-700 py-3 rounded-xl font-bold text-xs transition-colors uppercase tracking-widest"
                                         >
                                             Voir les Quinzaines
                                         </Link>

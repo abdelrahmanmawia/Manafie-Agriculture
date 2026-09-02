@@ -256,7 +256,7 @@ export default function Analytics({
                         {(selectedQuinzaineId || quinzaineFromId || quinzaineToId || blocId || sectorId) && (
                             <button
                                 onClick={() => handleFilterChange({ quinzaine_id: '', quinzaine_from: '', quinzaine_to: '', bloc_id: '', sector_id: '' })}
-                                className="text-[10px] font-black text-red-500 uppercase hover:underline ml-auto"
+                                className="text-[10px] font-black text-gray-500 uppercase hover:underline ml-auto"
                             >
                                 Réinitialiser
                             </button>

@@ -58,7 +58,7 @@ export default function Badges({ auth, employees, enterprises }) {
                                 href={printUrl()}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wide"
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-full font-bold text-xs uppercase tracking-wide"
                             >
                                 Imprimer {selected.size > 0 ? `(${selected.size})` : '(Tous)'}
                             </a>
