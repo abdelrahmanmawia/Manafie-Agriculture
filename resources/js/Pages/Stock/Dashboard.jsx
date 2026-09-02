@@ -21,7 +21,7 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Tableau de Bord de Gestion de Stock</h2>
                     <div className="flex items-center space-x-2 text-sm text-gray-500">
                         <span className="flex items-center">

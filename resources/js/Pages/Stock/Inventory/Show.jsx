@@ -65,7 +65,7 @@ export default function Show({ auth, stockInventory }) {
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
                         <Link href={route('stock.inventory.index')} className="text-gray-500 hover:text-gray-700 transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

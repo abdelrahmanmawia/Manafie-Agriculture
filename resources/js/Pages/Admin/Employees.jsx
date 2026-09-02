@@ -121,7 +121,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('personnel_management')}</h2>
                     <div className="flex gap-4 items-center">
                         {auth.user.role !== 'data_entry' && (

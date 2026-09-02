@@ -52,7 +52,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-xl text-gray-800 uppercase tracking-tighter leading-tight">Modifier la Sortie de Stock</h2>
                     <Link
                         href={route('stock.manual-entries.index')}

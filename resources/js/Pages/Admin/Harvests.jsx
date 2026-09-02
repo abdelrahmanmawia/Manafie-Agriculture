@@ -150,7 +150,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">
                         {t('harvests')}
                     </h2>

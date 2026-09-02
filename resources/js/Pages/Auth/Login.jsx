@@ -1,14 +1,15 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Checkbox from '@/Components/Checkbox';
-import GuestLayout from '@/Layouts/GuestLayout';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
 import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
+import ApplicationLogo from '@/Components/ApplicationLogo';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
 
 export default function Login({ status, canResetPassword }) {
+    const [showPassword, setShowPassword] = useState(false);
     const { data, setData, post, processing, errors, reset } = useForm({
         email: '',
         password: '',
@@ -28,102 +29,117 @@ export default function Login({ status, canResetPassword }) {
     };
 
     return (
-        <GuestLayout>
+        <>
             <Head title={t('login')} />
 
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-700 via-emerald-600 to-lime-500 py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
-                {/* Decorative elements */}
-                <div className="absolute top-10 left-10 opacity-10">
-                    <svg className="h-32 w-32 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                    </svg>
-                </div>
-                <div className="absolute bottom-10 right-10 opacity-10">
-                    <svg className="h-24 w-24 text-white" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17 8C8 10 5.9 16.17 3.82 21.34l1.89.66.95-2.3c.48.17.98.3 1.34.3C19 20 22 3 22 3c-1 2-8 2.25-13 3.25S2 11.5 2 13.5s1.75 3.75 1.75 3.75C7 8 17 8 17 8z"/>
-                    </svg>
-                </div>
+            <div className="min-h-screen w-full flex bg-white">
+                {/* Brand panel — hidden below lg, this is a desktop-first split-screen layout */}
+                <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gray-900 items-center justify-center p-16">
+                    {/* The real brand mark, oversized and faint, as texture rather than a stock icon */}
+                    <ApplicationLogo className="absolute -right-24 -bottom-24 h-[520px] w-[520px] text-white opacity-[0.06]" />
+                    <ApplicationLogo className="absolute -left-32 -top-32 h-[360px] w-[360px] text-white opacity-[0.04] rotate-12" />
 
-                <div className="max-w-md w-full space-y-8 bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl p-10 border-4 border-green-800/20">
-                    <div className="text-center">
-                        <div className="mx-auto h-24 w-24 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mb-4 shadow-xl border-4 border-white">
-                            <svg className="h-14 w-14 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </div>
-                        <h2 className="text-3xl font-extrabold text-green-900">Pointage Agricole</h2>
-                        <p className="mt-2 text-sm text-green-700 font-medium">Système de gestion de pointage</p>
+                    <div className="relative z-10 max-w-sm">
+                        <ApplicationLogo className="h-12 w-12 text-white mb-10" />
+                        <h1 className="text-4xl font-black text-white uppercase tracking-tighter leading-[1.1]">
+                            Gestion Agricole
+                        </h1>
+                        <p className="mt-4 text-sm font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
+                            Pointage · Paie · Stock — en un seul endroit
+                        </p>
                     </div>
+                </div>
 
-                    {status && (
-                        <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm font-medium">
-                            {status}
+                {/* Form panel */}
+                <div className="flex-1 flex items-center justify-center px-6 py-12 sm:px-12">
+                    <div className="w-full max-w-sm">
+                        <div className="flex items-center gap-3 mb-10 lg:hidden">
+                            <ApplicationLogo className="h-9 w-9 text-gray-900" />
+                            <span className="font-black text-lg text-gray-900 uppercase tracking-tighter">Gestion Agricole</span>
                         </div>
-                    )}
 
-                    <form onSubmit={submit} className="mt-8 space-y-6">
-                        <div className="space-y-4">
+                        <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Connexion</h2>
+                        <p className="mt-1.5 text-sm text-gray-500 font-medium">Accédez à votre espace de gestion.</p>
+
+                        {status && (
+                            <div className="mt-6 bg-success-50 border border-success-200 text-success-700 px-4 py-3 rounded-xl text-sm font-bold">
+                                {status}
+                            </div>
+                        )}
+
+                        <form onSubmit={submit} className="mt-8 space-y-5">
                             <div>
-                                <InputLabel htmlFor="email" value={t('email')} className="text-green-800 font-semibold" />
+                                <InputLabel htmlFor="email" value={t('email')} className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1.5" />
                                 <TextInput
                                     id="email"
                                     type="email"
                                     name="email"
                                     value={data.email}
-                                    className="mt-1 block w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                                    className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-primary-500 focus:bg-white focus:ring-primary-500 py-3 px-4 transition-all"
                                     autoComplete="username"
                                     isFocused={true}
                                     onChange={(e) => setData('email', e.target.value)}
                                 />
-                                <InputError message={errors.email} className="mt-2" />
+                                <InputError message={errors.email} className="mt-1.5" />
                             </div>
 
                             <div>
-                                <InputLabel htmlFor="password" value={t('password')} className="text-green-800 font-semibold" />
-                                <TextInput
-                                    id="password"
-                                    type="password"
-                                    name="password"
-                                    value={data.password}
-                                    className="mt-1 block w-full px-4 py-3 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
-                                    autoComplete="current-password"
-                                    onChange={(e) => setData('password', e.target.value)}
-                                />
-                                <InputError message={errors.password} className="mt-2" />
+                                <InputLabel htmlFor="password" value={t('password')} className="text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1.5" />
+                                <div className="relative">
+                                    <TextInput
+                                        id="password"
+                                        type={showPassword ? 'text' : 'password'}
+                                        name="password"
+                                        value={data.password}
+                                        className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-primary-500 focus:bg-white focus:ring-primary-500 py-3 pl-4 pr-11 transition-all"
+                                        autoComplete="current-password"
+                                        onChange={(e) => setData('password', e.target.value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword((v) => !v)}
+                                        className="absolute inset-y-0 right-0 flex items-center px-3.5 text-gray-400 hover:text-gray-600 transition-colors"
+                                        aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                                    >
+                                        {showPassword ? (
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21m-6.122-6.122l3.244 3.244" />
+                                            </svg>
+                                        ) : (
+                                            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </div>
+                                <InputError message={errors.password} className="mt-1.5" />
                             </div>
-                        </div>
 
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center">
-                                <Checkbox
-                                    name="remember"
-                                    checked={data.remember}
-                                    onChange={(e) => setData('remember', e.target.checked)}
-                                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-green-300 rounded"
-                                />
-                                <label htmlFor="remember" className="ml-2 block text-sm text-green-800">
-                                    {t('remember_me')}
+                            <div className="flex items-center justify-between pt-1">
+                                <label htmlFor="remember" className="flex items-center gap-2 cursor-pointer select-none">
+                                    <Checkbox
+                                        name="remember"
+                                        checked={data.remember}
+                                        onChange={(e) => setData('remember', e.target.checked)}
+                                    />
+                                    <span className="text-xs font-bold text-gray-600">{t('remember_me')}</span>
                                 </label>
+
+                                {canResetPassword && (
+                                    <Link
+                                        href={route('password.request')}
+                                        className="text-xs font-bold text-primary-600 hover:text-primary-800 transition-colors"
+                                    >
+                                        {t('forgot_password')}
+                                    </Link>
+                                )}
                             </div>
 
-                            {canResetPassword && (
-                                <Link
-                                    href={route('password.request')}
-                                    className="text-sm text-green-600 hover:text-green-800 font-medium transition-colors"
-                                >
-                                    {t('forgot_password')}
-                                </Link>
-                            )}
-                        </div>
-
-                        <div>
-                            <PrimaryButton
-                                className="w-full py-3 px-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02]"
-                                disabled={processing}
-                            >
+                            <PrimaryButton className="w-full justify-center py-3.5 mt-2" disabled={processing}>
                                 {processing ? (
-                                    <span className="flex items-center justify-center">
-                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <span className="flex items-center justify-center gap-2">
+                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
@@ -133,21 +149,10 @@ export default function Login({ status, canResetPassword }) {
                                     t('login')
                                 )}
                             </PrimaryButton>
-                        </div>
-                    </form>
-
-                    <div className="mt-6 text-center">
-                        <div className="flex items-center justify-center space-x-2 text-green-700">
-                            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-                            </svg>
-                            <p className="text-sm font-medium">
-                                Gestion agricole intelligente
-                            </p>
-                        </div>
+                        </form>
                     </div>
                 </div>
             </div>
-        </GuestLayout>
+        </>
     );
 }

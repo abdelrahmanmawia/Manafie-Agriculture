@@ -150,7 +150,7 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Véhicules & Matériel</h2>
                         <p className="text-sm text-gray-500 mt-1">Parc de véhicules et équipement agricole de la ferme</p>

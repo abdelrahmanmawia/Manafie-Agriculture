@@ -412,15 +412,34 @@ class EnterpriseController extends Controller
     {
         $this->assertEnterpriseManagerAccess($request, $operation->farm_id);
 
-        $operation->delete();
-        return redirect()->back();
+        // Same reasoning as destroy() above: an operation still referenced by pointage/stock
+        // records (its FK has no cascade) would otherwise throw an uncaught QueryException
+        // straight to a raw error page instead of a friendly message.
+        try {
+            $operation->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer cette opération : des données liées l\'en empêchent.'
+            );
+        }
+
+        return redirect()->back()->with('success', 'Opération supprimée.');
     }
 
     public function deleteBloc(Request $request, Bloc $bloc)
     {
         $this->assertEnterpriseManagerAccess($request, $bloc->farm_id);
 
-        $bloc->delete();
-        return redirect()->back();
+        try {
+            $bloc->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer ce bloc : des données liées l\'en empêchent.'
+            );
+        }
+
+        return redirect()->back()->with('success', 'Bloc supprimé.');
     }
 }

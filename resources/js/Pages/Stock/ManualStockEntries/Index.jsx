@@ -127,7 +127,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Sorties de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Enregistrez les consommations, transferts et ajustements de stock</p>

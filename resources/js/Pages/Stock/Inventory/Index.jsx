@@ -66,7 +66,7 @@ export default function Index({ auth, stockInventory }) {
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Stocks</h2>
                         <p className="text-sm text-gray-500 mt-1">Niveaux d'inventaire actuels par produit</p>

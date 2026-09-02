@@ -150,7 +150,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex justify-between items-center">
+                <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines</h2>
                     {auth.user.role !== 'data_entry' && (
                         <button
