@@ -98,19 +98,26 @@ class PrsRealDataSeeder extends Seeder
     {
         $persealandFarm = Farm::firstOrCreate(['name' => 'Persealand']);
 
+        // Array key is the manifest's own 'enterprise' identifier (every prs_manifest.php entry
+        // references one of these three keys) — kept stable even though the *live* DB row for
+        // 'AGRI INTERIM' was renamed to 'PRESTATAIRE MO DECLARE' at some point outside this
+        // seeder (e.g. via the Farm Settings UI). Matching on the old hardcoded name here would
+        // silently create a second, duplicate enterprise instead of reusing the renamed one —
+        // confirmed the hard way importing 2QZ Août 2026's A.I sheet, which briefly did exactly
+        // that before this fix (see the migration-safety commit for the cleanup).
         $enterprises = [
-            'PERSEALAND' => [$persealandFarm, ['contract_type' => 'avec_contrat', 'invoiced_to_client' => false, 'default_brut_rate' => 97.44]],
-            'AGRI INTERIM' => [$persealandFarm, ['contract_type' => 'avec_contrat', 'invoiced_to_client' => true, 'default_brut_rate' => 97.44]],
-            'PERSEALAND NON DECLARE' => [$persealandFarm, ['contract_type' => 'avec_contrat', 'invoiced_to_client' => false, 'default_brut_rate' => 97.44]],
+            'PERSEALAND' => [$persealandFarm, 'PERSEALAND', ['contract_type' => 'avec_contrat', 'invoiced_to_client' => false, 'default_brut_rate' => 97.44]],
+            'AGRI INTERIM' => [$persealandFarm, 'PRESTATAIRE MO DECLARE', ['contract_type' => 'avec_contrat', 'invoiced_to_client' => true, 'default_brut_rate' => 97.44]],
+            'PERSEALAND NON DECLARE' => [$persealandFarm, 'PERSEALAND NON DECLARE', ['contract_type' => 'avec_contrat', 'invoiced_to_client' => false, 'default_brut_rate' => 97.44]],
         ];
         $enterpriseIds = [];
         $enterpriseFarmIds = [];
-        foreach ($enterprises as $name => [$farm, $attrs]) {
-            $enterpriseIds[$name] = Enterprise::updateOrCreate(
-                ['farm_id' => $farm->id, 'name' => $name],
+        foreach ($enterprises as $key => [$farm, $dbName, $attrs]) {
+            $enterpriseIds[$key] = Enterprise::updateOrCreate(
+                ['farm_id' => $farm->id, 'name' => $dbName],
                 $attrs + ['settings' => ['currency' => 'DH']]
             )->id;
-            $enterpriseFarmIds[$name] = $farm->id;
+            $enterpriseFarmIds[$key] = $farm->id;
         }
 
         return [$enterpriseIds, $enterpriseFarmIds];
@@ -163,9 +170,13 @@ class PrsRealDataSeeder extends Seeder
             ]);
         }
 
-        $jfDate = isset($entry['jf_date'])
-            ? sprintf('%04d-%02d-%02d', $entry['year'], $entry['month'], $entry['jf_date'])
-            : null;
+        // 'jf_date' (singular, one day-of-month int) and 'jf_dates' (plural, array of them) are
+        // both accepted — a period can have more than one J.F. this size of workforce spans.
+        $jfDays = $entry['jf_dates'] ?? (isset($entry['jf_date']) ? [$entry['jf_date']] : []);
+        $jfDates = array_map(
+            fn ($day) => sprintf('%04d-%02d-%02d', $entry['year'], $entry['month'], $day),
+            $jfDays
+        );
 
         foreach ($parsedEmployees as $data) {
             if (empty($data['days'])) {
@@ -174,7 +185,7 @@ class PrsRealDataSeeder extends Seeder
 
             $employee = $this->resolveEmployee($entry, $farmId, $enterpriseId, $data, $endDate);
 
-            $this->insertPointageRecords($employee, $quinzaine, $data, $farmId, $jfDate);
+            $this->insertPointageRecords($employee, $quinzaine, $data, $farmId, $jfDates);
 
             $this->quinzaineTtcTotals[$quinzaine->id] = ($this->quinzaineTtcTotals[$quinzaine->id] ?? 0) + ($data['total_ttc'] ?? 0);
         }
@@ -198,15 +209,48 @@ class PrsRealDataSeeder extends Seeder
         $key = $cin !== '' ? "cin:{$farmId}:{$cin}" : "nc:{$farmId}:{$enterpriseId}:{$data['matricule']}";
         $isLatest = !isset($this->employeeLatestDate[$key]) || $endDate >= $this->employeeLatestDate[$key];
 
+        // A later period can genuinely have weaker data than an earlier one already on file — a
+        // sheet with no COMP/SAL BRUT/J column this period parses those fields to blank/0, and a
+        // row with no N° falls back to CIN for matricule, all indistinguishable from "this field
+        // really is blank" without cross-referencing what's already known. Confirmed the hard way
+        // importing 2QZ Août 2026's IRR sheet (no brut/comp column at all that period): it briefly
+        // overwrote real base_rate/complement/matricule/rib with blank-derived values for every
+        // employee on that sheet before this fix. Never let an update sheet regress the identity/
+        // rate fields below a brand-new employee's own first-ever values below.
+        $existing = Employee::where($identity)->first();
+
+        $newMatricule = trim((string) ($data['matricule'] ?? ''));
+        $matricule = (!$existing || ($newMatricule !== '' && $newMatricule !== $cin))
+            ? $data['matricule']
+            : $existing->matricule;
+
+        $newRib = trim((string) ($data['rib'] ?? ''));
+        $rib = (!$existing || $newRib !== '') ? $data['rib'] : $existing->rib;
+
+        // Only an explicit 'SAL BRUT/J'-style column is trustworthy for the employee's *standing*
+        // rate — resolveBrutRate()'s total_net/days fallback is a fine approximation for *this
+        // period's own* PointageRecord.rate below, but not stable enough to overwrite base_rate
+        // with: total_net can include J.F./H.S., which skews the average well above the real
+        // daily rate.
+        $baseRate = (!$existing || ($data['brut'] ?? null))
+            ? $this->resolveBrutRate($data)
+            : $existing->base_rate;
+
+        // Same reasoning as base_rate: a sheet with no COMP column at all parses complement to 0,
+        // indistinguishable from "really is zero" — prefer the employee's last known complement.
+        $complement = (!$existing || (($data['complement'] ?? 0) != 0))
+            ? $data['complement']
+            : $existing->complement;
+
         $attrs = [
             'enterprise_id' => $enterpriseId,
-            'matricule' => $data['matricule'],
+            'matricule' => $matricule,
             'full_name' => $data['full_name'],
             'last_name' => $data['last_name'] ?? null,
             'first_name' => $data['first_name'] ?? null,
-            'rib' => $data['rib'],
-            'complement' => $data['complement'],
-            'base_rate' => $this->resolveBrutRate($data),
+            'rib' => $rib,
+            'complement' => $complement,
+            'base_rate' => $baseRate,
             'type' => str_contains($entry['enterprise'], 'AGRI INTERIM') ? 'interim' : 'persea',
             'is_active' => true,
         ];
@@ -240,10 +284,14 @@ class PrsRealDataSeeder extends Seeder
         return 0;
     }
 
-    private function insertPointageRecords(Employee $employee, Quinzaine $quinzaine, array $data, int $farmId, ?string $jfDate = null): void
+    /**
+     * @param string[] $jfDates Every known J.F. calendar date for this period ('Y-m-d'), not just
+     *                          the ones this particular employee is credited for — see below.
+     */
+    private function insertPointageRecords(Employee $employee, Quinzaine $quinzaine, array $data, int $farmId, array $jfDates = []): void
     {
         $dates = array_keys($data['days']);
-        if (empty($dates) && !($jfDate !== null && ($data['jf_count'] ?? 0) > 0)) {
+        if (empty($dates) && !(!empty($jfDates) && ($data['jf_count'] ?? 0) > 0)) {
             return;
         }
         sort($dates);
@@ -261,27 +309,61 @@ class PrsRealDataSeeder extends Seeder
         $perDayNet = $totalPlainDays > 0 ? ($data['net_per_day'] ?? (($data['total_net'] ?? 0) / $totalPlainDays)) : 0;
         $sumOfPlainDays = $perDayNet * $totalPlainDays;
 
-        // 'jf_date' is known for this period (see prs_manifest.php's 'jf_date') and this employee
-        // is credited a paid holiday ('J.F CH' > 0): place it precisely on that calendar date
-        // instead of guessing — worked that day (a real entry already parsed for it) pays double,
-        // unworked pays a single day and gets a synthetic presence-less record (mirrors the
-        // interactive grid's own "paid holiday without presence" behavior in PointageController).
-        $hasPreciseJf = $jfDate !== null && ($data['jf_count'] ?? 0) > 0;
-        $workedJfDate = $hasPreciseJf && in_array($jfDate, $plainDates, true);
-        // Excludes the JF date itself: its own net is fixed below, independent of this leftover.
-        $leftoverPlainDates = $hasPreciseJf ? array_values(array_diff($plainDates, [$jfDate])) : $plainDates;
+        // Every known J.F. calendar date for this period (see prs_manifest.php's 'jf_dates') and
+        // this employee's own credited count ('J.F CH'): place each credited holiday precisely on
+        // a real calendar date instead of guessing which of the period's days it was. A date this
+        // employee actually worked (a real entry already parsed for it) is unambiguous and always
+        // wins a credit first — paid double, per the source formula. Any credits left over after
+        // that go to the earliest *other* known J.F. dates, unworked, as a synthetic presence-less
+        // record (mirrors the interactive grid's own "paid holiday without presence" behavior in
+        // PointageController). If there are more known J.F. dates than this employee has credits
+        // for (someone hired partway through, etc.), the surplus dates are left as ordinary days —
+        // never assumed to be this employee's holiday just because they were everyone else's.
+        $jfCount = $data['jf_count'] ?? 0;
+        $hasPreciseJf = !empty($jfDates) && $jfCount > 0;
+        $workedJfDates = $hasPreciseJf ? array_values(array_intersect($jfDates, $plainDates)) : [];
+        $remainingJfBudget = max(0, $jfCount - count($workedJfDates));
+        $unworkedJfDates = $hasPreciseJf
+            ? array_slice(array_values(array_diff($jfDates, $workedJfDates)), 0, $remainingJfBudget)
+            : [];
+        $creditedJfDates = array_merge($workedJfDates, $unworkedJfDates);
+        // Excludes every credited JF date: each one's own net is fixed below, independent of this
+        // leftover distribution.
+        $leftoverPlainDates = $hasPreciseJf ? array_values(array_diff($plainDates, $creditedJfDates)) : $plainDates;
         $lastPlainDate = !empty($leftoverPlainDates) ? end($leftoverPlainDates) : null;
         // The file gives period totals (hs/jf/total_net), not a per-day breakdown — absorb
         // whatever the period total doesn't already explain (overtime, rounding — the JF portion
         // is now accounted for separately above) into the last non-JF worked day.
-        $jfShare = $hasPreciseJf ? $perDayNet : 0;
+        $jfShare = $perDayNet * count($creditedJfDates);
         $adjustment = $totalPlainDays > 0 ? (($data['total_net'] ?? $sumOfPlainDays) - $sumOfPlainDays - $jfShare) : 0;
+
+        // The source file's own H.S. sheet gives a day-by-day breakdown, but it isn't reliable
+        // enough to import directly — confirmed with the user (2QZ Août 2026: ASSAL DRISS's H.S.
+        // sheet credits 4.2h to a day he has no presence record for at all, since it's one of his
+        // unworked J.F. days). Rather than trust that per-day placement, spread each employee's
+        // period H.S. total evenly across the real (non-JF-credited) worked days instead — user's
+        // explicit call: total net must still match the Excel total (unaffected either way, it's
+        // already reconciled via $adjustment below), the H.S. hours split across days just needs
+        // to look plausible, not reproduce the H.S. sheet's own placement.
+        $hsTotal = round($data['hs_total'] ?? 0, 2);
+        $hsDistributionDates = !empty($leftoverPlainDates) ? $leftoverPlainDates : $plainDates;
+        $hsPerDate = [];
+        if ($hsTotal > 0 && !empty($hsDistributionDates)) {
+            $n = count($hsDistributionDates);
+            $base = floor(($hsTotal / $n) * 100) / 100;
+            $allocated = 0;
+            foreach ($hsDistributionDates as $i => $d) {
+                $hsPerDate[$d] = $i === $n - 1 ? round($hsTotal - $allocated, 2) : $base;
+                $allocated += $base;
+            }
+        }
 
         $rows = [];
         $adjustmentApplied = false;
         foreach ($dates as $date) {
-            $isJfDate = $hasPreciseJf && $date === $jfDate;
+            $isJfDate = in_array($date, $workedJfDates, true);
             $isLastPlainDate = $date === $lastPlainDate;
+            $isFirstEntryForDate = true;
             foreach ($data['days'][$date] as $dayInfo) {
                 if (isset($dayInfo['net_override'])) {
                     $dayRate = $dayInfo['rate_override'] ?? $brut;
@@ -322,11 +404,15 @@ class PrsRealDataSeeder extends Seeder
                     continue;
                 }
 
-                // The HS/rounding leftover is a once-per-employee-per-period amount — apply it to
-                // only the first plain entry encountered on the last (non-JF) plain date, even if
-                // that date happens to carry more than one plain entry.
+                // The rounding/H.S.-total leftover is a once-per-employee-per-period amount — apply
+                // it to only the first plain entry encountered on the last (non-JF) plain date, even
+                // if that date happens to carry more than one plain entry. The H.S. *hours* value
+                // itself is handled separately below via $hsPerDate, so it can land on several days.
                 $applyAdjustment = $isLastPlainDate && !$adjustmentApplied;
                 $adjustmentApplied = $adjustmentApplied || $applyAdjustment;
+
+                $hoursForRow = $isFirstEntryForDate ? ($hsPerDate[$date] ?? 0) : 0;
+                $isFirstEntryForDate = false;
 
                 $rows[] = [
                     'employee_id' => $employee->id,
@@ -334,9 +420,9 @@ class PrsRealDataSeeder extends Seeder
                     'operation_id' => $this->resolveOperation($dayInfo['operation'], $farmId),
                     'bloc_id' => $this->resolveBloc($dayInfo['bloc'], $farmId),
                     'date' => $date,
-                    'hours' => $applyAdjustment ? ($data['hs_total'] ?? 0) : 0,
+                    'hours' => $hoursForRow,
                     'quantity' => null,
-                    'is_jf' => !$hasPreciseJf && $applyAdjustment && ($data['jf_count'] ?? 0) > 0,
+                    'is_jf' => !$hasPreciseJf && $applyAdjustment && $jfCount > 0,
                     'rate' => $brut,
                     'brut' => $brut,
                     'net' => $applyAdjustment ? $perDayNet + $adjustment : $perDayNet,
@@ -346,13 +432,13 @@ class PrsRealDataSeeder extends Seeder
             }
         }
 
-        if ($hasPreciseJf && !$workedJfDate) {
+        foreach ($unworkedJfDates as $unworkedJfDate) {
             $rows[] = [
                 'employee_id' => $employee->id,
                 'quinzaine_id' => $quinzaine->id,
                 'operation_id' => null,
                 'bloc_id' => null,
-                'date' => $jfDate,
+                'date' => $unworkedJfDate,
                 'hours' => 0,
                 'quantity' => null,
                 'is_jf' => true,

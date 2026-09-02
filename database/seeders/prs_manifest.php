@@ -142,4 +142,51 @@ return [
         'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '1',
         'parser' => fn () => new FixedOperationParser('Transport'), 'is_closed' => false,
     ],
+
+    // --- 2QZ Aout 2026 (source: master workbook, same sheet set as 1QZ Aout minus M.O) ---
+    // 'is_closed' => false: same reasoning as 1QZ Aout above — imported the same day the period
+    // ended, but not explicitly closed by the user yet, so don't force it.
+    // 'jf_dates' => [20, 21, 25]: unlike 1QZ Aout's single holiday, most employees this period
+    // carry 'J.F CH' = 3 (a couple show 2) — confirmed with the user these are Aug 20
+    // (Anniversaire de la Révolution du Roi et du Peuple), Aug 21 (Fête de la Jeunesse), and Aug 25
+    // (Mawlid an-Nabi). Cross-checked against the source file: every one of these 3 dates is a
+    // genuinely blank (unworked) cell for a sampled J.F CH=3 employee, consistent with them being
+    // real days off rather than ordinary worked days. Employees credited only 2 simply don't claim
+    // one of the 3 — insertPointageRecords() leaves that surplus date as an ordinary day for them
+    // rather than assuming it's theirs too.
+    [
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'A.I',
+        'enterprise' => 'AGRI INTERIM', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'jf_dates' => [20, 21, 25],
+    ],
+    [
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'P.L',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'jf_dates' => [20, 21, 25],
+    ],
+    [
+        // IRR's own J.F column is a bare "J.F" (no "CH" suffix) — normally too ambiguous to trust
+        // as a count (see HeaderMappedPointageParser::ALIASES), but confirmed against this specific
+        // sheet's data (small integer values matching A.I/P.L's own J.F CH figures for the same
+        // period, not a DH amount) that it really is one here.
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'IRR',
+        'enterprise' => 'PERSEALAND NON DECLARE', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => fn () => new HeaderMappedPointageParser(trustBareJfAsCount: true),
+        'is_closed' => false, 'jf_dates' => [20, 21, 25],
+    ],
+    [
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'UNITE',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'jf_dates' => [20, 21, 25],
+    ],
+    [
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'F.B.V',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => StackedOperationParser::class, 'is_closed' => false, 'jf_dates' => [20, 21, 25],
+    ],
+    [
+        'file' => '2eme Qz Aout 2026 P.L.xlsm', 'sheet' => 'TRANS',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '2',
+        'parser' => fn () => new FixedOperationParser('Transport'), 'is_closed' => false,
+    ],
 ];

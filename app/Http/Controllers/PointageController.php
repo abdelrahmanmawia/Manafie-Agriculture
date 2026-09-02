@@ -251,6 +251,12 @@ class PointageController extends Controller
             return redirect()->back();
         }
 
+        $identity = [
+            'employee_id' => $validated['employee_id'],
+            'quinzaine_id' => $validated['quinzaine_id'],
+            'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+        ];
+
         if (!$validated['operation_id'] || !$validated['bloc_id']) {
             $calc = $this->payrollService->calculate(
                 $quinzaine->enterprise->contract_type,
@@ -262,17 +268,7 @@ class PointageController extends Controller
                 false
             );
 
-            // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
-            PointageRecord::where('employee_id', $validated['employee_id'])
-                ->where('quinzaine_id', $validated['quinzaine_id'])
-                ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
-                ->delete();
-
-            // Create a new record
-            PointageRecord::create([
-                'employee_id' => $validated['employee_id'],
-                'quinzaine_id' => $validated['quinzaine_id'],
-                'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+            $this->upsertPointageRecord($identity, [
                 'operation_id' => null,
                 'bloc_id' => null,
                 'hours' => 0,
@@ -292,18 +288,7 @@ class PointageController extends Controller
         if ($operation->unit_rate && $quantity > 0) {
             // Piece-rate: pay = quantity * the operation's own rate, independent of the
             // enterprise's rate/employee's complement — no HS/JF concept for piece-rate work.
-
-            // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
-            PointageRecord::where('employee_id', $validated['employee_id'])
-                ->where('quinzaine_id', $validated['quinzaine_id'])
-                ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
-                ->delete();
-
-            // Create a new record
-            PointageRecord::create([
-                'employee_id' => $validated['employee_id'],
-                'quinzaine_id' => $validated['quinzaine_id'],
-                'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+            $this->upsertPointageRecord($identity, [
                 'operation_id' => $validated['operation_id'],
                 'bloc_id' => $validated['bloc_id'],
                 'hours' => 0,
@@ -329,17 +314,7 @@ class PointageController extends Controller
             $quinzaine->enterprise->invoiced_to_client
         );
 
-        // Delete any existing records for this employee/quinzaine/date to ensure only one record per day
-        PointageRecord::where('employee_id', $validated['employee_id'])
-            ->where('quinzaine_id', $validated['quinzaine_id'])
-            ->whereDate('date', Carbon::parse($validated['date'])->format('Y-m-d'))
-            ->delete();
-
-        // Create a new record
-        PointageRecord::create([
-            'employee_id' => $validated['employee_id'],
-            'quinzaine_id' => $validated['quinzaine_id'],
-            'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
+        $this->upsertPointageRecord($identity, [
             'operation_id' => $validated['operation_id'],
             'bloc_id' => $validated['bloc_id'],
             'hours' => $hs,
@@ -354,13 +329,38 @@ class PointageController extends Controller
     }
 
     /**
-     * "Coller sur les jours restants" — applies one already-entered day's Operation+Bloc to
+     * Single point of write for one employee/quinzaine/date cell — replaces the old
+     * delete-then-create pattern, which was two separate non-atomic statements. A double
+     * submission of the same save (e.g. a double-click on "Enregistrer") could have its two
+     * requests interleave between those statements and each end up inserting its own row for
+     * the same day instead of the second cleanly replacing the first — confirmed as the exact
+     * cause of a real duplicate-record bug (two 2QZ Août 2026 employees each had an extra
+     * `pointage_records` row for the same date, double-counting that day's net). updateOrCreate
+     * closes almost all of that window; the unique index on
+     * (employee_id, quinzaine_id, date) is the real backstop — it turns the rare remaining race
+     * into a caught constraint violation instead of a silent duplicate, so the catch below just
+     * retries as a plain update.
+     */
+    private function upsertPointageRecord(array $identity, array $values): void
+    {
+        try {
+            DB::transaction(fn () => PointageRecord::updateOrCreate($identity, $values));
+        } catch (\Illuminate\Database\QueryException $e) {
+            if ($e->getCode() !== '23000') {
+                throw $e;
+            }
+            PointageRecord::where($identity)->update($values);
+        }
+    }
+
+    /**
+     * "Coller sur les jours restants" — applies one already-entered day's Operation+Bloc+H.S. to
      * several other dates for the same employee in a single request, for the common case of an
-     * ouvrier doing the same job every day of the quinzaine. Deliberately narrower than
-     * updateCell(): no piece-rate (a copied quantity would be meaningless — each day's quantity
-     * is real work, not something to duplicate), no per-day H.S., no JF — those still go through
-     * the single-cell modal so they're entered deliberately, not accidentally propagated.
-     * Also supports clearing days when operation_id and bloc_id are null.
+     * ouvrier doing the same job (and clocking the same overtime) every day of the quinzaine.
+     * Deliberately narrower than updateCell(): no piece-rate (a copied quantity would be
+     * meaningless — each day's quantity is real work, not something to duplicate), no JF — that
+     * still goes through the single-cell modal so it's entered deliberately, not accidentally
+     * propagated. Also supports clearing days when operation_id and bloc_id are null.
      */
     public function updateCellBulk(Request $request)
     {
@@ -399,17 +399,19 @@ class PointageController extends Controller
         $operation = Operation::find($validated['operation_id']);
         abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
 
+        $hs = $validated['hours'] ?? 0;
+
         $calc = $this->payrollService->calculate(
             $quinzaine->enterprise->contract_type,
             $quinzaine->enterprise->default_brut_rate,
-            0,
+            $hs,
             $employee->complement,
             false,
             $quinzaine->enterprise->invoiced_to_client
         );
 
         foreach ($validated['dates'] as $date) {
-            PointageRecord::updateOrCreate(
+            $this->upsertPointageRecord(
                 [
                     'employee_id' => $employee->id,
                     'quinzaine_id' => $quinzaine->id,
@@ -418,7 +420,7 @@ class PointageController extends Controller
                 [
                     'operation_id' => $validated['operation_id'],
                     'bloc_id' => $validated['bloc_id'],
-                    'hours' => 0,
+                    'hours' => $hs,
                     'quantity' => null,
                     'is_jf' => false,
                     'rate' => $quinzaine->enterprise->default_brut_rate,

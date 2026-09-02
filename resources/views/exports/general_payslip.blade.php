@@ -52,7 +52,11 @@
                     if($employeeRecords->isEmpty()) continue;
 
                     $totalNet = 0;
-                    $totalJours = $employeeRecords->count();
+                    // Only a day with a real operation counts toward Jours — a worked J.F. day
+                    // still counts (the employee was genuinely present; J.F separately adds the
+                    // holiday bonus on top), it's only an unworked paid holiday (operation_id
+                    // null) that has no presence to count.
+                    $totalJours = $employeeRecords->filter(fn($r) => $r->operation_id !== null)->count();
                     $totalHs = $employeeRecords->sum('hours');
                     $totalJf = $employeeRecords->where('is_jf', true)->count();
 

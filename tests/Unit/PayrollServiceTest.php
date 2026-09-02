@@ -15,10 +15,14 @@ use PHPUnit\Framework\TestCase;
  * worked day. That approximation was silently wrong for any employee with JF days or overtime, so
  * invoicing was split into its own period-aware method instead of left half-correct on calculate().
  *
- * calculateInvoicing()'s figures below are read directly (not reconstructed by hand) from the real
- * source file's own cached formula results: storage/app/prs_archive/
- * "P-30062026 PERSEALAND-AGRI INTERIM xlsx.xlsx", sheet Feuil1, 2QZ Juin 2026, enterprise AGRI
- * INTERIM (brut=97.44).
+ * calculateInvoicing()'s figures below are read directly (not reconstructed by hand) from each
+ * real source file's own live Excel formula for NET FACTUR J/TOTAL TTC — Juillet/Août 2026
+ * (sheet A.I, enterprise AGRI INTERIM, brut=97.44), NOT Juin 2026: Juin's own workbook (P-30062026
+ * PERSEALAND-AGRI INTERIM xlsx.xlsx) multiplies COMP by 1.0674 in this formula
+ * (`+(COMP*1.0674))*1.04`) where every period since Juillet does not (`+COMP)*1.04`) — confirmed by
+ * reading the literal formula text out of all of Juin/1re+2eme Qz Juillet/2eme Qz Août's workbooks.
+ * Juin's figures were computed under a formula the business itself has since dropped, so they're
+ * not a valid reference for the CURRENT formula below — these tests use Juillet/Août figures only.
  */
 class PayrollServiceTest extends TestCase
 {
@@ -68,34 +72,32 @@ class PayrollServiceTest extends TestCase
 
     public function test_invoicing_matches_real_spreadsheet_normal_employee(): void
     {
-        // CIN G696271 CHIKH KHALID: 13 days worked, 1 JF day, 0 H.S. hours, comp=3.27 (source's
-        // own COMP column, not our seeded Employee.complement — that reflects whichever period
-        // was chronologically latest for this CIN, which can differ from June's own value).
-        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 3.27, 13, 1, 0, true);
+        // CIN G696271 CHIKH KHALID, 2eme Qz Août 2026, sheet A.I: 10 days worked, 3 JF days,
+        // 0 H.S. hours, comp=3.267456 (source's own COMP column for this specific period).
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 3.267456, 10, 3, 0, true);
 
-        $this->assertEqualsWithDelta(171.994216512, $calc['net_factur_j'], 0.001);
-        // A small (~0.003 out of ~2352) residual gap here comes from DEDUCTION_RATE (0.0674) being
-        // a rounded constant rather than the spreadsheet's exact underlying ratio — pre-existing,
-        // unrelated to the JF/H.S. formula bug this test suite covers; not tightened further.
-        $this->assertEqualsWithDelta(2352.658414656, $calc['total_ttc'], 0.01);
+        $this->assertEqualsWithDelta(198.843280896, $calc['net_factur_j'], 0.0001);
+        $this->assertEqualsWithDelta(2338.633608960, $calc['total_ttc'], 0.0001);
     }
 
     public function test_invoicing_matches_real_spreadsheet_employee_with_overtime(): void
     {
-        // CIN GM180174 EL-FAOUY OUTMANE: 15 days worked, 1 JF day, 46 H.S. hours, comp=18.27.
-        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 18.27, 15, 1, 46, true);
+        // CIN GM180174 EL-FAOUY OUTMANE, 2eme Qz Août 2026, sheet A.I: 7 days worked, 0 JF days,
+        // 28 H.S. hours, comp=18.267456.
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 18.267456, 7, 0, 28, true);
 
-        $this->assertEqualsWithDelta(237.344008512, $calc['net_factur_j'], 0.001);
-        $this->assertEqualsWithDelta(3695.49372768, $calc['total_ttc'], 0.01);
+        $this->assertEqualsWithDelta(241.884304896, $calc['net_factur_j'], 0.0001);
+        $this->assertEqualsWithDelta(1693.190134272, $calc['total_ttc'], 0.0001);
     }
 
     public function test_invoicing_matches_real_spreadsheet_employee_with_no_jf_or_hs(): void
     {
-        // CIN GG4096 EL GARADI MOHAMMED: 11 days worked, 0 JF days, 0 H.S. hours, comp≈0.
-        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 0.0025440000000003, 11, 0, 0, true);
+        // CIN G546734 AHANNI AZIZA, 2eme Qz Juillet 2026, sheet A.I: 9 days worked, 0 JF days,
+        // 0 H.S. hours, comp=0.
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 0, 9, 0, 0, true);
 
-        $this->assertEqualsWithDelta(158.28734870907, $calc['net_factur_j'], 0.001);
-        $this->assertEqualsWithDelta(1741.1608357998, $calc['total_ttc'], 0.01);
+        $this->assertEqualsWithDelta(158.283959808, $calc['net_factur_j'], 0.0001);
+        $this->assertEqualsWithDelta(1424.555638272, $calc['total_ttc'], 0.0001);
     }
 
     public function test_sans_contrat_never_invoices_a_client(): void

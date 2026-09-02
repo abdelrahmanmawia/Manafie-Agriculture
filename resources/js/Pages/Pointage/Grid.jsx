@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, router } from '@inertiajs/react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 
@@ -21,6 +21,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // day cell pastes it directly instead of opening the edit modal (see pasteToCell below).
     const [clipboard, setClipboard] = useState(null);
     const [pasting, setPasting] = useState(false);
+    const gridScrollRef = useRef(null);
+    const scrollGridBy = (amount) => gridScrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
 
     // Total days pointé this quinzaine for one employee — the same count shown in the
     // desktop table's own JOURS column, factored out so both views and the filter agree.
@@ -115,10 +117,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const op = operations.find(o => o.id === record.operation_id);
         if (op?.unit_rate) return; // Piece-rate cells excluded
         const bloc = blocs.find(b => b.id === record.bloc_id);
+        const hours = parseFloat(record.hours || 0);
         setClipboard({
             operationId: record.operation_id,
             blocId: record.bloc_id,
-            label: `${op?.abbreviation || op?.name || ''} @ ${bloc?.name || ''}`,
+            hours,
+            label: `${op?.abbreviation || op?.name || ''} @ ${bloc?.name || ''}${hours > 0 ? ` (+${hours}h HS)` : ''}`,
             isEmpty: false,
         });
     };
@@ -143,7 +147,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             date,
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
-            hours: clipboard.isEmpty ? 0 : undefined,
+            hours: clipboard.isEmpty ? 0 : (clipboard.hours || 0),
             is_jf: clipboard.isEmpty ? false : undefined,
         }, {
             preserveScroll: true,
@@ -193,6 +197,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             quinzaine_id: quinzaine.id,
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
+            hours: clipboard.hours || 0,
             dates: allDays,
         }, {
             preserveScroll: true,
@@ -474,7 +479,26 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-blue-800 hover:bg-blue-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
                             </div>
                         )}
-                        <div className="overflow-x-auto p-4">
+                        <div className="flex items-center gap-2 px-4 pt-3">
+                            <button
+                                type="button"
+                                onClick={() => scrollGridBy(-300)}
+                                title="Défiler vers la gauche"
+                                className="shrink-0 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full w-8 h-8 flex items-center justify-center transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M15 19l-7-7 7-7" /></svg>
+                            </button>
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Défiler pour voir tous les jours</span>
+                            <button
+                                type="button"
+                                onClick={() => scrollGridBy(300)}
+                                title="Défiler vers la droite"
+                                className="shrink-0 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full w-8 h-8 flex items-center justify-center transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                        </div>
+                        <div ref={gridScrollRef} className="overflow-x-auto p-4">
                             <table className="min-w-full border-collapse border border-gray-200 text-[10px]">
                                 <thead>
                                     <tr className="bg-gray-100">
@@ -484,21 +508,23 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {day.split('-')[2]}
                                             </th>
                                         ))}
-                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[160px] z-20 text-blue-800 font-black shadow-md">NET/J</th>
-                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[100px] z-20 text-blue-800 font-black shadow-md">JOURS</th>
-                                        <th className="border border-gray-300 p-2 bg-blue-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter">Total Net</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[225px] z-20 text-blue-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">NET/J</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[170px] z-20 text-blue-800 font-black shadow-md w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">JOURS</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[100px] z-20 text-blue-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">Total H.S</th>
+                                        <th className="border border-gray-300 p-2 bg-blue-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">Total Net</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {filteredEmployees.length === 0 && (
                                         <tr>
-                                            <td colSpan={days.length + 4} className="p-6 text-center text-xs font-bold text-gray-400 uppercase">Aucun ouvrier trouvé</td>
+                                            <td colSpan={days.length + 5} className="p-6 text-center text-xs font-bold text-gray-400 uppercase">Aucun ouvrier trouvé</td>
                                         </tr>
                                     )}
                                     {filteredEmployees.map(emp => {
                                         const employeeRecords = existingRecords[emp.id] || {};
                                         const totalJours = Object.keys(employeeRecords).length;
                                         const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0);
+                                        const totalHs = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.hours || 0), 0);
                                         const salNetJ = quinzaine.enterprise.contract_type === 'avec_contrat'
                                             ? (parseFloat(quinzaine.enterprise.default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
                                             : parseFloat(quinzaine.enterprise.default_brut_rate);
@@ -560,9 +586,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="border border-gray-200 p-2 text-right font-bold text-gray-500 bg-gray-50 sticky right-[160px] z-10 shadow-sm">{formatNumber(salNetJ)}</td>
-                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[100px] z-10 shadow-sm">{totalJours}</td>
-                                                <td className="border border-gray-200 p-2 text-right font-black text-blue-900 bg-blue-100 sticky right-0 z-10 shadow-sm">
+                                                <td className="border border-gray-200 p-2 text-right font-bold text-gray-500 bg-gray-50 sticky right-[225px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{formatNumber(salNetJ)}</td>
+                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[170px] z-10 shadow-sm w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">{totalJours}</td>
+                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[100px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{totalHs > 0 ? formatNumber(totalHs, 2) : '-'}</td>
+                                                <td className="border border-gray-200 p-2 text-right font-black text-blue-900 bg-blue-100 sticky right-0 z-10 shadow-sm w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">
                                                     {formatNumber(totalNet)}
                                             </td>
                                             </tr>
@@ -577,7 +604,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {summaryData.daily_totals[day] > 0 ? formatNumber(summaryData.daily_totals[day], 1) : '-'}
                                             </td>
                                         ))}
-                                        <td colSpan="3" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
+                                        <td colSpan="4" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
                                             TOTAL NET : {formatNumber(Object.values(summaryData.daily_totals).reduce((a,b) => a+b, 0))} DH
                                         </td>
                                     </tr>
@@ -761,7 +788,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <div className="group">
                                                     <label htmlFor="cell_hours" className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
                                                     <div className="relative">
-                                                        <input id="cell_hours" type="number" step="0.1" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                        <input id="cell_hours" type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
                                                         <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
                                                     </div>
                                                 </div>

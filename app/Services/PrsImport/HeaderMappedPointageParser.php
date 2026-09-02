@@ -28,8 +28,20 @@ class HeaderMappedPointageParser implements SheetParserInterface
      *                                    period only) — HeaderMappedPointageParser otherwise has
      *                                    no way to say "don't resume on the next matching header."
      */
-    public function __construct(private array $stopSectionLabels = [])
+    private readonly array $aliases;
+
+    /**
+     * @param bool $trustBareJfAsCount Per the note on ALIASES['jf_count'] below: a bare "J.F"
+     *                                 header is ambiguous across files in general, but confirmed
+     *                                 to be a genuine day-count (not a DH amount) on this sheet —
+     *                                 set true only for that specific manifest entry, never as a
+     *                                 blanket default, so every other file keeps the safe behavior.
+     */
+    public function __construct(private array $stopSectionLabels = [], bool $trustBareJfAsCount = false)
     {
+        $this->aliases = $trustBareJfAsCount
+            ? [...self::ALIASES, 'jf_count' => [...self::ALIASES['jf_count'], 'JF']]
+            : self::ALIASES;
     }
 
     private const ALIASES = [
@@ -233,7 +245,7 @@ class HeaderMappedPointageParser implements SheetParserInterface
                 continue;
             }
 
-            foreach (self::ALIASES as $field => $aliases) {
+            foreach ($this->aliases as $field => $aliases) {
                 if (isset($columns[$field])) {
                     continue;
                 }

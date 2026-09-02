@@ -27,7 +27,10 @@
         // PayrollService::calculateInvoicing(), which already returns zeros in that case.
         $showInvoicing = $quinzaine->enterprise->invoiced_to_client
             ?? ($quinzaine->enterprise->contract_type === 'avec_contrat');
-        $mainTableCols = count($days) + 11 + ($showInvoicing ? 3 : 0);
+        // SAL BRUT / J is only meaningful alongside MARGE (brut vs. the client-invoiced rate) —
+        // for a division with no client billing, showing brut next to net just duplicates/confuses
+        // the one number that matters (net), so it's hidden the same way MARGE already is.
+        $mainTableCols = count($days) + 10 + ($showInvoicing ? 4 : 0);
 
         // Whole-division total, shown above the table — every record's net (plain days AND
         // piece-rate quantity days), not just the flat-rate table below, so it matches what was
@@ -45,7 +48,7 @@
         <thead>
         <tr>
             <th colspan="{{ $mainTableCols }}" style="font-weight: bold; text-align: center; font-size: 18px; color: #1e40af;">
-                {{ $quinzaine->label ?: 'SITUATION DE POINTAGE' }}
+                {{ $quinzaine->label ?: 'SITUATION DE POINTAGE' }} - {{ $quinzaine->enterprise->name }}
             </th>
         </tr>
         <tr>
@@ -54,7 +57,7 @@
             </th>
         </tr>
         <tr>
-            <th colspan="2" style="font-weight: bold; text-align: left; font-size: 14px; background-color: #d1fae5; border: 1px solid #000;">
+            <th colspan="4" style="font-weight: bold; text-align: left; font-size: 14px; background-color: #d1fae5; border: 1px solid #000;">
                 SOMME NET : {{ number_format($sommeNet, 2, ',', ' ') }} DH
             </th>
         </tr>
@@ -69,8 +72,8 @@
                 <th style="font-weight: bold; background-color: #f3f4f6; border: 1px solid #000; text-align: center;">{{ date('d', strtotime($day)) }}</th>
             @endforeach
             <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">SAL NET / J</th>
-            <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">SAL BRUT / J</th>
             @if($showInvoicing)
+                <th style="font-weight: bold; background-color: #d1fae5; border: 1px solid #000;">SAL BRUT / J</th>
                 <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000;">MARGE</th>
             @endif
             <th style="font-weight: bold; background-color: #fef3c7; border: 1px solid #000; text-align: left;">TOTAL J</th>
@@ -92,13 +95,10 @@
                 // table's per-day cells and totals would misrepresent both tables.
                 $allEmployeeRecords = $records[$emp->id] ?? collect();
                 $employeeRecords = $allEmployeeRecords->filter(fn($dayList) => is_null($dayList[0]->quantity ?? null));
-                // TOTAL J counts only real presence (operation + bloc both set) — an unworked
-                // paid holiday has neither and is not a worked day. J.F CH (DH) is the single
-                // place holiday pay is shown, worked or not: worked adds one bonus day on top of
-                // the normal day already counted in TOTAL J; unworked has no day in TOTAL J at
-                // all, so its whole single-day pay is credited here instead. Mirrors the source
-                // file's own TOTAL / J.F CH columns, which are independent counts, not one folded
-                // into the other.
+                // TOTAL J counts only real presence (operation + bloc both set) — a worked J.F.
+                // day still counts here (the employee was genuinely there that day; J.F CH (DH)
+                // separately adds the holiday bonus on top), it's only an UNWORKED paid holiday
+                // (no operation/bloc at all) that has no presence to count.
                 $totalJours = 0;
                 $totalHs = 0;
                 $totalJf = 0;
@@ -186,8 +186,8 @@
                     </td>
                 @endforeach
                 <td style="border: 1px solid #000; text-align: right;">{{ number_format($calc['sal_net_j'], 2, ',', ' ') }}</td>
-                <td style="border: 1px solid #000; text-align: right;">{{ number_format($employeeRate, 2, ',', ' ') }}</td>
                 @if($showInvoicing)
+                    <td style="border: 1px solid #000; text-align: right;">{{ number_format($employeeRate, 2, ',', ' ') }}</td>
                     <td style="border: 1px solid #000; text-align: right;">{{ number_format($marge, 2, ',', ' ') }}</td>
                 @endif
                 <td style="border: 1px solid #000; text-align: left;">{{ $totalJours }}</td>
@@ -287,8 +287,8 @@
                     }
                 @endphp
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalSalNetJ, 2, ',', ' ') }}</td>
-                <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalBrut, 2, ',', ' ') }}</td>
                 @if($showInvoicing)
+                    <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalBrut, 2, ',', ' ') }}</td>
                     <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: right;">{{ number_format($grandTotalMarge, 2, ',', ' ') }}</td>
                 @endif
                 <td style="font-weight: bold; background-color: #1e293b; color: #ffffff; border: 1px solid #000; text-align: left;">{{ $grandTotalJours }}</td>

@@ -72,11 +72,13 @@ class PayrollService
 
     /**
      * Client-invoicing figures (net_factur_j, total_ttc) for one employee's WHOLE quinzaine —
-     * genuinely period-level, not derivable from a single day in isolation. Formula reverse-
-     * engineered from a real production spreadsheet cell by cell (verified exactly against real
-     * employees, e.g. CIN G696271: 13 days, 1 JF day, 0 H.S. → net_factur_j = 171.99):
+     * genuinely period-level, not derivable from a single day in isolation. Formula read directly
+     * from the live Excel formula behind the source workbook's own NET FACTUR J/TOTAL TTC columns
+     * (2eme Qz Aout 2026 P.L.xlsm, sheet A.I, cols AE/AF — a stronger source of truth than the
+     * single-sample reverse-engineering this replaced, which had one bug this exposed: it did NOT
+     * multiply comp by 1.0674 the way the worker-pay side does):
      *
-     *   net_factur_j = ((brut*1.2109 + 5.62 + 3.22 + comp*1.0674) * 1.04
+     *   net_factur_j = ((brut*1.2109 + 5.62 + 3.22 + comp) * 1.04
      *                   + ((jfDays*brut + hsHours*brut/8) / totalDays) * 1.04) * 1.2
      *   total_ttc    = net_factur_j * totalDays + jfDays * sal_net_j * 1.24
      *
@@ -98,7 +100,7 @@ class PayrollService
         $salNetJ = $standardNetJ + $complement;
 
         $baseBracket = $brutRate * self::CHARGE_RATE + self::FIXED_CHARGE_1 + self::FIXED_CHARGE_2
-            + $complement * (1 + self::DEDUCTION_RATE);
+            + $complement;
         $jfHsBracket = ($jfDaysCount * $brutRate + $hsHoursTotal * $brutRate / self::STANDARD_WORKDAY_HOURS) / $totalDays;
 
         $netFacturJ = ($baseBracket + $jfHsBracket) * self::TAX_ADJUSTMENT * self::SERVICE_TAX;

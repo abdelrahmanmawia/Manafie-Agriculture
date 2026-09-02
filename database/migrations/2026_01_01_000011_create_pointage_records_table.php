@@ -32,6 +32,15 @@ return new class extends Migration
             $table->decimal('quantity', 10, 2)->nullable();
             $table->string('scan_uuid')->nullable();
             $table->timestamps();
+
+            // Guards against a real duplicate-row bug: PointageController used to save a cell by
+            // deleting the existing row then inserting a new one in two separate statements: a
+            // double submission (e.g. a double-click on "Enregistrer") could interleave between
+            // them and each end up inserting its own row for the same day. Confirmed happening to
+            // two employees in the 2QZ Août 2026 import, silently doubling their counted net for
+            // that date. The write path now upserts through this constraint (see
+            // PointageController::upsertPointageRecord()) instead of relying on app logic alone.
+            $table->unique(['employee_id', 'quinzaine_id', 'date']);
         });
     }
 

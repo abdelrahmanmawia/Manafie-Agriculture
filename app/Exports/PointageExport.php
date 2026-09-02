@@ -50,6 +50,17 @@ class PointageExport implements FromView, ShouldAutoSize, WithColumnWidths, With
             ->with(['employee', 'operation', 'bloc'])
             ->get();
 
+        // A record can (rarely, from a past data-entry mistake) carry a date outside the
+        // quinzaine's own start/end range — e.g. a day-15 entry saved against the Aug 16-31
+        // quinzaine instead of the Aug 1-15 one. $blocMatrices/$jfUnworkedByDay below are only
+        // pre-filled for $days, so leaving such a date out would either crash on the missing
+        // array key or, if merely skipped, silently drop that day's pay from the export total —
+        // diverging from the Grid page, which sums every record for the quinzaine regardless of
+        // date. Extending $days to cover them keeps the two views consistent and surfaces the
+        // anomaly as its own column instead of hiding it.
+        $strayDays = $records->map(fn ($r) => $r->date->format('Y-m-d'))->unique()->diff($days)->sort()->values();
+        foreach ($strayDays as $strayDay) { $days[] = $strayDay; }
+
         // Only export employees who actually worked at least one day this period — an unworked
         // paid holiday (operation_id/bloc_id both null) or zero records at all doesn't count.
         $workedEmployeeIds = $records
@@ -178,11 +189,22 @@ class PointageExport implements FromView, ShouldAutoSize, WithColumnWidths, With
     {
         $showInvoicing = $this->enterprise->invoiced_to_client
             ?? ($this->enterprise->contract_type === 'avec_contrat');
-        $dayCount = iterator_count(CarbonPeriod::create($this->quinzaine->start_date, $this->quinzaine->end_date));
+        $regularDays = iterator_count(CarbonPeriod::create($this->quinzaine->start_date, $this->quinzaine->end_date));
+        // Must match view()'s own day count exactly, stray out-of-range dates included (see its
+        // comment above $strayDays) — otherwise this narrows the wrong column instead of TOTAL J.
+        $strayDays = PointageRecord::where('quinzaine_id', $this->quinzaine->id)
+            ->whereHas('employee', fn ($q) => $q->where('enterprise_id', $this->enterprise->id))
+            ->pluck('date')
+            ->map(fn ($d) => $d->format('Y-m-d'))
+            ->unique()
+            ->diff(collect(CarbonPeriod::create($this->quinzaine->start_date, $this->quinzaine->end_date))->map(fn ($d) => $d->format('Y-m-d')))
+            ->count();
+        $dayCount = $regularDays + $strayDays;
 
-        // Column order: N°, NOM, PRENOM, CIN, RIB, <days...>, SAL NET/J, SAL BRUT/J, [MARGE],
+        // Column order: N°, NOM, PRENOM, CIN, RIB, <days...>, SAL NET/J, [SAL BRUT/J, MARGE],
         // TOTAL J, J.F CH (DH), H.S, TOTAL NET, [NET FACTUR J, TOTAL TTC] — see pointage.blade.php.
-        $totalJColumn = 5 + $dayCount + 2 + ($showInvoicing ? 1 : 0) + 1;
+        // SAL BRUT/J+MARGE only exist for an invoicing division (same gate as the blade view).
+        $totalJColumn = 5 + $dayCount + ($showInvoicing ? 3 : 1) + 1;
 
         return [
             'A' => 6,
