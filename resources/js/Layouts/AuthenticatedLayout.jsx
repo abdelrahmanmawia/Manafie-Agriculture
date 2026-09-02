@@ -18,6 +18,12 @@ export default function Authenticated({ user, header, children }) {
     // every farm at once. Hiding those entry points until a farm is active avoids both.
     const needsFarmSelection = user.role === 'super_admin' && !activeFarm;
 
+    // Only data_entry accounts are ever restricted — super_admin/farm_manager always see both
+    // zones (see User::canAccessPointage()/canAccessStock() on the backend, mirrored here so
+    // the nav doesn't offer an entry point the middleware would just 403 on).
+    const canAccessPointage = user.role !== 'data_entry' || user.can_access_pointage;
+    const canAccessStock = user.role !== 'data_entry' || user.can_access_stock;
+
     const isStockZone = route().current('stock.*');
     const isPointageZone = !isStockZone && (
         route().current('pointage.*') ||
@@ -119,17 +125,21 @@ export default function Authenticated({ user, header, children }) {
                                     </span>
                                 ) : (
                                     <>
-                                        <NavLink href={route('pointage.index')} active={isPointageZone}>
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            {t('pointage')}
-                                        </NavLink>
+                                        {canAccessPointage && (
+                                            <NavLink href={route('pointage.index')} active={isPointageZone}>
+                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                {t('pointage')}
+                                            </NavLink>
+                                        )}
 
-                                        <NavLink href={route('stock.dashboard')} active={isStockZone}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                            </svg>
-                                            Gestion de Stock
-                                        </NavLink>
+                                        {canAccessStock && (
+                                            <NavLink href={route('stock.dashboard')} active={isStockZone}>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                                </svg>
+                                                Gestion de Stock
+                                            </NavLink>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -232,21 +242,25 @@ export default function Authenticated({ user, header, children }) {
                             </div>
                         ) : (
                             <>
-                                <ResponsiveNavLink href={route('pointage.index')} active={isPointageZone} onClick={() => setShowingNavigationDropdown(false)}>
-                                    <div className="flex items-center">
-                                        <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        Pointage
-                                    </div>
-                                </ResponsiveNavLink>
+                                {canAccessPointage && (
+                                    <ResponsiveNavLink href={route('pointage.index')} active={isPointageZone} onClick={() => setShowingNavigationDropdown(false)}>
+                                        <div className="flex items-center">
+                                            <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                            Pointage
+                                        </div>
+                                    </ResponsiveNavLink>
+                                )}
 
-                                <ResponsiveNavLink href={route('stock.dashboard')} active={isStockZone} onClick={() => setShowingNavigationDropdown(false)}>
-                                    <div className="flex items-center">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                        </svg>
-                                        Gestion de Stock
-                                    </div>
-                                </ResponsiveNavLink>
+                                {canAccessStock && (
+                                    <ResponsiveNavLink href={route('stock.dashboard')} active={isStockZone} onClick={() => setShowingNavigationDropdown(false)}>
+                                        <div className="flex items-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
+                                            </svg>
+                                            Gestion de Stock
+                                        </div>
+                                    </ResponsiveNavLink>
+                                )}
                             </>
                         )}
 

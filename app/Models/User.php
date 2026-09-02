@@ -24,6 +24,8 @@ class User extends Authenticatable
         'farm_id',
         'enterprise_id',
         'role',
+        'can_access_pointage',
+        'can_access_stock',
     ];
 
     /**
@@ -43,6 +45,8 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'can_access_pointage' => 'boolean',
+        'can_access_stock' => 'boolean',
     ];
 
     public function farm()
@@ -53,5 +57,21 @@ class User extends Authenticatable
     public function enterprise()
     {
         return $this->belongsTo(Enterprise::class);
+    }
+
+    /**
+     * super_admin/farm_manager always have full access regardless of these flags — they only
+     * ever restrict the data_entry tier, which is otherwise scoped to "everything except
+     * create/delete/toggle" across both domains. A magasinier and a pointeur are both
+     * data_entry underneath; these flags are what actually tells them apart.
+     */
+    public function canAccessPointage(): bool
+    {
+        return $this->role !== 'data_entry' || $this->can_access_pointage;
+    }
+
+    public function canAccessStock(): bool
+    {
+        return $this->role !== 'data_entry' || $this->can_access_stock;
     }
 }

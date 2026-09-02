@@ -17,6 +17,11 @@ export default function FarmDashboard({
 }) {
     // A farm_manager with no farm_id assigned yet has nothing to render a dashboard for —
     // show the error message instead of crashing on farm.name/farm.id below.
+    // Mirrors AuthenticatedLayout's own gating — a data_entry account without a domain flag
+    // would otherwise see live Pointage/Stock numbers and dead-end links that just 403.
+    const canAccessPointage = auth.user.role !== 'data_entry' || auth.user.can_access_pointage;
+    const canAccessStock = auth.user.role !== 'data_entry' || auth.user.can_access_stock;
+
     if (!farm) {
         return (
             <AuthenticatedLayout
@@ -80,34 +85,41 @@ export default function FarmDashboard({
                             tone="green"
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />}
                         />
-                        <Link href={route('pointage.index')}>
-                            <StatCard
-                                label="Périodes Ouvertes"
-                                value={formatInt(stats.open_quinzaines)}
-                                tone="blue"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
-                            />
-                        </Link>
-                        <Link href={route('stock.alerts.index', { alert_type: 'low_stock' })}>
-                            <StatCard
-                                label="Stock Faible"
-                                value={formatInt(stockStats.lowStock)}
-                                tone="red"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
-                            />
-                        </Link>
-                        <Link href={route('stock.alerts.index')}>
-                            <StatCard
-                                label="Alertes Stock"
-                                value={formatInt(stockStats.alerts)}
-                                tone="orange"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
-                            />
-                        </Link>
+                        {canAccessPointage && (
+                            <Link href={route('pointage.index')}>
+                                <StatCard
+                                    label="Périodes Ouvertes"
+                                    value={formatInt(stats.open_quinzaines)}
+                                    tone="blue"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                                />
+                            </Link>
+                        )}
+                        {canAccessStock && (
+                            <Link href={route('stock.alerts.index', { alert_type: 'low_stock' })}>
+                                <StatCard
+                                    label="Stock Faible"
+                                    value={formatInt(stockStats.lowStock)}
+                                    tone="red"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
+                                />
+                            </Link>
+                        )}
+                        {canAccessStock && (
+                            <Link href={route('stock.alerts.index')}>
+                                <StatCard
+                                    label="Alertes Stock"
+                                    value={formatInt(stockStats.alerts)}
+                                    tone="orange"
+                                    icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
+                                />
+                            </Link>
+                        )}
                     </div>
 
                     {/* POINTAGE & PAIE — farm-wide financial pulse (all divisions combined); this is
                         unique to the Hub, it has no per-zone equivalent. */}
+                    {canAccessPointage && (
                     <div className="space-y-6">
                         <div className="flex justify-between items-center">
                             <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Pointage &amp; Paie</h3>
@@ -154,12 +166,14 @@ export default function FarmDashboard({
                             </div>
                         </div>
                     </div>
+                    )}
 
                     {/* ACCÈS RAPIDE — a launchpad into each zone's own dashboard, instead of
                         repeating that zone's content here. */}
                     <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200">
                         <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-4">Accès Rapide</h3>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {canAccessPointage && (
                             <Link
                                 href={route('pointage.index')}
                                 className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-blue-300"
@@ -169,6 +183,8 @@ export default function FarmDashboard({
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Divisions &amp; Pointage</span>
                             </Link>
+                            )}
+                            {canAccessStock && (
                             <Link
                                 href={route('stock.dashboard')}
                                 className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-purple-300"
@@ -178,6 +194,7 @@ export default function FarmDashboard({
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Gestion de Stock</span>
                             </Link>
+                            )}
                             <Link
                                 href={route('employees.index')}
                                 className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-green-300"
@@ -187,6 +204,7 @@ export default function FarmDashboard({
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Employés</span>
                             </Link>
+                            {canAccessPointage && (
                             <Link
                                 href={route('analytics.index')}
                                 className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-orange-300"
@@ -196,6 +214,7 @@ export default function FarmDashboard({
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Analyses &amp; Statistiques</span>
                             </Link>
+                            )}
                         </div>
                     </div>
                 </div>

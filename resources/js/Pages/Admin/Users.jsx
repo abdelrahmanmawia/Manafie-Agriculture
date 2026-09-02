@@ -31,6 +31,10 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
         role: 'data_entry',
         farm_id: selectedFarmId || (farms[0]?.id || ''),
         enterprise_id: selectedEnterpriseId || '',
+        // Both start unchecked — a new data_entry account should fail closed until someone
+        // deliberately grants it a domain, not silently see everything by default.
+        can_access_pointage: false,
+        can_access_stock: false,
     });
 
     const filteredEnterprises = data.farm_id 
@@ -91,14 +95,25 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                         </td>
                                         <td className="px-4 py-3 capitalize">
                                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${
-                                                user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' : 
-                                                user.role === 'farm_manager' ? 'bg-green-100 text-green-700' :
-                                                user.role === 'enterprise_admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                                                user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+                                                user.role === 'farm_manager' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                                             }`}>
-                                                {user.role === 'super_admin' ? t('super_admin') : 
-                                                 user.role === 'farm_manager' ? 'Manager Ferme' :
-                                                 user.role === 'enterprise_admin' ? 'Admin Division' : t('data_entry_personnel')}
+                                                {user.role === 'super_admin' ? t('super_admin') :
+                                                 user.role === 'farm_manager' ? 'Manager Ferme' : t('data_entry_personnel')}
                                             </span>
+                                            {user.role === 'data_entry' && (
+                                                <div className="flex gap-1 mt-1">
+                                                    {user.can_access_pointage && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 text-[9px] font-bold uppercase">Pointage</span>
+                                                    )}
+                                                    {user.can_access_stock && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-success-50 text-success-700 text-[9px] font-bold uppercase">Stock</span>
+                                                    )}
+                                                    {!user.can_access_pointage && !user.can_access_stock && (
+                                                        <span className="px-1.5 py-0.5 rounded bg-danger-50 text-danger-700 text-[9px] font-bold uppercase">Aucun accès</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-center">
                                             {user.role !== 'super_admin' && (
@@ -162,7 +177,6 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                     <label htmlFor="user_role" className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
                                     <select id="user_role" className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
                                         <option value="farm_manager">Manager Ferme (Tous accès)</option>
-                                        <option value="enterprise_admin">Admin Division</option>
                                         <option value="data_entry">{t('data_entry_personnel')}</option>
                                     </select>
                                     {errors.role && <div className="text-red-500 text-xs mt-1">{errors.role}</div>}
@@ -182,6 +196,40 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                     {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
                                 </div>
                             </div>
+
+                            {data.role === 'data_entry' && (
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Accès</label>
+                                    <div className="flex gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                checked={data.can_access_pointage}
+                                                onChange={e => setData('can_access_pointage', e.target.checked)}
+                                            />
+                                            <span className="text-sm font-bold text-gray-700">Accès Pointage</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                                            <input
+                                                type="checkbox"
+                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                                checked={data.can_access_stock}
+                                                onChange={e => setData('can_access_stock', e.target.checked)}
+                                            />
+                                            <span className="text-sm font-bold text-gray-700">Accès Stock</span>
+                                        </label>
+                                    </div>
+                                    {!data.can_access_pointage && !data.can_access_stock && (
+                                        <p className="text-[11px] font-bold text-amber-600 mt-2 uppercase tracking-wide">
+                                            Aucun accès sélectionné — ce compte ne pourra rien voir.
+                                        </p>
+                                    )}
+                                    {(errors.can_access_pointage || errors.can_access_stock) && (
+                                        <div className="text-red-500 text-xs mt-1">{errors.can_access_pointage || errors.can_access_stock}</div>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">

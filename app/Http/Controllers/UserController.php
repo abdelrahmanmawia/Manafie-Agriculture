@@ -45,9 +45,14 @@ class UserController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:enterprise_admin,data_entry,farm_manager',
+            'role' => 'required|in:data_entry,farm_manager',
             'farm_id' => 'required|exists:farms,id',
             'enterprise_id' => 'nullable|exists:enterprises,id',
+            // Only meaningful for role=data_entry (see User::canAccessPointage()/
+            // canAccessStock()) — farm_manager always has full access regardless of what's
+            // sent here, so the frontend doesn't even show these fields for that role.
+            'can_access_pointage' => 'sometimes|boolean',
+            'can_access_stock' => 'sometimes|boolean',
         ]);
 
         User::create([
@@ -57,6 +62,8 @@ class UserController extends Controller
             'role' => $validated['role'],
             'farm_id' => $validated['farm_id'],
             'enterprise_id' => $validated['enterprise_id'],
+            'can_access_pointage' => $validated['can_access_pointage'] ?? false,
+            'can_access_stock' => $validated['can_access_stock'] ?? false,
         ]);
 
         return redirect()->back()->with('success', 'User created successfully.');

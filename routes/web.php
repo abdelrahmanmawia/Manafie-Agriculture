@@ -85,6 +85,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
 
     Route::middleware('farm.selected')->group(function () {
+    Route::middleware('access.domain:pointage')->group(function () {
     // Pointage
     Route::get('/pointage', [PointageController::class, 'dashboard'])->name('pointage.index');
     Route::get('/pointage/quinzaines', [PointageController::class, 'quinzaines'])->name('pointage.quinzaines');
@@ -113,7 +114,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/harvests', [HarvestController::class, 'store'])->name('harvests.store');
     Route::post('/harvests/bulk-weigh', [HarvestController::class, 'bulkWeigh'])->name('harvests.bulkWeigh');
     Route::delete('/harvests/{harvest}', [HarvestController::class, 'destroy'])->name('harvests.destroy');
+    }); // end access.domain:pointage group
 
+    Route::middleware('access.domain:stock')->group(function () {
     // Stock Management - Dashboard
     Route::get('/stock', [StockController::class, 'index'])->name('stock.dashboard');
 
@@ -184,6 +187,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/reports/cost-per-hectare', [StockReportController::class, 'costPerHectare'])->name('stock.reports.cost-per-hectare');
     Route::get('/stock/reports/cost-per-vehicle', [StockReportController::class, 'costPerVehicle'])->name('stock.reports.cost-per-vehicle');
     Route::get('/stock/reports/stock-turnover', [StockReportController::class, 'stockTurnover'])->name('stock.reports.stock-turnover');
+    }); // end access.domain:stock group
     }); // end farm.selected group
 });
 
