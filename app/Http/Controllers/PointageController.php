@@ -234,6 +234,20 @@ class PointageController extends Controller
         $employee = Employee::findOrFail($validated['employee_id']);
         abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
 
+        // Same reasoning as employee_id above: exists:operations,id / exists:blocs,id only
+        // proves the ID exists SOMEWHERE, not that it belongs to this farm — an operation/bloc
+        // ID from a different farm would otherwise be writable into this quinzaine's records.
+        $farmId = $quinzaine->enterprise->farm_id;
+        $operationRecord = null;
+        if ($validated['operation_id']) {
+            $operationRecord = Operation::findOrFail($validated['operation_id']);
+            abort_unless($operationRecord->farm_id === $farmId, 403);
+        }
+        if ($validated['bloc_id']) {
+            $blocRecord = Bloc::findOrFail($validated['bloc_id']);
+            abort_unless($blocRecord->farm_id === $farmId, 403);
+        }
+
         if ($quinzaine->is_closed) {
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
         }
@@ -282,7 +296,7 @@ class PointageController extends Controller
             return redirect()->back();
         }
 
-        $operation = Operation::find($validated['operation_id']);
+        $operation = $operationRecord;
         $quantity = $validated['quantity'] ?? null;
 
         if ($operation->unit_rate && $quantity > 0) {
@@ -380,6 +394,16 @@ class PointageController extends Controller
 
         $employee = Employee::findOrFail($validated['employee_id']);
         abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
+
+        // Same reasoning as updateCell(): exists:operations,id / exists:blocs,id only proves
+        // the ID exists somewhere, not that it belongs to this farm.
+        $farmId = $quinzaine->enterprise->farm_id;
+        if ($validated['operation_id']) {
+            abort_unless(Operation::where('id', $validated['operation_id'])->where('farm_id', $farmId)->exists(), 403);
+        }
+        if ($validated['bloc_id']) {
+            abort_unless(Bloc::where('id', $validated['bloc_id'])->where('farm_id', $farmId)->exists(), 403);
+        }
 
         if ($quinzaine->is_closed) {
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);

@@ -279,6 +279,15 @@ class EnterpriseController extends Controller
     {
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
 
+        // A second close (e.g. a double-click, or this route ever getting hit again on an
+        // already-closed period) must not silently regenerate the snapshot — its numbers are
+        // supposed to be historically frozen the moment the quinzaine first closes, and
+        // generateSnapshot() partly depends on live state (employee complement) that could
+        // have changed since.
+        if ($quinzaine->is_closed) {
+            return redirect()->back()->with('success', 'Quinzaine closed successfully.');
+        }
+
         $quinzaine->update(['is_closed' => true]);
 
         // Generate Snapshot for performance

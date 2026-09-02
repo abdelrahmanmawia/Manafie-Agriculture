@@ -129,6 +129,7 @@ class ManualStockEntryController extends Controller
         $this->validateLocationHierarchy($validated['bloc_id'] ?? null, $validated['sector_id'] ?? null, $validated['parcelle_id'] ?? null);
 
         $farmId = $this->resolveWriteFarmId($request);
+        $this->assertForeignKeysInScope($validated, $farmId);
 
         // The intervention picked must actually belong to the vehicle this sortie is for —
         // otherwise a part could get attributed to the wrong repair's cost.
@@ -270,6 +271,8 @@ class ManualStockEntryController extends Controller
             'odometer_km' => 'nullable|numeric|min:0',
         ]);
 
+        $this->assertForeignKeysInScope($validated, $manualStockEntry->farm_id);
+
         // Same cross-check as store(): the intervention must belong to the vehicle this
         // sortie ends up attached to (whichever value — new or existing — wins).
         if (! empty($validated['maintenance_log_id'])) {
@@ -407,6 +410,34 @@ class ManualStockEntryController extends Controller
         ]);
 
         return back()->with('success', 'Entrée vérifiée avec succès.');
+    }
+
+    // Every optional foreign key below was previously validated only with exists:TABLE,id —
+    // proving the ID exists SOMEWHERE, not that it belongs to this farm. A cross-farm ID here
+    // would silently misattribute stock cost/consumption to another farm's employee, vehicle,
+    // operation, bloc, sector, or parcelle, and leak that farm's name into this farm's own
+    // reports (Coût par Hectare, Coût par Véhicule, etc.) — same class of gap already fixed
+    // for product_id/maintenance_log_id in store()/update().
+    private function assertForeignKeysInScope(array $validated, int $farmId): void
+    {
+        if (!empty($validated['employee_id'])) {
+            abort_unless(Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['employee_id'])->exists(), 403);
+        }
+        if (!empty($validated['vehicle_id'])) {
+            abort_unless(Vehicle::where('id', $validated['vehicle_id'])->where('farm_id', $farmId)->exists(), 403);
+        }
+        if (!empty($validated['operation_id'])) {
+            abort_unless(Operation::where('id', $validated['operation_id'])->where('farm_id', $farmId)->exists(), 403);
+        }
+        if (!empty($validated['bloc_id'])) {
+            abort_unless(Bloc::where('id', $validated['bloc_id'])->where('farm_id', $farmId)->exists(), 403);
+        }
+        if (!empty($validated['sector_id'])) {
+            abort_unless(Sector::whereHas('bloc', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['sector_id'])->exists(), 403);
+        }
+        if (!empty($validated['parcelle_id'])) {
+            abort_unless(Parcelle::whereHas('bloc', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['parcelle_id'])->exists(), 403);
+        }
     }
 
     // A secteur/parcelle picked independently of its bloc (e.g. a direct API call bypassing

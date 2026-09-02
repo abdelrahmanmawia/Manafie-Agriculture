@@ -145,10 +145,19 @@ class PointageScanController extends Controller
             }
 
             $operation = Operation::find($scan['operation_id']);
-            if (!$operation || $operation->unit_rate) {
+            if (!$operation || $operation->unit_rate || $operation->farm_id !== $farmId) {
                 // Defense in depth: the station's own picker already excludes piece-rate
                 // operations, but never trust a possibly-stale cached snapshot on the client.
+                // The farm_id check matters more here than in a session-based controller:
+                // exists:operations,id alone only proves the ID exists SOMEWHERE, and this
+                // endpoint has no session to fall back on if a token/station is compromised.
                 $results[] = ['scan_uuid' => $scan['scan_uuid'], 'ok' => false, 'reason' => 'Opération non valide pour le scan.'];
+                continue;
+            }
+
+            $bloc = Bloc::find($scan['bloc_id']);
+            if (!$bloc || $bloc->farm_id !== $farmId) {
+                $results[] = ['scan_uuid' => $scan['scan_uuid'], 'ok' => false, 'reason' => 'Bloc non valide pour le scan.'];
                 continue;
             }
 

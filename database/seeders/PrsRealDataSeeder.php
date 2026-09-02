@@ -364,24 +364,48 @@ class PrsRealDataSeeder extends Seeder
             $isJfDate = in_array($date, $workedJfDates, true);
             $isLastPlainDate = $date === $lastPlainDate;
             $isFirstEntryForDate = true;
+
+            // A day can carry MORE than one piece-rate (net_override) entry — the same
+            // employee genuinely doing meterage in more than one Bloc the same calendar day
+            // (confirmed against real source data). The DB's unique (employee_id, quinzaine_id,
+            // date) constraint — added to close a real duplicate-row bug from a double-submit
+            // race — means only one row per day can exist though, same limit the live Grid
+            // itself already has (PointageController::updateCell()'s piece-rate branch only
+            // ever writes one record per day). Merge same-date net_override entries into one
+            // row instead of emitting one each, which would collide on that constraint and
+            // abort the whole import batch: sum their net (money must never be lost), keep the
+            // operation/bloc from whichever entry has the largest net (the day's dominant
+            // activity), and only sum quantity when every merged entry shares that operation
+            // (summing meters across two different operations wouldn't mean anything).
+            $overrideEntries = array_values(array_filter($data['days'][$date], fn ($e) => isset($e['net_override'])));
+            if (!empty($overrideEntries)) {
+                usort($overrideEntries, fn ($a, $b) => $b['net_override'] <=> $a['net_override']);
+                $dominant = $overrideEntries[0];
+                $mergedNet = array_sum(array_column($overrideEntries, 'net_override'));
+                $sameOperation = count(array_unique(array_column($overrideEntries, 'operation'))) === 1;
+                $mergedQuantity = $sameOperation
+                    ? array_sum(array_map(fn ($e) => $e['quantity'] ?? 0, $overrideEntries))
+                    : ($dominant['quantity'] ?? null);
+                $dayRate = $dominant['rate_override'] ?? $brut;
+                $rows[] = [
+                    'employee_id' => $employee->id,
+                    'quinzaine_id' => $quinzaine->id,
+                    'operation_id' => $this->resolveOperation($dominant['operation'], $farmId),
+                    'bloc_id' => $this->resolveBloc($dominant['bloc'], $farmId),
+                    'date' => $date,
+                    'hours' => 0,
+                    'quantity' => $mergedQuantity,
+                    'is_jf' => false,
+                    'rate' => $dayRate,
+                    'brut' => $dayRate,
+                    'net' => $mergedNet,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
             foreach ($data['days'][$date] as $dayInfo) {
                 if (isset($dayInfo['net_override'])) {
-                    $dayRate = $dayInfo['rate_override'] ?? $brut;
-                    $rows[] = [
-                        'employee_id' => $employee->id,
-                        'quinzaine_id' => $quinzaine->id,
-                        'operation_id' => $this->resolveOperation($dayInfo['operation'], $farmId),
-                        'bloc_id' => $this->resolveBloc($dayInfo['bloc'], $farmId),
-                        'date' => $date,
-                        'hours' => 0,
-                        'quantity' => $dayInfo['quantity'] ?? null,
-                        'is_jf' => false,
-                        'rate' => $dayRate,
-                        'brut' => $dayRate,
-                        'net' => $dayInfo['net_override'],
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ];
                     continue;
                 }
 
@@ -449,6 +473,23 @@ class PrsRealDataSeeder extends Seeder
                 'updated_at' => now(),
             ];
         }
+
+        // Final safety net: guarantee no two rows for this employee share a date before they
+        // ever reach the DB, regardless of how they arose (e.g. a day with both piece-rate
+        // meterage AND flat-rate presence, from a stacked-operation sheet's two sections) —
+        // the unique (employee_id, quinzaine_id, date) constraint would otherwise reject the
+        // whole insert batch, silently dropping every row after the collision.
+        $mergedByDate = [];
+        foreach ($rows as $row) {
+            if (!isset($mergedByDate[$row['date']])) {
+                $mergedByDate[$row['date']] = $row;
+                continue;
+            }
+            $existing = $mergedByDate[$row['date']];
+            $dominant = $row['net'] >= $existing['net'] ? $row : $existing;
+            $mergedByDate[$row['date']] = array_merge($dominant, ['net' => $row['net'] + $existing['net']]);
+        }
+        $rows = array_values($mergedByDate);
 
         // Deliberately NOT scoped to this quinzaine_id: Employee identity is now CIN-unified
         // across enterprises, so the same real worker's calendar dates can otherwise collide

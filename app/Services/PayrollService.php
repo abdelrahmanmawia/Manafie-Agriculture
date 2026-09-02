@@ -196,26 +196,22 @@ class PayrollService
             // double, and doesn't count as a worked/bonus day for the invoicing spread below.
             $worked = $record->operation_id !== null;
 
-            $calc = $this->calculate(
-                $quinzaine->enterprise->contract_type,
-                $quinzaine->enterprise->default_brut_rate,
-                $record->hours,
-                $record->employee->complement,
-                $record->is_jf,
-                null,
-                $worked
-            );
-
-            $totalNet += $calc['total_net'];
-            $totalBrut += $calc['brut'];
+            // Read straight from this record's own frozen rate/brut/net — never recompute via
+            // calculate(), which would use the enterprise's CURRENT default_brut_rate instead
+            // of whatever was actually in effect when this day was entered. This snapshot is
+            // meant to freeze the quinzaine's numbers at close time; recomputing live defeats
+            // that if it's ever regenerated after the rate has since changed (see
+            // PointageExport.php's own comment on the same principle).
+            $totalNet += $record->net;
+            $totalBrut += $record->brut;
             $totalHours += $record->hours;
 
             // Breakdown by Employee
             $employeeId = $record->employee_id;
-            $employeeNets[$employeeId] = ($employeeNets[$employeeId] ?? 0) + $calc['total_net'];
+            $employeeNets[$employeeId] = ($employeeNets[$employeeId] ?? 0) + $record->net;
             $employees[$employeeId] = $record->employee_id;
 
-            $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement];
+            $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement, 'rate' => $record->rate];
             $employeeAggregates[$employeeId]['days']++;
             if ($record->is_jf && $worked) {
                 $employeeAggregates[$employeeId]['jf']++;
@@ -226,18 +222,20 @@ class PayrollService
             // deliberately left out of both breakdowns (its net is still in totalNet above).
             if ($record->operation) {
                 $opName = $record->operation->name;
-                $opCosts[$opName] = ($opCosts[$opName] ?? 0) + $calc['total_net'];
+                $opCosts[$opName] = ($opCosts[$opName] ?? 0) + $record->net;
             }
             if ($record->bloc) {
                 $blocName = $record->bloc->name;
-                $blocCosts[$blocName] = ($blocCosts[$blocName] ?? 0) + $calc['total_net'];
+                $blocCosts[$blocName] = ($blocCosts[$blocName] ?? 0) + $record->net;
             }
         }
 
         foreach ($employeeAggregates as $agg) {
+            // Same historical-rate reasoning: use this employee's own rate as it stood this
+            // period, not the enterprise's current rate.
             $invoicing = $this->calculateInvoicing(
                 $quinzaine->enterprise->contract_type,
-                $quinzaine->enterprise->default_brut_rate,
+                $agg['rate'],
                 $agg['complement'],
                 $agg['days'],
                 $agg['jf'],

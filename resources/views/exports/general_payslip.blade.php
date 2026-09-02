@@ -51,6 +51,12 @@
                     $employeeRecords = $records[$emp->id] ?? collect();
                     if($employeeRecords->isEmpty()) continue;
 
+                    // Summed straight from each record's own frozen net — never recomputed via
+                    // calculate(), which would use the enterprise's CURRENT rate/employee's
+                    // CURRENT complement instead of what was actually in effect when each day
+                    // was entered (same principle as PointageExport.php's own comment on this).
+                    // A closed quinzaine's payslip must show the same numbers today as it did
+                    // the day it closed, not drift if the rate changes later.
                     $totalNet = 0;
                     // Only a day with a real operation counts toward Jours — a worked J.F. day
                     // still counts (the employee was genuinely present; J.F separately adds the
@@ -61,15 +67,7 @@
                     $totalJf = $employeeRecords->where('is_jf', true)->count();
 
                     foreach($employeeRecords as $record) {
-                        $calc = $payrollService->calculate(
-                            $quinzaine->enterprise->contract_type,
-                            $quinzaine->enterprise->default_brut_rate,
-                            $record->hours,
-                            $emp->complement,
-                            $record->is_jf,
-                            $quinzaine->enterprise->invoiced_to_client
-                        );
-                        $totalNet += $calc['total_net'];
+                        $totalNet += $record->net;
                     }
                     $grandTotal += $totalNet;
                 @endphp

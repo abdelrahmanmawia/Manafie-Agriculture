@@ -86,15 +86,21 @@ class PayrollController extends Controller
         $totalRetenues = 0;
 
         foreach($records as $record) {
+            // Use this RECORD's own frozen rate, not the enterprise's CURRENT default_brut_rate
+            // — a closed quinzaine's numbers must not silently drift if the rate changes later
+            // (see PointageExport.php's own comment on the same principle). totalNet is summed
+            // straight from $record->net (never recomputed) so it always matches the Grid/Excel
+            // export exactly; $calc here is only used to reconstruct the gains/deductions
+            // breakdown display below.
             $calc = $this->payrollService->calculate(
                 $quinzaine->enterprise->contract_type,
-                $quinzaine->enterprise->default_brut_rate,
+                $record->rate,
                 $record->hours,
                 $employee->complement,
                 $record->is_jf,
                 $quinzaine->enterprise->invoiced_to_client
             );
-            $totalNet += $calc['total_net'];
+            $totalNet += $record->net;
 
             // Simplified Gain/Deduction math for the PDF view — reuse the service's own hs_pay
             // rather than re-deriving the HS rate here, so this always matches PayrollService::calculate().
@@ -106,14 +112,15 @@ class PayrollController extends Controller
             $brutDay = $calc['brut'] + $calc['hs_pay'] + ($record->is_jf ? $calc['sal_net_j'] : 0)
                 + ($isAvecContrat && !$record->is_jf ? $employee->complement : 0);
             $totalGains += $brutDay;
-            $totalRetenues += ($brutDay - $calc['total_net']);
+            $totalRetenues += ($brutDay - $record->net);
         }
 
-        // Same standard-net-per-day basis as the JF bonus in PayrollService::calculate(): the
-        // 6.74% deduction only applies to avec_contrat; sans_contrat passes brut through untouched.
+        // Same historical-rate reasoning as above: base it on the employee's own last worked
+        // day's rate this period, not the enterprise's current rate.
+        $baseRateThisPeriod = $records->last()->rate ?? $quinzaine->enterprise->default_brut_rate;
         $standardNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
-            ? $quinzaine->enterprise->default_brut_rate * (1 - 0.0674)
-            : $quinzaine->enterprise->default_brut_rate;
+            ? $baseRateThisPeriod * (1 - 0.0674)
+            : $baseRateThisPeriod;
         $baseNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
             ? $standardNetJ + $employee->complement
             : $standardNetJ;
