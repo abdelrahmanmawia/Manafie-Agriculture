@@ -21,6 +21,7 @@ use App\Http\Controllers\FuelTransactionController;
 use App\Http\Controllers\ManualStockEntryController;
 use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\StockController; // Import StockController
+use App\Http\Controllers\StockExitTypeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -178,6 +179,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
     Route::delete('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
     Route::post('/stock/manual-entries/{manualStockEntry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
+
+    // Stock Management - Exit Types (the "Type de Sortie" options — configurable per farm)
+    Route::post('/stock/exit-types', [StockExitTypeController::class, 'store'])->name('stock.exit-types.store');
+    Route::put('/stock/exit-types/{exitType}', [StockExitTypeController::class, 'update'])->name('stock.exit-types.update');
+    Route::delete('/stock/exit-types/{exitType}', [StockExitTypeController::class, 'destroy'])->name('stock.exit-types.destroy');
 
     // Stock Management - Reports & Analytics
     Route::get('/stock/reports', [StockReportController::class, 'index'])->name('stock.reports.index');

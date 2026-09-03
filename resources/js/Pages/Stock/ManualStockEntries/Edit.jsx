@@ -7,7 +7,7 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Edit({ auth, manualStockEntry, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
+export default function Edit({ auth, manualStockEntry, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const { data, setData, put, processing, errors } = useForm({
         product_id: manualStockEntry.product_id,
         entry_type: manualStockEntry.entry_type,
@@ -94,18 +94,19 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         id="entry_type"
                                         className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
                                         value={data.entry_type}
-                                        onChange={(e) => setData((prev) => ({
-                                            ...prev,
-                                            entry_type: e.target.value,
-                                            maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
-                                        }))}
+                                        onChange={(e) => {
+                                            const nextType = exitTypes.find((t) => t.key === e.target.value);
+                                            setData((prev) => ({
+                                                ...prev,
+                                                entry_type: e.target.value,
+                                                maintenance_log_id: nextType?.requires_maintenance_log ? prev.maintenance_log_id : '',
+                                            }));
+                                        }}
                                         required
                                     >
-                                        <option value="consumption">Consommation</option>
-                                        <option value="loss">Perte</option>
-                                        <option value="theft">Vol</option>
-                                        <option value="damage">Dommage</option>
-                                        <option value="maintenance">Maintenance</option>
+                                        {exitTypes.map((exitType) => (
+                                            <option key={exitType.key} value={exitType.key}>{exitType.label}</option>
+                                        ))}
                                     </select>
                                     <InputError message={errors.entry_type} className="mt-2" />
                                 </div>
@@ -176,7 +177,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                     </div>
                                 )}
 
-                                {isVehicleConsumable && data.vehicle_id && data.entry_type === 'maintenance' && (
+                                {isVehicleConsumable && data.vehicle_id && exitTypes.find((t) => t.key === data.entry_type)?.requires_maintenance_log && (
                                     <div>
                                         <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
                                         <select

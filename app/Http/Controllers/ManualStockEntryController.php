@@ -18,6 +18,7 @@ use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ManualStockEntryController extends Controller
@@ -96,6 +97,7 @@ class ManualStockEntryController extends Controller
             'parcelles' => $parcelles,
             'operations' => $operations,
             'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($farmId),
+            'exitTypes' => $this->exitTypesFor($farmId),
         ]);
     }
 
@@ -105,13 +107,16 @@ class ManualStockEntryController extends Controller
             abort(403);
         }
 
+        $farmId = $this->resolveWriteFarmId($request);
+        $exitTypeKeys = $this->exitTypesFor($farmId)->pluck('key');
+
         $validated = $request->validate([
             'product_id' => 'required|exists:products,id',
             // 'transfer' removed: bloc-to-bloc transfers don't happen in this business — see the
             // deleted StockMovementController::transfer() and CLAUDE.md's Stock domain notes. A
             // sortie has no receiving side, so labeling one "Transfert" implied stock went
             // somewhere trackable when it just left the magasin like any other consumption.
-            'entry_type' => 'required|in:consumption,loss,theft,damage,maintenance',
+            'entry_type' => ['required', Rule::in($exitTypeKeys)],
             'quantity' => 'required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',
@@ -128,7 +133,6 @@ class ManualStockEntryController extends Controller
 
         $this->validateLocationHierarchy($validated['bloc_id'] ?? null, $validated['sector_id'] ?? null, $validated['parcelle_id'] ?? null);
 
-        $farmId = $this->resolveWriteFarmId($request);
         $this->assertForeignKeysInScope($validated, $farmId);
 
         // The intervention picked must actually belong to the vehicle this sortie is for —
@@ -246,6 +250,7 @@ class ManualStockEntryController extends Controller
             'parcelles' => $parcelles,
             'operations' => $operations,
             'vehicleMaintenanceLogs' => $this->maintenanceLogsFor($manualStockEntry->farm_id),
+            'exitTypes' => $this->exitTypesFor($manualStockEntry->farm_id, $manualStockEntry->entry_type),
         ]);
     }
 
@@ -254,9 +259,11 @@ class ManualStockEntryController extends Controller
         // data_entry is intentionally allowed to update (see test_data_entry_can_update_manual_stock_entry).
         $this->assertEntryInScope($request, $manualStockEntry);
 
+        $exitTypeKeys = $this->exitTypesFor($manualStockEntry->farm_id, $manualStockEntry->entry_type)->pluck('key');
+
         $validated = $request->validate([
             'product_id' => 'sometimes|required|exists:products,id',
-            'entry_type' => 'sometimes|required|in:consumption,loss,theft,damage,maintenance',
+            'entry_type' => ['sometimes', 'required', Rule::in($exitTypeKeys)],
             'quantity' => 'sometimes|required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
             'vehicle_id' => 'nullable|exists:vehicles,id',

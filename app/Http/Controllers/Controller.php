@@ -42,6 +42,40 @@ class Controller extends BaseController
     }
 
     /**
+     * Active "Type de Sortie" options for a farm's Sorties de Stock forms — configurable by
+     * farm_manager/super_admin (see StockExitTypeController) instead of a hardcoded list.
+     * Self-seeds the five types this app has always used on first access, so an existing farm
+     * (or a brand new one) never sees an empty dropdown; the seeded keys match exactly what's
+     * already stored on old manual_stock_entries rows and what the sortie form's
+     * requires_maintenance_log-driven "Intervention liée" field expects.
+     */
+    protected function exitTypesFor(?int $farmId, ?string $mustIncludeKey = null)
+    {
+        if (!$farmId) {
+            return collect();
+        }
+
+        if (! \App\Models\StockExitType::where('farm_id', $farmId)->exists()) {
+            foreach ([
+                ['key' => 'consumption', 'label' => 'Consommation'],
+                ['key' => 'loss', 'label' => 'Perte'],
+                ['key' => 'theft', 'label' => 'Vol'],
+                ['key' => 'damage', 'label' => 'Dommage'],
+                ['key' => 'maintenance', 'label' => 'Maintenance', 'requires_maintenance_log' => true],
+            ] as $default) {
+                \App\Models\StockExitType::create($default + ['farm_id' => $farmId]);
+            }
+        }
+
+        // Editing an entry whose type was since deactivated must still show that type as an
+        // option — otherwise the select silently falls back to a different one on save.
+        return \App\Models\StockExitType::where('farm_id', $farmId)
+            ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
+            ->orderBy('id')
+            ->get(['id', 'key', 'label', 'requires_maintenance_log']);
+    }
+
+    /**
      * Validate a requested ?enterprise_id against the resolved farm scope before trusting it.
      * Several Pointage/Analytics/Payroll queries only apply their farm_id filter "when no
      * enterprise_id is given" — without this check, an unvalidated enterprise_id belonging to a

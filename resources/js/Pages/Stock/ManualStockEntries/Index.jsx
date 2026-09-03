@@ -11,12 +11,14 @@ import InputError from '@/Components/InputError';
 import { formatNumber } from '@/utils/number';
 import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
+export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedType, setSelectedType] = useState('');
     const [deletingEntry, setDeletingEntry] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isManagingTypes, setIsManagingTypes] = useState(false);
+    const canManageTypes = auth.user.role !== 'data_entry';
 
     const { data, setData, post, processing, reset, errors } = useForm({
         product_id: products.length > 0 ? products[0].id : '',
@@ -92,7 +94,9 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         return colors[type] || 'bg-gray-100 text-gray-800';
     };
 
-    const getEntryTypeLabel = (type) => ENTRY_TYPE_LABELS[type] || type;
+    const getEntryTypeLabel = (type) => exitTypes.find((t) => t.key === type)?.label || ENTRY_TYPE_LABELS[type] || type;
+
+    const selectedExitType = exitTypes.find((t) => t.key === data.entry_type);
 
     const handleVerify = (entryId) => {
         router.post(route('stock.manual-entries.verify', entryId), {}, {
@@ -132,16 +136,28 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Sorties de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Enregistrez les consommations, transferts et ajustements de stock</p>
                     </div>
-                    {auth.user.role !== 'data_entry' && (
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Nouvelle Sortie
-                        </button>
+                    {canManageTypes && (
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setIsManagingTypes(true)}
+                                className="text-gray-500 hover:text-gray-700 px-4 py-3 rounded-xl font-bold uppercase tracking-widest text-sm border-2 border-gray-200 hover:border-gray-300 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Types de Sortie
+                            </button>
+                            <button
+                                onClick={() => setIsCreating(true)}
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Nouvelle Sortie
+                            </button>
+                        </div>
                     )}
                 </div>
             }
@@ -176,11 +192,9 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 >
                                     <option value="">Tous les types</option>
-                                    <option value="consumption">Consommation</option>
-                                    <option value="loss">Perte</option>
-                                    <option value="theft">Vol</option>
-                                    <option value="damage">Dommage</option>
-                                    <option value="maintenance">Maintenance</option>
+                                    {exitTypes.map((exitType) => (
+                                        <option key={exitType.key} value={exitType.key}>{exitType.label}</option>
+                                    ))}
                                 </select>
                             </div>
                         </div>
@@ -399,18 +413,19 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     id="entry_type"
                                     className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
                                     value={data.entry_type}
-                                    onChange={(e) => setData((prev) => ({
-                                        ...prev,
-                                        entry_type: e.target.value,
-                                        maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
-                                    }))}
+                                    onChange={(e) => {
+                                        const nextType = exitTypes.find((t) => t.key === e.target.value);
+                                        setData((prev) => ({
+                                            ...prev,
+                                            entry_type: e.target.value,
+                                            maintenance_log_id: nextType?.requires_maintenance_log ? prev.maintenance_log_id : '',
+                                        }));
+                                    }}
                                     required
                                 >
-                                    <option value="consumption">Consommation</option>
-                                    <option value="loss">Perte</option>
-                                    <option value="theft">Vol</option>
-                                    <option value="damage">Dommage</option>
-                                    <option value="maintenance">Maintenance</option>
+                                    {exitTypes.map((exitType) => (
+                                        <option key={exitType.key} value={exitType.key}>{exitType.label}</option>
+                                    ))}
                                 </select>
                                 <InputError message={errors.entry_type} className="mt-2" />
                             </div>
@@ -495,7 +510,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 </div>
                             )}
 
-                            {isVehicleConsumable && data.vehicle_id && data.entry_type === 'maintenance' && (
+                            {isVehicleConsumable && data.vehicle_id && selectedExitType?.requires_maintenance_log && (
                                 <div className="md:col-span-2">
                                     <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
                                     <select
@@ -640,6 +655,139 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                     </div>
                 </div>
             </Modal>
+
+            {canManageTypes && (
+                <Modal show={isManagingTypes} onClose={() => setIsManagingTypes(false)}>
+                    <ManageExitTypesModal exitTypes={exitTypes} onClose={() => setIsManagingTypes(false)} />
+                </Modal>
+            )}
         </AuthenticatedLayout>
+    );
+}
+
+// A farm_manager/super_admin's own settings for what "Type de Sortie" actually offers on the
+// create/edit forms — everyone else just picks from whatever's listed there.
+function ManageExitTypesModal({ exitTypes, onClose }) {
+    const [editingId, setEditingId] = useState(null);
+    const [editingLabel, setEditingLabel] = useState('');
+    const [deleteError, setDeleteError] = useState('');
+
+    const { data, setData, post, processing, errors, reset } = useForm({
+        label: '',
+        requires_maintenance_log: false,
+    });
+
+    const submitNew = (e) => {
+        e.preventDefault();
+        post(route('stock.exit-types.store'), { onSuccess: () => reset() });
+    };
+
+    const startEditing = (exitType) => {
+        setEditingId(exitType.id);
+        setEditingLabel(exitType.label);
+    };
+
+    const saveEditing = (exitType) => {
+        if (!editingLabel.trim() || editingLabel === exitType.label) {
+            setEditingId(null);
+            return;
+        }
+        router.put(route('stock.exit-types.update', exitType.id), { label: editingLabel }, {
+            onSuccess: () => setEditingId(null),
+        });
+    };
+
+    const remove = (exitType) => {
+        if (!window.confirm(`Supprimer le type "${exitType.label}" ?`)) return;
+        setDeleteError('');
+        router.delete(route('stock.exit-types.destroy', exitType.id), {
+            onError: (errs) => setDeleteError(errs.exit_type || 'Suppression impossible.'),
+        });
+    };
+
+    return (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types de Sortie</h3>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+                Ces options apparaissent dans le champ "Type de Sortie" du formulaire de sortie de stock.
+            </p>
+
+            {deleteError && (
+                <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</div>
+            )}
+
+            <ul className="divide-y divide-gray-100 border border-gray-200 rounded-xl mb-6">
+                {exitTypes.map((exitType) => (
+                    <li key={exitType.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        {editingId === exitType.id ? (
+                            <input
+                                type="text"
+                                autoFocus
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                onBlur={() => saveEditing(exitType)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEditing(exitType)}
+                                className="flex-1 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm text-sm"
+                            />
+                        ) : (
+                            <button
+                                onClick={() => startEditing(exitType)}
+                                className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-indigo-600"
+                            >
+                                {exitType.label}
+                                {exitType.requires_maintenance_log && (
+                                    <span className="ml-2 text-[10px] font-bold uppercase tracking-wide text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">
+                                        Maintenance
+                                    </span>
+                                )}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => remove(exitType)}
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            title="Supprimer"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+
+            <form onSubmit={submitNew} className="border-t pt-4 space-y-3">
+                <InputLabel htmlFor="new_exit_type_label" value="Ajouter un type" />
+                <div className="flex gap-3">
+                    <TextInput
+                        id="new_exit_type_label"
+                        className="flex-1"
+                        placeholder="Ex: Retour Fournisseur"
+                        value={data.label}
+                        onChange={(e) => setData('label', e.target.value)}
+                    />
+                    <PrimaryButton disabled={processing} className="bg-indigo-600 hover:bg-indigo-700">
+                        Ajouter
+                    </PrimaryButton>
+                </div>
+                <InputError message={errors.label} />
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                    <input
+                        type="checkbox"
+                        checked={data.requires_maintenance_log}
+                        onChange={(e) => setData('requires_maintenance_log', e.target.checked)}
+                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    Ce type est lié à une intervention de maintenance (affiche le champ "Intervention liée")
+                </label>
+            </form>
+        </div>
     );
 }

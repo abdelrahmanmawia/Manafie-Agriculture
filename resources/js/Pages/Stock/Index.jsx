@@ -12,7 +12,7 @@ import { formatNumber, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
 
-export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs }) {
+export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -731,18 +731,19 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             id="sortie_entry_type"
                                             className="mt-1 block w-full border-gray-300 focus:border-red-500 focus:ring-red-500 rounded-lg shadow-sm"
                                             value={sortieForm.data.entry_type}
-                                            onChange={(e) => sortieForm.setData((prev) => ({
-                                                ...prev,
-                                                entry_type: e.target.value,
-                                                maintenance_log_id: e.target.value === 'maintenance' ? prev.maintenance_log_id : '',
-                                            }))}
+                                            onChange={(e) => {
+                                                const nextType = exitTypes.find((t) => t.key === e.target.value);
+                                                sortieForm.setData((prev) => ({
+                                                    ...prev,
+                                                    entry_type: e.target.value,
+                                                    maintenance_log_id: nextType?.requires_maintenance_log ? prev.maintenance_log_id : '',
+                                                }));
+                                            }}
                                             required
                                         >
-                                            <option value="consumption">Consommation</option>
-                                            <option value="loss">Perte</option>
-                                            <option value="theft">Vol</option>
-                                            <option value="damage">Dommage</option>
-                                            <option value="maintenance">Maintenance</option>
+                                            {exitTypes.map((exitType) => (
+                                                <option key={exitType.key} value={exitType.key}>{exitType.label}</option>
+                                            ))}
                                         </select>
                                         <InputError message={sortieForm.errors.entry_type} className="mt-2" />
                                     </div>
@@ -827,7 +828,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                         </div>
                                     )}
 
-                                    {isVehicleConsumable(movementModal.product) && sortieForm.data.vehicle_id && sortieForm.data.entry_type === 'maintenance' && (
+                                    {isVehicleConsumable(movementModal.product) && sortieForm.data.vehicle_id && exitTypes.find((t) => t.key === sortieForm.data.entry_type)?.requires_maintenance_log && (
                                         <div className="md:col-span-2">
                                             <InputLabel htmlFor="sortie_maintenance_log_id" value="Intervention de Maintenance Liée" />
                                             <select

@@ -86,6 +86,7 @@ class ProductController extends Controller
             'vehicleMaintenanceLogs' => VehicleMaintenanceLog::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->orderByDesc('performed_at')
                 ->get(['id', 'vehicle_id', 'description', 'performed_at']),
+            'exitTypes' => $this->exitTypesFor($farmId),
         ]);
     }
 
