@@ -27,7 +27,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
         address: '',
         bank_name: '',
         rib: '',
-        type: 'persea',
         base_rate: '',
         complement: 0,
         enterprise_id: selectedEnterpriseId || (enterprises?.[0]?.id || ''),
@@ -75,7 +74,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
             address: employee.address || '',
             bank_name: employee.bank_name || '',
             rib: employee.rib || '',
-            type: employee.type,
             base_rate: employee.base_rate,
             complement: employee.complement || 0,
             enterprise_id: employee.enterprise_id,
@@ -193,18 +191,9 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
 
                                 return (
                                     <div key={emp.id} className={`p-4 rounded-2xl border border-gray-100 ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
-                                        <div className="flex justify-between items-start mb-2">
-                                            <div>
-                                                <div className="font-bold text-gray-800">{emp.full_name}</div>
-                                                <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}</div>
-                                            </div>
-                                            <span className={`inline-block px-2 py-1 rounded-lg font-black text-[10px] uppercase shrink-0 ${
-                                                emp.type === 'persea' ? 'bg-blue-100 text-blue-800' :
-                                                emp.type === 'hafila' ? 'bg-green-100 text-green-800' :
-                                                'bg-orange-100 text-orange-800'
-                                            }`}>
-                                                {emp.type}
-                                            </span>
+                                        <div className="mb-2">
+                                            <div className="font-bold text-gray-800">{emp.full_name}</div>
+                                            <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}</div>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 my-3 text-center">
                                             <div className="bg-gray-50 rounded-lg py-1.5">
@@ -284,7 +273,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     <th className="px-4 py-3">{t('rib')}</th>
                                     <th className="px-4 py-3">{t('dob')}</th>
                                     <th className="px-4 py-3">{t('hire_date')}</th>
-                                    <th className="px-4 py-3">{t('type')}</th>
                                     <th className="px-4 py-3 text-right">{t('daily_rate_brut')}</th>
                                     <th className="px-4 py-3 text-right">{t('complement')}</th>
                                     <th className="px-4 py-3 text-right text-green-600">{t('daily_net')}</th>
@@ -303,7 +291,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             <td className="px-4 py-3 font-medium text-gray-900">{emp.matricule}</td>
                                             <td className="px-4 py-3">
                                                 <div className="font-bold text-gray-800">{emp.full_name}</div>
-                                                <div className="text-[9px] text-gray-400 uppercase tracking-widest">{emp.type}</div>
                                             </td>
                                             {auth.user.role === 'super_admin' && (
                                                 <td className="px-4 py-3 font-bold text-blue-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
@@ -316,15 +303,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             <td className="px-4 py-3 text-xs font-mono">{emp.rib || '-'}</td>
                                             <td className="px-4 py-3">{emp.dob || '-'}</td>
                                             <td className="px-4 py-3">{emp.hire_date || '-'}</td>
-                                            <td className="px-4 py-3">
-                                                <span className={`inline-block px-2 py-1 rounded-lg font-black text-[10px] uppercase ${
-                                                    emp.type === 'persea' ? 'bg-blue-100 text-blue-800' :
-                                                    emp.type === 'hafila' ? 'bg-green-100 text-green-800' :
-                                                    'bg-orange-100 text-orange-800'
-                                                }`}>
-                                                    {emp.type}
-                                                </span>
-                                            </td>
                                             <td className="px-4 py-3 text-right font-medium text-gray-400">{formatNumber(emp.base_rate)} DH</td>
                                             <td className="px-4 py-3 text-right font-medium text-gray-400">{formatNumber(emp.complement || 0)} DH</td>
                                             <td className="px-4 py-3 text-right font-black text-green-700 bg-green-50/30">
@@ -461,20 +439,6 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             )}
 
                             {/* Payroll Profile */}
-                            <div>
-                                <label htmlFor="emp_type" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('type')}</label>
-                                <select
-                                    id="emp_type"
-                                    className="w-full rounded-lg border-gray-200"
-                                    value={data.type}
-                                    onChange={e => setData('type', e.target.value)}
-                                >
-                                    <option value="persea">PERSEA</option>
-                                    <option value="hafila">HAFILA</option>
-                                    <option value="interim">INTERIM</option>
-                                </select>
-                                {errors.type && <div className="text-red-500 text-xs mt-1">{errors.type}</div>}
-                            </div>
                             <div>
                                 <label id="emp_contract_type_label" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('contract_type_auto')}</label>
                                 <div aria-labelledby="emp_contract_type_label" className="bg-gray-100 p-2.5 rounded-lg text-gray-500 font-black uppercase text-[10px]">

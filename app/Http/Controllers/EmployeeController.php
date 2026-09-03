@@ -147,7 +147,6 @@ class EmployeeController extends Controller
             'address' => 'nullable|string|max:255',
             'bank_name' => 'nullable|string|max:100',
             'rib' => 'nullable|string|max:100',
-            'type' => 'required|in:hafila,persea,interim',
             'base_rate' => 'required|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id'
         ]);
@@ -181,7 +180,6 @@ class EmployeeController extends Controller
             'address' => 'nullable|string|max:255',
             'bank_name' => 'nullable|string|max:100',
             'rib' => 'nullable|string|max:100',
-            'type' => 'required|in:hafila,persea,interim',
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',

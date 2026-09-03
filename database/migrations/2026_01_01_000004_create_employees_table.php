@@ -26,7 +26,6 @@ return new class extends Migration
             $table->string('address')->nullable();
             $table->string('bank_name')->nullable();
             $table->string('rib')->nullable();
-            $table->string('type');
             $table->decimal('base_rate', 10, 2)->default(0);
             $table->decimal('complement', 10, 2)->default(0);
             $table->boolean('is_active')->default(true);
