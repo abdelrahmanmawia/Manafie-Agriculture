@@ -15,10 +15,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * A data_entry user is meant to log réceptions/sorties and edit existing records, but not
- * create/delete/deactivate catalog items or resolve alerts — see CLAUDE.md's authorization
- * model. These checks previously existed only in the frontend (hidden buttons); this suite
- * locks in the server-side abort(403) guards added to each Stock controller.
+ * A data_entry account is only ever restricted by its own domain flags (see
+ * User::canAccessStock()/canAccessPointage()) — a "magasinier" (can_access_stock) gets full
+ * Stock permissions, exactly like a farm_manager would; a data_entry without that flag gets
+ * none at all, not a partial "can edit but not create" tier. This suite locks in that
+ * flag-driven boundary on each Stock controller's abort(403) guard.
  */
 class StockDataEntryRoleTest extends TestCase
 {
@@ -26,6 +27,7 @@ class StockDataEntryRoleTest extends TestCase
 
     private Farm $farm;
     private User $dataEntry;
+    private User $dataEntryNoStock;
     private User $farmManager;
     private Product $product;
     private ProductCategory $category;
@@ -37,9 +39,20 @@ class StockDataEntryRoleTest extends TestCase
 
         $this->farm = Farm::create(['name' => 'Test Farm']);
 
+        // Has full Stock access by default (matches the factory's fail-open default) — the
+        // "magasinier" case, allowed to do everything below.
         $this->dataEntry = User::factory()->create([
             'role' => 'data_entry',
             'farm_id' => $this->farm->id,
+        ]);
+
+        // The "pointeur" case: Pointage access only, no Stock — proves the boundary still
+        // blocks a data_entry without the relevant flag.
+        $this->dataEntryNoStock = User::factory()->create([
+            'role' => 'data_entry',
+            'farm_id' => $this->farm->id,
+            'can_access_pointage' => true,
+            'can_access_stock' => false,
         ]);
 
         $this->farmManager = User::factory()->create([
@@ -101,9 +114,18 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- ProductController ---
 
-    public function test_data_entry_cannot_create_product(): void
+    public function test_data_entry_with_stock_access_can_create_product(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.products.store'), $this->productPayload())
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('products', 2);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_create_product(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.products.store'), $this->productPayload())
             ->assertForbidden();
 
@@ -119,18 +141,36 @@ class StockDataEntryRoleTest extends TestCase
         $this->assertDatabaseCount('products', 2);
     }
 
-    public function test_data_entry_cannot_delete_product(): void
+    public function test_data_entry_with_stock_access_can_delete_product(): void
     {
         $this->actingAs($this->dataEntry)
+            ->delete(route('stock.products.destroy', $this->product))
+            ->assertRedirect();
+
+        $this->assertSoftDeleted('products', ['id' => $this->product->id]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_delete_product(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->delete(route('stock.products.destroy', $this->product))
             ->assertForbidden();
 
         $this->assertDatabaseHas('products', ['id' => $this->product->id, 'deleted_at' => null]);
     }
 
-    public function test_data_entry_cannot_toggle_product_active(): void
+    public function test_data_entry_with_stock_access_can_toggle_product_active(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.products.toggle-active', $this->product))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('products', ['id' => $this->product->id, 'is_active' => false]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_toggle_product_active(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.products.toggle-active', $this->product))
             ->assertForbidden();
 
@@ -184,9 +224,18 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- VehicleController ---
 
-    public function test_data_entry_cannot_create_vehicle(): void
+    public function test_data_entry_with_stock_access_can_create_vehicle(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.vehicles.store'), $this->vehiclePayload())
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('vehicles', 2);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_create_vehicle(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.vehicles.store'), $this->vehiclePayload())
             ->assertForbidden();
 
@@ -202,18 +251,36 @@ class StockDataEntryRoleTest extends TestCase
         $this->assertDatabaseCount('vehicles', 2);
     }
 
-    public function test_data_entry_cannot_delete_vehicle(): void
+    public function test_data_entry_with_stock_access_can_delete_vehicle(): void
     {
         $this->actingAs($this->dataEntry)
+            ->delete(route('stock.vehicles.destroy', $this->vehicle))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('vehicles', ['id' => $this->vehicle->id]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_delete_vehicle(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->delete(route('stock.vehicles.destroy', $this->vehicle))
             ->assertForbidden();
 
         $this->assertDatabaseHas('vehicles', ['id' => $this->vehicle->id]);
     }
 
-    public function test_data_entry_cannot_toggle_vehicle_active(): void
+    public function test_data_entry_with_stock_access_can_toggle_vehicle_active(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.vehicles.toggle-active', $this->vehicle))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('vehicles', ['id' => $this->vehicle->id, 'is_active' => false]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_toggle_vehicle_active(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.vehicles.toggle-active', $this->vehicle))
             ->assertForbidden();
 
@@ -271,9 +338,18 @@ class StockDataEntryRoleTest extends TestCase
         ], $overrides);
     }
 
-    public function test_data_entry_cannot_create_maintenance_log(): void
+    public function test_data_entry_with_stock_access_can_create_maintenance_log(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.vehicles.maintenance-logs.store', $this->vehicle), $this->maintenanceLogPayload())
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('vehicle_maintenance_logs', 1);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_create_maintenance_log(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.vehicles.maintenance-logs.store', $this->vehicle), $this->maintenanceLogPayload())
             ->assertForbidden();
 
@@ -289,7 +365,7 @@ class StockDataEntryRoleTest extends TestCase
         $this->assertDatabaseCount('vehicle_maintenance_logs', 1);
     }
 
-    public function test_data_entry_cannot_delete_maintenance_log(): void
+    public function test_data_entry_with_stock_access_can_delete_maintenance_log(): void
     {
         $log = $this->vehicle->maintenanceLogs()->create([
             'farm_id' => $this->farm->id,
@@ -300,6 +376,22 @@ class StockDataEntryRoleTest extends TestCase
 
         $this->actingAs($this->dataEntry)
             ->delete(route('stock.vehicles.maintenance-logs.destroy', $log))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('vehicle_maintenance_logs', ['id' => $log->id]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_delete_maintenance_log(): void
+    {
+        $log = $this->vehicle->maintenanceLogs()->create([
+            'farm_id' => $this->farm->id,
+            'description' => 'Vidange moteur',
+            'performed_at' => now()->toDateString(),
+            'created_by' => $this->farmManager->id,
+        ]);
+
+        $this->actingAs($this->dataEntryNoStock)
+            ->delete(route('stock.vehicles.maintenance-logs.destroy', $log))
             ->assertForbidden();
 
         $this->assertDatabaseHas('vehicle_maintenance_logs', ['id' => $log->id]);
@@ -307,9 +399,23 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- ManualStockEntryController ---
 
-    public function test_data_entry_cannot_create_manual_stock_entry(): void
+    public function test_data_entry_with_stock_access_can_create_manual_stock_entry(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.manual-entries.store'), [
+                'product_id' => $this->product->id,
+                'entry_type' => 'consumption',
+                'quantity' => 5,
+                'date' => now()->toDateString(),
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('manual_stock_entries', 1);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_create_manual_stock_entry(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.manual-entries.store'), [
                 'product_id' => $this->product->id,
                 'entry_type' => 'consumption',
@@ -335,7 +441,7 @@ class StockDataEntryRoleTest extends TestCase
         $this->assertDatabaseCount('manual_stock_entries', 1);
     }
 
-    public function test_data_entry_cannot_delete_manual_stock_entry(): void
+    public function test_data_entry_with_stock_access_can_delete_manual_stock_entry(): void
     {
         $entry = ManualStockEntry::create([
             'farm_id' => $this->farm->id,
@@ -348,12 +454,30 @@ class StockDataEntryRoleTest extends TestCase
 
         $this->actingAs($this->dataEntry)
             ->delete(route('stock.manual-entries.destroy', $entry))
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('manual_stock_entries', ['id' => $entry->id]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_delete_manual_stock_entry(): void
+    {
+        $entry = ManualStockEntry::create([
+            'farm_id' => $this->farm->id,
+            'product_id' => $this->product->id,
+            'entry_type' => 'consumption',
+            'quantity' => 5,
+            'date' => now()->toDateString(),
+            'entered_by' => $this->farmManager->id,
+        ]);
+
+        $this->actingAs($this->dataEntryNoStock)
+            ->delete(route('stock.manual-entries.destroy', $entry))
             ->assertForbidden();
 
         $this->assertDatabaseHas('manual_stock_entries', ['id' => $entry->id]);
     }
 
-    public function test_data_entry_cannot_verify_manual_stock_entry(): void
+    public function test_data_entry_with_stock_access_can_verify_manual_stock_entry(): void
     {
         $entry = ManualStockEntry::create([
             'farm_id' => $this->farm->id,
@@ -365,6 +489,24 @@ class StockDataEntryRoleTest extends TestCase
         ]);
 
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.manual-entries.verify', $entry))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('manual_stock_entries', ['id' => $entry->id, 'is_verified' => true]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_verify_manual_stock_entry(): void
+    {
+        $entry = ManualStockEntry::create([
+            'farm_id' => $this->farm->id,
+            'product_id' => $this->product->id,
+            'entry_type' => 'consumption',
+            'quantity' => 5,
+            'date' => now()->toDateString(),
+            'entered_by' => $this->farmManager->id,
+        ]);
+
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.manual-entries.verify', $entry))
             ->assertForbidden();
 
@@ -393,7 +535,7 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- StockAlertController ---
 
-    public function test_data_entry_cannot_resolve_stock_alert(): void
+    public function test_data_entry_with_stock_access_can_resolve_stock_alert(): void
     {
         $alert = StockAlert::create([
             'product_id' => $this->product->id,
@@ -404,6 +546,23 @@ class StockDataEntryRoleTest extends TestCase
         ]);
 
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.alerts.resolve', $alert))
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('stock_alerts', ['id' => $alert->id, 'is_resolved' => true]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_resolve_stock_alert(): void
+    {
+        $alert = StockAlert::create([
+            'product_id' => $this->product->id,
+            'alert_type' => 'low_stock',
+            'threshold_value' => 100,
+            'current_value' => 50,
+            'is_resolved' => false,
+        ]);
+
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.alerts.resolve', $alert))
             ->assertForbidden();
 
@@ -429,9 +588,21 @@ class StockDataEntryRoleTest extends TestCase
 
     // --- StockInventoryController ---
 
-    public function test_data_entry_cannot_count_stock_inventory(): void
+    public function test_data_entry_with_stock_access_can_count_stock_inventory(): void
     {
         $this->actingAs($this->dataEntry)
+            ->post(route('stock.inventory.count'), [
+                'product_id' => $this->product->id,
+                'counted_quantity' => 999,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('stock_inventory', ['product_id' => $this->product->id, 'quantity_on_hand' => 999]);
+    }
+
+    public function test_data_entry_without_stock_access_cannot_count_stock_inventory(): void
+    {
+        $this->actingAs($this->dataEntryNoStock)
             ->post(route('stock.inventory.count'), [
                 'product_id' => $this->product->id,
                 'counted_quantity' => 999,

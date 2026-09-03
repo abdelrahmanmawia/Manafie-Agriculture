@@ -35,7 +35,7 @@ class VehicleTypeController extends Controller
 
     public function store(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -56,7 +56,7 @@ class VehicleTypeController extends Controller
 
     public function update(Request $request, VehicleType $vehicleType)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertVehicleTypeInScope($request, $vehicleType);
@@ -75,7 +75,7 @@ class VehicleTypeController extends Controller
 
     public function destroy(Request $request, VehicleType $vehicleType)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertVehicleTypeInScope($request, $vehicleType);

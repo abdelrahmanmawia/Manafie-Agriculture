@@ -19,15 +19,15 @@ class EmployeeController extends Controller
     }
 
     /**
-     * Employees are enterprise-owned master data, same access tier as Stock's
-     * Product/Vehicle: farm_manager (or super_admin working the active farm) may
-     * create/delete/toggle; data_entry never can, and is additionally locked to
-     * its own enterprise when it has one.
+     * Employees are Pointage-domain master data: farm_manager (or super_admin working the
+     * active farm) may create/delete/toggle, as can a data_entry granted Pointage access
+     * (canAccessPointage()) — never a stock-only data_entry. Also locked to its own enterprise
+     * when it has one.
      */
     private function assertEmployeeManagerAccess(Request $request, int $farmId): void
     {
         $user = $request->user();
-        abort_if($user->role === 'data_entry', 403);
+        abort_unless($user->canAccessPointage(), 403);
 
         if ($user->role === 'super_admin') {
             abort_unless((int) session('active_farm_id') === $farmId, 403);
@@ -124,7 +124,7 @@ class EmployeeController extends Controller
     public function store(Request $request)
     {
         $this->assertEnterpriseAssignable($request, (int) $request->enterprise_id);
-        abort_if($request->user()->role === 'data_entry', 403);
+        abort_unless($request->user()->canAccessPointage(), 403);
 
         $farmId = \App\Models\Enterprise::findOrFail($request->enterprise_id)->farm_id;
 

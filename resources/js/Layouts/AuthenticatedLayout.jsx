@@ -24,13 +24,30 @@ export default function Authenticated({ user, header, children }) {
     const canAccessPointage = user.role !== 'data_entry' || user.can_access_pointage;
     const canAccessStock = user.role !== 'data_entry' || user.can_access_stock;
 
-    const isStockZone = route().current('stock.*');
+    // A data_entry granted exactly one domain has no real use for the Hub — EnterpriseController
+    // redirects them straight into that domain, so offering an "Accueil" link that just bounces
+    // back out is confusing. A data_entry with both (or neither) flag still sees it normally.
+    const isSingleDomainDataEntry = user.role === 'data_entry' && (canAccessPointage !== canAccessStock);
+
+    // "Paramètres Système" (farms.settings) is shared across all three zones — its route name
+    // alone can't say which sidebar to show, so each zone's own link tags it with ?zone=... (see
+    // farmSettingsItemFor below) and we read that back here to keep the sidebar/theme consistent
+    // with wherever the user actually came from, instead of always falling back to the Hub.
+    const farmSettingsZone = new URLSearchParams(window.location.search).get('zone');
+    const onFarmSettings = route().current('farms.settings');
+
+    const isStockZone = route().current('stock.*') || (onFarmSettings && farmSettingsZone === 'stock');
     const isPointageZone = !isStockZone && (
         route().current('pointage.*') ||
         route().current('harvests.*') ||
         route().current('analytics.*') ||
         route().current('payroll.*') ||
-        route().current('settings.*')
+        route().current('settings.*') ||
+        route().current('badges.*') ||
+        // Employees is Pointage-domain master data (see EmployeeController) — gated the same
+        // way behind access.domain:pointage, so it belongs visually in this zone, not the Hub.
+        route().current('employees.*') ||
+        (onFarmSettings && farmSettingsZone === 'pointage')
     );
     const isHubZone = !isStockZone && !isPointageZone;
 
@@ -54,29 +71,36 @@ export default function Authenticated({ user, header, children }) {
         truck: 'M3 13l1.5-5A2 2 0 016.4 6.5h5.2a2 2 0 011.9 1.5l1 4M3 13v4a1 1 0 001 1h1m14-5v4a1 1 0 01-1 1h-1m-12 0a2 2 0 104 0m-4 0a2 2 0 114 0m8 0a2 2 0 104 0m-4 0a2 2 0 114 0M3 13h15',
     };
 
-    const farmSettingsItem = (user.farm_id || activeFarm)
-        ? { label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: user.farm_id || activeFarm.id, match: 'farms.settings', icon: ICONS.sliders }
+    // Tags the link with which zone it was reached from — see the isPointageZone/isStockZone
+    // computation above. `match` intentionally omits the zone query string: WorkspaceSubNav's
+    // isActive() only cares that we're on farms.settings at all, from either zone's sidebar.
+    const farmSettingsItemFor = (zone) => (user.farm_id || activeFarm)
+        ? { label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: { farm: user.farm_id || activeFarm.id, zone }, match: 'farms.settings', icon: ICONS.sliders }
         : null;
+
+    const hubFarmSettingsItem = farmSettingsItemFor('hub');
+    const pointageFarmSettingsItem = farmSettingsItemFor('pointage');
+    const stockFarmSettingsItem = farmSettingsItemFor('stock');
 
     const hubItems = [
         { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home },
-        ...(needsFarmSelection
-            ? []
-            : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
         ...(user.role === 'super_admin'
             ? [{ label: t('users') || 'Utilisateurs', href: 'users.index', match: 'users.*', icon: ICONS.shield }]
             : []),
-        ...(farmSettingsItem ? [farmSettingsItem] : []),
+        ...(hubFarmSettingsItem ? [hubFarmSettingsItem] : []),
     ];
 
     const pointageItems = [
         { label: 'Tableau de Bord', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
         { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
+        ...(needsFarmSelection
+            ? []
+            : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
         { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
         { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
-        ...(farmSettingsItem ? [farmSettingsItem] : []),
+        ...(pointageFarmSettingsItem ? [pointageFarmSettingsItem] : []),
     ];
 
     const stockItems = [
@@ -90,7 +114,7 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Carburant', href: 'stock.fuel-transactions.index', match: 'stock.fuel-transactions.*', icon: ICONS.fuel },
         { label: 'Sorties de Stock', href: 'stock.manual-entries.index', match: 'stock.manual-entries.*', icon: ICONS.pencil },
         { label: 'Rapports', href: 'stock.reports.index', match: 'stock.reports.*', icon: ICONS.chart },
-        ...(farmSettingsItem ? [farmSettingsItem] : []),
+        ...(stockFarmSettingsItem ? [stockFarmSettingsItem] : []),
     ];
 
     const activeSubNav = isStockZone
@@ -113,10 +137,12 @@ export default function Authenticated({ user, header, children }) {
                             </div>
 
                             <div className="hidden space-x-6 sm:-my-px sm:ms-10 lg:flex items-center">
-                                <NavLink href={route('dashboard')} active={isHubZone}>
-                                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                                    Accueil
-                                </NavLink>
+                                {!isSingleDomainDataEntry && (
+                                    <NavLink href={route('dashboard')} active={isHubZone}>
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                                        Accueil
+                                    </NavLink>
+                                )}
 
                                 {needsFarmSelection ? (
                                     <span className="flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
@@ -228,12 +254,14 @@ export default function Authenticated({ user, header, children }) {
 
                 <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' lg:hidden bg-white border-t border-gray-100 shadow-2xl'}>
                     <div className="pt-2 pb-3 space-y-1">
-                        <ResponsiveNavLink href={route('dashboard')} active={isHubZone} onClick={() => setShowingNavigationDropdown(false)}>
-                            <div className="flex items-center">
-                                <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                                Accueil
-                            </div>
-                        </ResponsiveNavLink>
+                        {!isSingleDomainDataEntry && (
+                            <ResponsiveNavLink href={route('dashboard')} active={isHubZone} onClick={() => setShowingNavigationDropdown(false)}>
+                                <div className="flex items-center">
+                                    <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+                                    Accueil
+                                </div>
+                            </ResponsiveNavLink>
+                        )}
 
                         {needsFarmSelection ? (
                             <div className="mx-4 my-2 flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">

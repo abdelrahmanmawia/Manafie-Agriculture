@@ -84,7 +84,7 @@ class VehicleController extends Controller
 
     public function store(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -181,7 +181,7 @@ class VehicleController extends Controller
 
     public function toggleActive(Request $request, Vehicle $vehicle)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertVehicleInScope($request, $vehicle);
@@ -238,7 +238,7 @@ class VehicleController extends Controller
 
     public function destroy(Request $request, Vehicle $vehicle)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertVehicleInScope($request, $vehicle);

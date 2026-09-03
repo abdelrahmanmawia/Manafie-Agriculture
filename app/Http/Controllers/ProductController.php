@@ -124,7 +124,7 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -183,7 +183,7 @@ class ProductController extends Controller
 
     public function toggleActive(Request $request, Product $product)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertProductInScope($request, $product);
@@ -240,7 +240,7 @@ class ProductController extends Controller
 
     public function destroy(Request $request, Product $product)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertProductInScope($request, $product);
@@ -259,7 +259,7 @@ class ProductController extends Controller
 
     public function storeCategory(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -281,7 +281,7 @@ class ProductController extends Controller
 
     public function updateCategory(Request $request, ProductCategory $category)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertCategoryInScope($request, $category);
@@ -299,7 +299,7 @@ class ProductController extends Controller
 
     public function destroyCategory(Request $request, ProductCategory $category)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertCategoryInScope($request, $category);

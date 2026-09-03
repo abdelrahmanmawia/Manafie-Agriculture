@@ -16,13 +16,14 @@ class FarmController extends Controller
     /**
      * Every farm-structure action here is either a super_admin-only, whole-app-scope action
      * (creating/deleting a farm), or a farm-scoped one that only that farm's own farm_manager
-     * (or a super_admin working within it) may touch — never data_entry, and never another
-     * farm's manager.
+     * (or a super_admin working within it) may touch — plus a data_entry granted Pointage
+     * access (canAccessPointage()), since blocs/sectors/parcelles/operations are what pointage
+     * records attribute work to. Never a stock-only data_entry, and never another farm's manager.
      */
     private function assertFarmManagerAccess(Request $request, int $farmId): void
     {
         $user = $request->user();
-        abort_if($user->role === 'data_entry', 403);
+        abort_unless($user->canAccessPointage(), 403);
 
         if ($user->role === 'super_admin') {
             abort_unless((int) session('active_farm_id') === $farmId, 403);

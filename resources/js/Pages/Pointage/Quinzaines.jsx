@@ -8,6 +8,12 @@ import DangerButton from '@/Components/DangerButton';
 
 export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const { props } = usePage();
+
+    // Mirrors PointageController::exportAllDivisions()'s $isFarmScopedPointageDataEntry check —
+    // a data_entry locked to one division must stay blocked (it would leak sibling divisions'
+    // payroll), but a farm-scoped one with Pointage access is exactly like a farm_manager here.
+    const canExportAllDivisions = auth.user.role === 'super_admin' || auth.user.role === 'farm_manager'
+        || (auth.user.role === 'data_entry' && auth.user.can_access_pointage && !auth.user.enterprise_id);
     const [isCreating, setIsCreating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editingQuinzaine, setEditingQuinzaine] = useState(null);
@@ -152,7 +158,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
             header={
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines</h2>
-                    {auth.user.role !== 'data_entry' && (
+                    {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                         <button
                             onClick={() => setIsCreating(true)}
                             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
@@ -173,7 +179,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         <p className="text-gray-600 mb-6 text-sm">
                             Sélectionnez une période de référence pour exporter un fichier Excel contenant les données de pointage de toutes les divisions de la ferme associée, chaque division sur une feuille séparée.
                         </p>
-                        {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
+                        {canExportAllDivisions && (
                             <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
                                 <div className="flex-grow">
                                     <label htmlFor="global_period_select" className="block text-sm font-medium text-gray-700 mb-1">
@@ -224,8 +230,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                 </a>
                             </div>
                         )}
-                        {!(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
-                            <p className="text-gray-500 italic">Cette fonctionnalité est réservée aux Super Administrateurs et aux Responsables de Ferme.</p>
+                        {!canExportAllDivisions && (
+                            <p className="text-gray-500 italic">Cette fonctionnalité est réservée aux Super Administrateurs, aux Responsables de Ferme et aux comptes ayant l'accès Pointage.</p>
                         )}
                     </div>
 
@@ -316,7 +322,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                     </a>
                                                 </div>
 
-                                                {!q.is_closed && auth.user.role !== 'data_entry' && (
+                                                {!q.is_closed && (auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                                                     <div className="grid grid-cols-2 gap-2">
                                                         <button
                                                             type="button"

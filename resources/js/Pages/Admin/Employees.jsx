@@ -122,7 +122,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('personnel_management')}</h2>
                     <div className="flex gap-4 items-center">
-                        {auth.user.role !== 'data_entry' && (
+                        {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                             <button
                                 onClick={() => setIsAddingEmployee(true)}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
@@ -224,7 +224,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 />
                                                 <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                                             </label>
-                                            {auth.user.role !== 'data_entry' && (
+                                            {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                                                 <div className="flex items-center justify-end gap-4">
                                                     <button
                                                         type="button"
@@ -320,7 +320,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 </label>
                                             </td>
                                             <td className="px-4 py-3 text-center">
-                                                {auth.user.role !== 'data_entry' && (
+                                                {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                                                     <div className="flex items-center justify-center gap-3">
                                                         <button
                                                             type="button"
@@ -421,8 +421,10 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 <input id="emp_rib" type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
                             </div>
 
-                            {/* Enterprise Assignment */}
-                            {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
+                            {/* Enterprise Assignment — shown whenever there's more than one division to pick
+                                from; EmployeeController::index() only ever populates `enterprises` for
+                                super_admin/farm_manager and a farm-scoped (no fixed enterprise_id) data_entry. */}
+                            {enterprises.length > 0 && (
                                 <div>
                                     <label htmlFor="emp_enterprise_id" className="block text-xs font-black uppercase text-blue-600 mb-1">{t('assign_to_ferme')}</label>
                                     <select

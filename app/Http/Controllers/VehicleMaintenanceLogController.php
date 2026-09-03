@@ -22,10 +22,7 @@ class VehicleMaintenanceLogController extends Controller
 
     public function store(Request $request, Vehicle $vehicle)
     {
-        // Matches ManualStockEntryController::store() / VehicleController::store() — data_entry
-        // may log day-to-day operations (updates, sorties) but not create new structural
-        // records. A repair log is closer to the latter than to a simple stock movement.
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertVehicleInScope($request, $vehicle);
@@ -66,7 +63,7 @@ class VehicleMaintenanceLogController extends Controller
 
     public function destroy(Request $request, VehicleMaintenanceLog $maintenanceLog)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertLogInScope($request, $maintenanceLog);

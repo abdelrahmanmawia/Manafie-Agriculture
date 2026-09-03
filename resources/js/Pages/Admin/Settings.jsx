@@ -76,9 +76,28 @@ export default function Settings({ auth, enterprise, quinzaines }) {
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
 
-                    {/* ENTERPRISE DETAILS */}
+                    {/* ENTERPRISE DETAILS — editing name/rate/contract_type (enterprises.update) is a
+                        structural, payroll-formula-affecting change kept farm_manager/super_admin-only
+                        (see EnterpriseController::assertEnterpriseStructuralAccess); a data_entry
+                        granted Pointage access only gets a read-only summary here. */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-blue-600">
                         <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">Détails de la Division</h3>
+                        {auth.user.role === 'data_entry' ? (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                                <div>
+                                    <div className="text-xs font-black uppercase text-gray-400 mb-1">Nom de la Division</div>
+                                    <div className="font-bold text-gray-800">{enterprise.name}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black uppercase text-gray-400 mb-1">Salaire Brut (DH)</div>
+                                    <div className="font-bold text-gray-800">{enterprise.default_brut_rate}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-black uppercase text-gray-400 mb-1">Type Contrat</div>
+                                    <div className="font-bold text-gray-800">{enterprise.contract_type === 'avec_contrat' ? 'Avec Contrat' : 'Sans Contrat'}</div>
+                                </div>
+                            </div>
+                        ) : (
                         <form onSubmit={submitEdit} className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
                             <div>
                                 <label className="block text-xs font-black uppercase text-gray-400 mb-1">Nom de la Division</label>
@@ -148,6 +167,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                 )}
                             </div>
                         </form>
+                        )}
                     </div>
 
                     {/* QUINZAINE MANAGEMENT */}

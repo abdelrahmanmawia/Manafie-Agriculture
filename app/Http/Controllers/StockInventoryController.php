@@ -80,7 +80,7 @@ class StockInventoryController extends Controller
     // row instead of updating the one the rest of the app already reads.
     public function count(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 

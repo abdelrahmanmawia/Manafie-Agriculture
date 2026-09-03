@@ -37,7 +37,7 @@ class StockExitTypeController extends Controller
 
     public function store(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -60,7 +60,7 @@ class StockExitTypeController extends Controller
 
     public function update(Request $request, StockExitType $exitType)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertExitTypeInScope($request, $exitType);
@@ -80,7 +80,7 @@ class StockExitTypeController extends Controller
 
     public function destroy(Request $request, StockExitType $exitType)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertExitTypeInScope($request, $exitType);

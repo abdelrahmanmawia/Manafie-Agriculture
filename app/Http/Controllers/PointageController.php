@@ -68,7 +68,11 @@ class PointageController extends Controller
         // division on the farm at once — assertQuinzaineInScope() below only confirms the
         // requester can see the ONE quinzaine passed in, which let an enterprise-scoped
         // data_entry export every other division's payroll by passing their own quinzaine id.
-        abort_unless(in_array($user->role, ['super_admin', 'farm_manager']), 403);
+        // A farm-scoped (not locked to one division) data_entry with Pointage access is fine —
+        // assertQuinzaineInScope()'s own farm_id branch already bounds them to this farm, same
+        // as farm_manager; only an enterprise-scoped one must stay blocked.
+        $isFarmScopedPointageDataEntry = $user->role === 'data_entry' && $user->canAccessPointage() && !$user->enterprise_id;
+        abort_unless(in_array($user->role, ['super_admin', 'farm_manager']) || $isFarmScopedPointageDataEntry, 403);
 
         $quinzaine->loadMissing('enterprise');
         $this->assertQuinzaineInScope($user, $quinzaine);

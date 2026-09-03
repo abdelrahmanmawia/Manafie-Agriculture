@@ -25,11 +25,30 @@ class EnterpriseController extends Controller
     }
 
     /**
-     * Division-level mutations (create/edit a division, open/close its pay periods, manage its
-     * operations/blocs) are for that division's own farm_manager (or a super_admin working
-     * within that farm) only — never data_entry, and never another farm's manager.
+     * Day-to-day Pointage-domain operations within an EXISTING division (open/close/edit pay
+     * periods, add/remove its operations/blocs) — that division's own farm_manager (or a
+     * super_admin working within that farm), or a data_entry granted Pointage access
+     * (canAccessPointage()) — never a stock-only data_entry, and never another farm's manager.
      */
     private function assertEnterpriseManagerAccess(Request $request, int $farmId): void
+    {
+        $user = $request->user();
+        abort_unless($user->canAccessPointage(), 403);
+
+        if ($user->role === 'super_admin') {
+            abort_unless((int) session('active_farm_id') === $farmId, 403);
+            return;
+        }
+
+        abort_unless($user->farm_id === $farmId, 403);
+    }
+
+    /**
+     * Creating/renaming/deleting a division itself — including its contract_type, which
+     * branches PayrollService's whole formula — is a structural decision, not routine pointage
+     * work. Stays farm_manager/super_admin-only regardless of a data_entry's domain flags.
+     */
+    private function assertEnterpriseStructuralAccess(Request $request, int $farmId): void
     {
         $user = $request->user();
         abort_if($user->role === 'data_entry', 403);
@@ -46,6 +65,18 @@ class EnterpriseController extends Controller
     {
         $user = $request->user();
         $farmId = session('active_farm_id');
+
+        // A data_entry granted exactly one domain (magasinier or pointeur) has no real use for
+        // the Hub — send them straight into the zone they actually work in. One with both (or
+        // neither) flag still lands on the normal Hub below.
+        if ($user->role === 'data_entry' && $user->farm_id) {
+            if ($user->canAccessPointage() && ! $user->canAccessStock()) {
+                return redirect()->route('pointage.index');
+            }
+            if ($user->canAccessStock() && ! $user->canAccessPointage()) {
+                return redirect()->route('stock.dashboard');
+            }
+        }
 
         if ($user->role === 'super_admin') {
             if ($farmId) {
@@ -182,7 +213,7 @@ class EnterpriseController extends Controller
             'invoiced_to_client' => 'nullable|boolean',
         ]);
 
-        $this->assertEnterpriseManagerAccess($request, (int) $request->farm_id);
+        $this->assertEnterpriseStructuralAccess($request, (int) $request->farm_id);
 
         Enterprise::create([
             'farm_id' => $request->farm_id,
@@ -198,9 +229,7 @@ class EnterpriseController extends Controller
 
     public function settings(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
-            abort(403);
-        }
+        abort_unless($request->user()->canAccessPointage(), 403);
 
         $enterpriseId = $request->user()->enterprise_id ?? $request->query('enterprise_id');
         
@@ -229,7 +258,7 @@ class EnterpriseController extends Controller
 
     public function update(Request $request, Enterprise $enterprise)
     {
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseStructuralAccess($request, $enterprise->farm_id);
 
         $request->validate([
             'name' => 'required|string|max:255',
@@ -257,7 +286,7 @@ class EnterpriseController extends Controller
 
     public function destroy(Request $request, Enterprise $enterprise)
     {
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseStructuralAccess($request, $enterprise->farm_id);
 
         // Employees are farm-scoped but still reference a division; the FK cascades on
         // enterprise delete, so detach first to keep the worker records.

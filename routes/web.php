@@ -71,22 +71,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-    Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
-    Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
-    Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
-    Route::post('/employees/{employee}/toggle-active', [EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
-    Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
-
-    Route::get('/settings', [EnterpriseController::class, 'settings'])->name('settings.index');
-    Route::post('/settings/operation', [EnterpriseController::class, 'addOperation'])->name('settings.operation');
-    Route::delete('/settings/operation/{operation}', [EnterpriseController::class, 'deleteOperation'])->name('settings.operation.destroy');
-    Route::post('/settings/bloc', [EnterpriseController::class, 'addBloc'])->name('settings.bloc');
-    Route::delete('/settings/bloc/{bloc}', [EnterpriseController::class, 'deleteBloc'])->name('settings.bloc.destroy');
-    Route::post('/settings/quinzaine', [EnterpriseController::class, 'createQuinzaine'])->name('settings.quinzaine');
-    Route::put('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'updateQuinzaine'])->name('settings.quinzaine.update');
-    Route::delete('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'deleteQuinzaine'])->name('settings.quinzaine.delete');
-    Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
-
     Route::middleware('farm.selected')->group(function () {
     Route::middleware('access.domain:pointage')->group(function () {
     // Pointage
@@ -117,6 +101,26 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/harvests', [HarvestController::class, 'store'])->name('harvests.store');
     Route::post('/harvests/bulk-weigh', [HarvestController::class, 'bulkWeigh'])->name('harvests.bulkWeigh');
     Route::delete('/harvests/{harvest}', [HarvestController::class, 'destroy'])->name('harvests.destroy');
+
+    // Employees — Pointage-domain master data (see EmployeeController::assertEmployeeManagerAccess).
+    // A stock-only data_entry (magasinier) must never reach these, hence the domain gate rather
+    // than relying solely on the controller's own role check.
+    Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
+    Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
+    Route::post('/employees/{employee}/toggle-active', [EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
+    Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+
+    // Division/Quinzaine/Bloc/Operation management — same domain as Employees above.
+    Route::get('/settings', [EnterpriseController::class, 'settings'])->name('settings.index');
+    Route::post('/settings/operation', [EnterpriseController::class, 'addOperation'])->name('settings.operation');
+    Route::delete('/settings/operation/{operation}', [EnterpriseController::class, 'deleteOperation'])->name('settings.operation.destroy');
+    Route::post('/settings/bloc', [EnterpriseController::class, 'addBloc'])->name('settings.bloc');
+    Route::delete('/settings/bloc/{bloc}', [EnterpriseController::class, 'deleteBloc'])->name('settings.bloc.destroy');
+    Route::post('/settings/quinzaine', [EnterpriseController::class, 'createQuinzaine'])->name('settings.quinzaine');
+    Route::put('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'updateQuinzaine'])->name('settings.quinzaine.update');
+    Route::delete('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'deleteQuinzaine'])->name('settings.quinzaine.delete');
+    Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
     }); // end access.domain:pointage group
 
     Route::middleware('access.domain:stock')->group(function () {

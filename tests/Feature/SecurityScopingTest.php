@@ -29,6 +29,7 @@ class SecurityScopingTest extends TestCase
     private Enterprise $enterpriseB;
     private User $managerA;
     private User $dataEntryA;
+    private User $dataEntryNoPointage;
     private Employee $employeeA;
     private Employee $employeeB;
     private Quinzaine $quinzaineB;
@@ -63,9 +64,20 @@ class SecurityScopingTest extends TestCase
             'farm_id' => $this->farmA->id,
         ]);
 
+        // Has full Pointage access by default (matches the factory's fail-open default) — the
+        // "pointeur" case, allowed to do everything below. dataEntryNoPointage is the
+        // "magasinier" case (stock-only), used to prove the boundary still blocks someone
+        // without the flag.
         $this->dataEntryA = User::factory()->create([
             'role' => 'data_entry',
             'farm_id' => $this->farmA->id,
+        ]);
+
+        $this->dataEntryNoPointage = User::factory()->create([
+            'role' => 'data_entry',
+            'farm_id' => $this->farmA->id,
+            'can_access_pointage' => false,
+            'can_access_stock' => true,
         ]);
 
         $this->employeeA = Employee::create([
@@ -200,7 +212,7 @@ class SecurityScopingTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_data_entry_cannot_close_a_quinzaine(): void
+    public function test_data_entry_with_pointage_access_can_close_a_quinzaine(): void
     {
         $ownQuinzaine = Quinzaine::create([
             'enterprise_id' => $this->enterpriseA->id,
@@ -208,6 +220,18 @@ class SecurityScopingTest extends TestCase
         ]);
 
         $this->actingAs($this->dataEntryA)
+            ->post('/settings/quinzaine/' . $ownQuinzaine->id . '/close')
+            ->assertRedirect();
+    }
+
+    public function test_data_entry_without_pointage_access_cannot_close_a_quinzaine(): void
+    {
+        $ownQuinzaine = Quinzaine::create([
+            'enterprise_id' => $this->enterpriseA->id,
+            'label' => '1QZ Test A', 'start_date' => '2026-01-01', 'end_date' => '2026-01-15', 'is_closed' => false,
+        ]);
+
+        $this->actingAs($this->dataEntryNoPointage)
             ->post('/settings/quinzaine/' . $ownQuinzaine->id . '/close')
             ->assertForbidden();
     }
@@ -241,9 +265,18 @@ class SecurityScopingTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_data_entry_cannot_delete_a_bloc(): void
+    public function test_data_entry_with_pointage_access_can_delete_a_bloc(): void
     {
         $this->actingAs($this->dataEntryA)
+            ->delete('/farms/blocs/' . $this->blocA->id)
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('blocs', ['id' => $this->blocA->id]);
+    }
+
+    public function test_data_entry_without_pointage_access_cannot_delete_a_bloc(): void
+    {
+        $this->actingAs($this->dataEntryNoPointage)
             ->delete('/farms/blocs/' . $this->blocA->id)
             ->assertForbidden();
     }
@@ -287,11 +320,23 @@ class SecurityScopingTest extends TestCase
         $this->assertDatabaseMissing('farms', ['id' => $this->farmA->id]);
     }
 
-    public function test_data_entry_cannot_create_an_employee(): void
+    public function test_data_entry_with_pointage_access_can_create_an_employee(): void
     {
         $this->actingAs($this->dataEntryA)
             ->post('/employees', [
-                'matricule' => 'NEW-1', 'full_name' => 'New Employee', 'type' => 'hafila',
+                'matricule' => 'NEW-1', 'full_name' => 'New Employee',
+                'base_rate' => 90, 'enterprise_id' => $this->enterpriseA->id,
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('employees', ['matricule' => 'NEW-1']);
+    }
+
+    public function test_data_entry_without_pointage_access_cannot_create_an_employee(): void
+    {
+        $this->actingAs($this->dataEntryNoPointage)
+            ->post('/employees', [
+                'matricule' => 'NEW-1', 'full_name' => 'New Employee',
                 'base_rate' => 90, 'enterprise_id' => $this->enterpriseA->id,
             ])
             ->assertForbidden();
@@ -307,16 +352,34 @@ class SecurityScopingTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_data_entry_cannot_delete_an_employee(): void
+    public function test_data_entry_with_pointage_access_can_delete_an_employee(): void
     {
         $this->actingAs($this->dataEntryA)
+            ->delete('/employees/' . $this->employeeA->id)
+            ->assertRedirect();
+
+        $this->assertDatabaseMissing('employees', ['id' => $this->employeeA->id]);
+    }
+
+    public function test_data_entry_without_pointage_access_cannot_delete_an_employee(): void
+    {
+        $this->actingAs($this->dataEntryNoPointage)
             ->delete('/employees/' . $this->employeeA->id)
             ->assertForbidden();
     }
 
-    public function test_data_entry_cannot_toggle_employee_active(): void
+    public function test_data_entry_with_pointage_access_can_toggle_employee_active(): void
     {
         $this->actingAs($this->dataEntryA)
+            ->post('/employees/' . $this->employeeA->id . '/toggle-active')
+            ->assertRedirect();
+
+        $this->assertFalse($this->employeeA->fresh()->is_active);
+    }
+
+    public function test_data_entry_without_pointage_access_cannot_toggle_employee_active(): void
+    {
+        $this->actingAs($this->dataEntryNoPointage)
             ->post('/employees/' . $this->employeeA->id . '/toggle-active')
             ->assertForbidden();
     }

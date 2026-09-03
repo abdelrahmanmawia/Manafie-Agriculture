@@ -103,7 +103,7 @@ class ManualStockEntryController extends Controller
 
     public function store(Request $request)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -367,7 +367,7 @@ class ManualStockEntryController extends Controller
 
     public function destroy(Request $request, $manualStockEntry)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
 
@@ -405,7 +405,7 @@ class ManualStockEntryController extends Controller
 
     public function verify(Request $request, ManualStockEntry $manualStockEntry)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         $this->assertEntryInScope($request, $manualStockEntry);

@@ -109,7 +109,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
                                     Choisissez une division pour gérer ses quinzaines de pointage.
                                 </p>
                             </div>
-                            {farm && (
+                            {farm && auth.user.role !== 'data_entry' && (
                                 <button
                                     onClick={() => setShowEntForm(!showEntForm)}
                                     className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-md"

@@ -48,7 +48,7 @@ class StockAlertController extends Controller
 
     public function resolve(Request $request, StockAlert $alert)
     {
-        if ($request->user()->role === 'data_entry') {
+        if (! $request->user()->canAccessStock()) {
             abort(403);
         }
         // Same gap as every other Stock show/update method audited — trusted the
