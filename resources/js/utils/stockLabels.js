@@ -6,10 +6,13 @@
 
 export const UNIT_TYPE_LABELS = {
     kg: 'kg',
+    tonnes: 'tonnes',
     liters: 'litres',
+    meters: 'mètres',
     units: 'unités',
     boxes: 'boîtes',
     bags: 'sacs',
+    rolls: 'rouleaux',
 };
 
 export const ENTRY_TYPE_LABELS = {

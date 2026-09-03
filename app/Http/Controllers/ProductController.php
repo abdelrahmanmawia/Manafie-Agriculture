@@ -94,10 +94,13 @@ class ProductController extends Controller
     {
         $unitTypes = [
             'kg',
+            'tonnes',
             'liters',
+            'meters',
             'units',
             'boxes',
-            'bags'
+            'bags',
+            'rolls'
         ];
 
         return response()->json($unitTypes);
@@ -130,7 +133,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'category_id' => ['required', Rule::exists('product_categories', 'id')->where('farm_id', $farmId)],
-            'unit_type' => 'required|in:kg,liters,units,boxes,bags',
+            'unit_type' => 'required|in:kg,tonnes,liters,meters,units,boxes,bags,rolls',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
             'is_active' => 'boolean',
@@ -199,7 +202,7 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
             'category_id' => ['sometimes', 'required', Rule::exists('product_categories', 'id')->where('farm_id', $product->farm_id)],
-            'unit_type' => 'sometimes|required|in:kg,liters,units,boxes,bags',
+            'unit_type' => 'sometimes|required|in:kg,tonnes,liters,meters,units,boxes,bags,rolls',
             'min_stock_level' => 'nullable|numeric|min:0',
             'unit_cost' => 'nullable|numeric|min:0',
             // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
