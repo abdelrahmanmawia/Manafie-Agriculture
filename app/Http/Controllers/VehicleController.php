@@ -48,7 +48,6 @@ class VehicleController extends Controller
 
         $vehicles = $query->orderBy('name')->get();
 
-        $types = $this->types()->original;
         $equipmentTypes = $this->equipmentTypes()->original;
         $fuelTypes = $this->fuelTypes()->original;
         $employees = Employee::where('is_active', true)
@@ -57,24 +56,10 @@ class VehicleController extends Controller
 
         return Inertia::render('Stock/Vehicles/Index', [
             'vehicles' => $vehicles,
-            'types' => $types,
+            'vehicleTypes' => $this->vehicleTypesFor($farmId),
             'equipmentTypes' => $equipmentTypes,
             'fuelTypes' => $fuelTypes,
             'employees' => $employees,        ]);
-    }
-
-    public function types(): JsonResponse
-    {
-        $types = [
-            'tractor',
-            'truck',
-            'van',
-            'car',
-            'quad',
-            'other'
-        ];
-
-        return response()->json($types);
     }
 
     // Non-vehicle assets (pumps, generators, sprayers, tools) — the "type" column is a plain
@@ -110,10 +95,13 @@ class VehicleController extends Controller
         return response()->json($fuelTypes);
     }
 
-    // Equipment (pumps, generators...) has no plate — only vehicles do.
-    private function allowedTypesFor(string $assetType): array
+    // Equipment (pumps, generators...) has no plate — only vehicles do. Vehicle types are
+    // farm-configurable (vehicleTypesFor()); equipment types stay the fixed list above.
+    private function allowedTypesFor(string $assetType, int $farmId, ?string $mustIncludeKey = null): array
     {
-        return $assetType === 'equipment' ? $this->equipmentTypes()->original : $this->types()->original;
+        return $assetType === 'equipment'
+            ? $this->equipmentTypes()->original
+            : $this->vehicleTypesFor($farmId, $mustIncludeKey)->pluck('key')->all();
     }
 
     public function store(Request $request)
@@ -122,12 +110,14 @@ class VehicleController extends Controller
             abort(403);
         }
 
+        $farmId = $this->resolveWriteFarmId($request);
+
         $validated = $request->validate([
             'asset_type' => 'required|in:vehicle,equipment',
             'name' => 'required|string|max:255',
             'plate_number' => 'required_if:asset_type,vehicle|nullable|string|unique:vehicles,plate_number',
             'serial_number' => 'nullable|string|max:255',
-            'type' => ['required', Rule::in($this->allowedTypesFor($request->input('asset_type')))],
+            'type' => ['required', Rule::in($this->allowedTypesFor($request->input('asset_type'), $farmId))],
             'model' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:50',
             'capacity_liters' => 'nullable|numeric|min:0',
@@ -153,7 +143,7 @@ class VehicleController extends Controller
         ]);
 
         Vehicle::create([
-            'farm_id' => $this->resolveWriteFarmId($request),
+            'farm_id' => $farmId,
             'asset_type' => $validated['asset_type'],
             'name' => $validated['name'],
             'plate_number' => $validated['plate_number'] ?? null,
@@ -204,7 +194,7 @@ class VehicleController extends Controller
 
         return Inertia::render('Stock/Vehicles/Show', [
             'vehicle' => $vehicle,
-            'types' => $this->types()->original,
+            'vehicleTypes' => $this->vehicleTypesFor($vehicle->farm_id, $vehicle->asset_type === 'vehicle' ? $vehicle->type : null),
             'equipmentTypes' => $this->equipmentTypes()->original,
             'fuelTypes' => $this->fuelTypes()->original,
             'employees' => $employees,
@@ -235,7 +225,7 @@ class VehicleController extends Controller
             'name' => 'sometimes|required|string|max:255',
             'plate_number' => 'required_if:asset_type,vehicle|nullable|string|unique:vehicles,plate_number,' . $vehicle->id,
             'serial_number' => 'nullable|string|max:255',
-            'type' => ['sometimes', 'required', Rule::in($this->allowedTypesFor($effectiveAssetType))],
+            'type' => ['sometimes', 'required', Rule::in($this->allowedTypesFor($effectiveAssetType, $vehicle->farm_id, $vehicle->type))],
             'model' => 'nullable|string|max:255',
             'fuel_type' => 'nullable|string|max:50',
             'capacity_liters' => 'nullable|numeric|min:0',

@@ -76,6 +76,38 @@ class Controller extends BaseController
     }
 
     /**
+     * Active vehicle "Type" options for a farm's Véhicules forms — configurable by
+     * farm_manager/super_admin (see VehicleTypeController) instead of a hardcoded list. Same
+     * self-seeding/mustIncludeKey pattern as exitTypesFor() — see there for why. Equipment
+     * types stay a separate, still-hardcoded list (VehicleController::equipmentTypes()); only
+     * "vehicle" asset_type entries use this table.
+     */
+    protected function vehicleTypesFor(?int $farmId, ?string $mustIncludeKey = null)
+    {
+        if (!$farmId) {
+            return collect();
+        }
+
+        if (! \App\Models\VehicleType::where('farm_id', $farmId)->exists()) {
+            foreach ([
+                ['key' => 'tractor', 'label' => 'Tracteur'],
+                ['key' => 'truck', 'label' => 'Camion'],
+                ['key' => 'van', 'label' => 'Camionnette'],
+                ['key' => 'car', 'label' => 'Voiture'],
+                ['key' => 'quad', 'label' => 'Quad'],
+                ['key' => 'other', 'label' => 'Autre'],
+            ] as $default) {
+                \App\Models\VehicleType::create($default + ['farm_id' => $farmId]);
+            }
+        }
+
+        return \App\Models\VehicleType::where('farm_id', $farmId)
+            ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
+            ->orderBy('id')
+            ->get(['id', 'key', 'label']);
+    }
+
+    /**
      * Validate a requested ?enterprise_id against the resolved farm scope before trusting it.
      * Several Pointage/Analytics/Payroll queries only apply their farm_id filter "when no
      * enterprise_id is given" — without this check, an unvalidated enterprise_id belonging to a

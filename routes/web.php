@@ -22,6 +22,7 @@ use App\Http\Controllers\ManualStockEntryController;
 use App\Http\Controllers\StockReportController;
 use App\Http\Controllers\StockController; // Import StockController
 use App\Http\Controllers\StockExitTypeController;
+use App\Http\Controllers\VehicleTypeController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -142,6 +143,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/vehicles/{vehicle}', [VehicleController::class, 'update'])->name('stock.vehicles.update');
     Route::delete('/stock/vehicles/{vehicle}', [VehicleController::class, 'destroy'])->name('stock.vehicles.destroy');
     Route::post('/stock/vehicles/{vehicle}/toggle-active', [VehicleController::class, 'toggleActive'])->name('stock.vehicles.toggle-active');
+
+    // Stock Management - Vehicle Types (the "Type" options for vehicle assets — configurable per farm)
+    Route::post('/stock/vehicle-types', [VehicleTypeController::class, 'store'])->name('stock.vehicle-types.store');
+    Route::put('/stock/vehicle-types/{vehicleType}', [VehicleTypeController::class, 'update'])->name('stock.vehicle-types.update');
+    Route::delete('/stock/vehicle-types/{vehicleType}', [VehicleTypeController::class, 'destroy'])->name('stock.vehicle-types.destroy');
 
     // Stock Management - Vehicle/Equipment Maintenance Logs
     Route::post('/stock/vehicles/{vehicle}/maintenance-logs', [VehicleMaintenanceLogController::class, 'store'])->name('stock.vehicles.maintenance-logs.store');

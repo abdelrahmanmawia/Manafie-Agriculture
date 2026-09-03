@@ -43,12 +43,20 @@ const EQUIPMENT_ICON = (
 
 const getIcon = (vehicle) => (vehicle.asset_type === 'equipment' ? EQUIPMENT_ICON : (TYPE_ICON[vehicle.type] || TYPE_ICON.other));
 
-export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes, employees }) {
+export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fuelTypes, employees }) {
     const [isCreating, setIsCreating] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [assetTypeFilter, setAssetTypeFilter] = useState('');
     const [selectedType, setSelectedType] = useState('');
+    const [isManagingTypes, setIsManagingTypes] = useState(false);
+    const canManageTypes = auth.user.role !== 'data_entry';
+
+    // vehicleTypes is the DB-backed, farm-configurable list ({id, key, label}); everything
+    // below that only needs the raw key list or a label lookup derives from it, so the rest of
+    // this page's logic (built around a flat key array, same as equipmentTypes) stays unchanged.
+    const types = vehicleTypes.map((t) => t.key);
+    const vehicleTypeLabelMap = Object.fromEntries(vehicleTypes.map((t) => [t.key, t.label]));
 
     const { data, setData, post, put, processing, reset, errors, clearErrors } = useForm({
         asset_type: 'vehicle',
@@ -69,7 +77,7 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
     });
 
     const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
-    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : TYPE_LABELS);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
 
     const handleAssetTypeChange = (assetType) => {
         const options = typeOptionsFor(assetType);
@@ -155,16 +163,28 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Véhicules & Matériel</h2>
                         <p className="text-sm text-gray-500 mt-1">Parc de véhicules et équipement agricole de la ferme</p>
                     </div>
-                    {auth.user.role !== 'data_entry' && (
-                        <button
-                            onClick={openCreate}
-                            className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Ajouter un Actif
-                        </button>
+                    {canManageTypes && (
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => setIsManagingTypes(true)}
+                                className="text-gray-500 hover:text-gray-700 px-4 py-3 rounded-xl font-bold uppercase tracking-widest text-sm border-2 border-gray-200 hover:border-gray-300 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Types de Véhicule
+                            </button>
+                            <button
+                                onClick={openCreate}
+                                className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Ajouter un Actif
+                            </button>
+                        </div>
                     )}
                 </div>
             }
@@ -251,7 +271,7 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                                 >
                                     <option value="">Tous les types</option>
                                     {(assetTypeFilter === 'equipment' ? equipmentTypes : assetTypeFilter === 'vehicle' ? types : [...new Set([...types, ...equipmentTypes])]).map((type) => (
-                                        <option key={type} value={type}>{TYPE_LABELS[type] || EQUIPMENT_TYPE_LABELS[type] || type}</option>
+                                        <option key={type} value={type}>{vehicleTypeLabelMap[type] || TYPE_LABELS[type] || EQUIPMENT_TYPE_LABELS[type] || type}</option>
                                     ))}
                                 </select>
                             </div>
@@ -629,6 +649,125 @@ export default function Index({ auth, vehicles, types, equipmentTypes, fuelTypes
                     </form>
                 </div>
             </Modal>
+
+            {canManageTypes && (
+                <Modal show={isManagingTypes} onClose={() => setIsManagingTypes(false)}>
+                    <ManageVehicleTypesModal vehicleTypes={vehicleTypes} onClose={() => setIsManagingTypes(false)} />
+                </Modal>
+            )}
         </AuthenticatedLayout>
+    );
+}
+
+// A farm_manager/super_admin's own settings for what the vehicle "Type" field offers on the
+// create/edit forms — everyone else just picks from whatever's listed there. Mirrors
+// ManageExitTypesModal in Stock/ManualStockEntries/Index.jsx.
+function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
+    const [editingId, setEditingId] = useState(null);
+    const [editingLabel, setEditingLabel] = useState('');
+    const [deleteError, setDeleteError] = useState('');
+
+    const { data, setData, post, processing, errors, reset } = useForm({
+        label: '',
+    });
+
+    const submitNew = (e) => {
+        e.preventDefault();
+        post(route('stock.vehicle-types.store'), { onSuccess: () => reset() });
+    };
+
+    const startEditing = (vehicleType) => {
+        setEditingId(vehicleType.id);
+        setEditingLabel(vehicleType.label);
+    };
+
+    const saveEditing = (vehicleType) => {
+        if (!editingLabel.trim() || editingLabel === vehicleType.label) {
+            setEditingId(null);
+            return;
+        }
+        router.put(route('stock.vehicle-types.update', vehicleType.id), { label: editingLabel }, {
+            onSuccess: () => setEditingId(null),
+        });
+    };
+
+    const remove = (vehicleType) => {
+        if (!window.confirm(`Supprimer le type "${vehicleType.label}" ?`)) return;
+        setDeleteError('');
+        router.delete(route('stock.vehicle-types.destroy', vehicleType.id), {
+            onError: (errs) => setDeleteError(errs.vehicle_type || 'Suppression impossible.'),
+        });
+    };
+
+    return (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types de Véhicule</h3>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+                Ces options apparaissent dans le champ "Type" du formulaire véhicule (l'équipement a sa propre liste, non modifiable ici).
+            </p>
+
+            {deleteError && (
+                <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</div>
+            )}
+
+            <ul className="divide-y divide-gray-100 border border-gray-200 rounded-xl mb-6">
+                {vehicleTypes.map((vehicleType) => (
+                    <li key={vehicleType.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        {editingId === vehicleType.id ? (
+                            <input
+                                type="text"
+                                autoFocus
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                onBlur={() => saveEditing(vehicleType)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEditing(vehicleType)}
+                                className="flex-1 border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm text-sm"
+                            />
+                        ) : (
+                            <button
+                                onClick={() => startEditing(vehicleType)}
+                                className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-gray-900"
+                            >
+                                {vehicleType.label}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => remove(vehicleType)}
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            title="Supprimer"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+
+            <form onSubmit={submitNew} className="border-t pt-4 space-y-3">
+                <InputLabel htmlFor="new_vehicle_type_label" value="Ajouter un type" />
+                <div className="flex gap-3">
+                    <TextInput
+                        id="new_vehicle_type_label"
+                        className="flex-1"
+                        placeholder="Ex: Chargeuse"
+                        value={data.label}
+                        onChange={(e) => setData('label', e.target.value)}
+                    />
+                    <PrimaryButton disabled={processing} className="bg-gray-700 hover:bg-gray-800">
+                        Ajouter
+                    </PrimaryButton>
+                </div>
+                <InputError message={errors.label} />
+            </form>
+        </div>
     );
 }

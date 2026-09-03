@@ -20,7 +20,9 @@ import {
     EQUIPMENT_TYPE_LABELS,
 } from '@/utils/stockLabels';
 
-export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, employees }) {
+export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuelTypes, employees }) {
+    const types = vehicleTypes.map((t) => t.key);
+    const vehicleTypeLabelMap = Object.fromEntries(vehicleTypes.map((t) => [t.key, t.label]));
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
     const [confirmingMaintenanceLogDeletion, setConfirmingMaintenanceLogDeletion] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -29,7 +31,7 @@ export default function Show({ auth, vehicle, types, equipmentTypes, fuelTypes, 
     const { delete: destroy, processing, errors } = useForm();
 
     const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
-    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : TYPE_LABELS);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
 
     const editForm = useForm({
         asset_type: vehicle.asset_type,
