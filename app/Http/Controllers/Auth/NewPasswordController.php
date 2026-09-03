@@ -38,6 +38,12 @@ class NewPasswordController extends Controller
             'token' => 'required',
             'email' => 'required|email',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+        ], [
+            'email.required' => "L'adresse e-mail est requise.",
+            'email.email' => "Veuillez saisir une adresse e-mail valide.",
+            'password.required' => 'Le mot de passe est requis.',
+            'password.confirmed' => 'La confirmation du mot de passe ne correspond pas.',
+            'password.min' => 'Le mot de passe doit contenir au moins :min caractères.',
         ]);
 
         // Here we will attempt to reset the user's password. If it is successful we
@@ -58,12 +64,20 @@ class NewPasswordController extends Controller
         // If the password was successfully reset, we will redirect the user back to
         // the application's home authenticated view. If there is an error we can
         // redirect them back to where they came from with their error message.
+        // See PasswordResetLinkController for why this is mapped inline rather than via a
+        // published lang/fr translation of Laravel's own status keys.
+        $messages = [
+            Password::PASSWORD_RESET => 'Votre mot de passe a été réinitialisé avec succès.',
+            Password::INVALID_TOKEN => 'Ce lien de réinitialisation est invalide ou a expiré.',
+            Password::INVALID_USER => 'Aucun compte associé à cette adresse e-mail.',
+        ];
+
         if ($status == Password::PASSWORD_RESET) {
-            return redirect()->route('login')->with('status', __($status));
+            return redirect()->route('login')->with('status', $messages[$status] ?? __($status));
         }
 
         throw ValidationException::withMessages([
-            'email' => [trans($status)],
+            'email' => [$messages[$status] ?? trans($status)],
         ]);
     }
 }
