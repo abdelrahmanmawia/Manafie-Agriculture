@@ -50,13 +50,17 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
     const [assetTypeFilter, setAssetTypeFilter] = useState('');
     const [selectedType, setSelectedType] = useState('');
     const [isManagingTypes, setIsManagingTypes] = useState(false);
+    const [isManagingEquipmentTypes, setIsManagingEquipmentTypes] = useState(false);
     const canManageTypes = auth.user.role !== 'data_entry';
 
-    // vehicleTypes is the DB-backed, farm-configurable list ({id, key, label}); everything
-    // below that only needs the raw key list or a label lookup derives from it, so the rest of
-    // this page's logic (built around a flat key array, same as equipmentTypes) stays unchanged.
+    // vehicleTypes/equipmentTypes are both DB-backed, farm-configurable lists ({id, key,
+    // label}); everything below that only needs the raw key list or a label lookup derives
+    // from them, so the rest of this page's logic (built around flat key arrays) stays
+    // unchanged.
     const types = vehicleTypes.map((t) => t.key);
     const vehicleTypeLabelMap = Object.fromEntries(vehicleTypes.map((t) => [t.key, t.label]));
+    const equipmentTypeKeys = equipmentTypes.map((t) => t.key);
+    const equipmentTypeLabelMap = Object.fromEntries(equipmentTypes.map((t) => [t.key, t.label]));
 
     const { data, setData, post, put, processing, reset, errors, clearErrors } = useForm({
         asset_type: 'vehicle',
@@ -76,8 +80,8 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
         notes: '',
     });
 
-    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
-    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
+    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypeKeys : types);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? { ...EQUIPMENT_TYPE_LABELS, ...equipmentTypeLabelMap } : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
 
     const handleAssetTypeChange = (assetType) => {
         const options = typeOptionsFor(assetType);
@@ -176,6 +180,16 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                                 Types de Véhicule
                             </button>
                             <button
+                                onClick={() => setIsManagingEquipmentTypes(true)}
+                                className="text-gray-500 hover:text-gray-700 px-4 py-3 rounded-xl font-bold uppercase tracking-widest text-sm border-2 border-gray-200 hover:border-gray-300 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                Types d'Équipement
+                            </button>
+                            <button
                                 onClick={openCreate}
                                 className="bg-gray-700 hover:bg-gray-800 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                             >
@@ -270,8 +284,8 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
                                 >
                                     <option value="">Tous les types</option>
-                                    {(assetTypeFilter === 'equipment' ? equipmentTypes : assetTypeFilter === 'vehicle' ? types : [...new Set([...types, ...equipmentTypes])]).map((type) => (
-                                        <option key={type} value={type}>{vehicleTypeLabelMap[type] || TYPE_LABELS[type] || EQUIPMENT_TYPE_LABELS[type] || type}</option>
+                                    {(assetTypeFilter === 'equipment' ? equipmentTypeKeys : assetTypeFilter === 'vehicle' ? types : [...new Set([...types, ...equipmentTypeKeys])]).map((type) => (
+                                        <option key={type} value={type}>{vehicleTypeLabelMap[type] || equipmentTypeLabelMap[type] || TYPE_LABELS[type] || EQUIPMENT_TYPE_LABELS[type] || type}</option>
                                     ))}
                                 </select>
                             </div>
@@ -655,6 +669,12 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                     <ManageVehicleTypesModal vehicleTypes={vehicleTypes} onClose={() => setIsManagingTypes(false)} />
                 </Modal>
             )}
+
+            {canManageTypes && (
+                <Modal show={isManagingEquipmentTypes} onClose={() => setIsManagingEquipmentTypes(false)}>
+                    <ManageEquipmentTypesModal equipmentTypes={equipmentTypes} onClose={() => setIsManagingEquipmentTypes(false)} />
+                </Modal>
+            )}
         </AuthenticatedLayout>
     );
 }
@@ -711,7 +731,7 @@ function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
             </div>
 
             <p className="text-sm text-gray-500 mb-4">
-                Ces options apparaissent dans le champ "Type" du formulaire véhicule (l'équipement a sa propre liste, non modifiable ici).
+                Ces options apparaissent dans le champ "Type" du formulaire véhicule (l'équipement a sa propre liste, gérée séparément).
             </p>
 
             {deleteError && (
@@ -759,6 +779,117 @@ function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
                         id="new_vehicle_type_label"
                         className="flex-1"
                         placeholder="Ex: Chargeuse"
+                        value={data.label}
+                        onChange={(e) => setData('label', e.target.value)}
+                    />
+                    <PrimaryButton disabled={processing} className="bg-gray-700 hover:bg-gray-800">
+                        Ajouter
+                    </PrimaryButton>
+                </div>
+                <InputError message={errors.label} />
+            </form>
+        </div>
+    );
+}
+
+// Same idea as ManageVehicleTypesModal, for the equipment side's own "Type" list.
+function ManageEquipmentTypesModal({ equipmentTypes, onClose }) {
+    const [editingId, setEditingId] = useState(null);
+    const [editingLabel, setEditingLabel] = useState('');
+    const [deleteError, setDeleteError] = useState('');
+
+    const { data, setData, post, processing, errors, reset } = useForm({
+        label: '',
+    });
+
+    const submitNew = (e) => {
+        e.preventDefault();
+        post(route('stock.equipment-types.store'), { onSuccess: () => reset() });
+    };
+
+    const startEditing = (equipmentType) => {
+        setEditingId(equipmentType.id);
+        setEditingLabel(equipmentType.label);
+    };
+
+    const saveEditing = (equipmentType) => {
+        if (!editingLabel.trim() || editingLabel === equipmentType.label) {
+            setEditingId(null);
+            return;
+        }
+        router.put(route('stock.equipment-types.update', equipmentType.id), { label: editingLabel }, {
+            onSuccess: () => setEditingId(null),
+        });
+    };
+
+    const remove = (equipmentType) => {
+        if (!window.confirm(`Supprimer le type "${equipmentType.label}" ?`)) return;
+        setDeleteError('');
+        router.delete(route('stock.equipment-types.destroy', equipmentType.id), {
+            onError: (errs) => setDeleteError(errs.equipment_type || 'Suppression impossible.'),
+        });
+    };
+
+    return (
+        <div className="p-8">
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types d'Équipement</h3>
+                <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <p className="text-sm text-gray-500 mb-4">
+                Ces options apparaissent dans le champ "Type" du formulaire équipement (le véhicule a sa propre liste, gérée séparément).
+            </p>
+
+            {deleteError && (
+                <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deleteError}</div>
+            )}
+
+            <ul className="divide-y divide-gray-100 border border-gray-200 rounded-xl mb-6">
+                {equipmentTypes.map((equipmentType) => (
+                    <li key={equipmentType.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        {editingId === equipmentType.id ? (
+                            <input
+                                type="text"
+                                autoFocus
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                onBlur={() => saveEditing(equipmentType)}
+                                onKeyDown={(e) => e.key === 'Enter' && saveEditing(equipmentType)}
+                                className="flex-1 border-gray-300 focus:border-gray-500 focus:ring-gray-500 rounded-lg shadow-sm text-sm"
+                            />
+                        ) : (
+                            <button
+                                onClick={() => startEditing(equipmentType)}
+                                className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-gray-900"
+                            >
+                                {equipmentType.label}
+                            </button>
+                        )}
+                        <button
+                            onClick={() => remove(equipmentType)}
+                            className="text-gray-400 hover:text-red-600 transition-colors"
+                            title="Supprimer"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+
+            <form onSubmit={submitNew} className="border-t pt-4 space-y-3">
+                <InputLabel htmlFor="new_equipment_type_label" value="Ajouter un type" />
+                <div className="flex gap-3">
+                    <TextInput
+                        id="new_equipment_type_label"
+                        className="flex-1"
+                        placeholder="Ex: Broyeur à Branches"
                         value={data.label}
                         onChange={(e) => setData('label', e.target.value)}
                     />

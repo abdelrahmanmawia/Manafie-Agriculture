@@ -48,7 +48,6 @@ class VehicleController extends Controller
 
         $vehicles = $query->orderBy('name')->get();
 
-        $equipmentTypes = $this->equipmentTypes()->original;
         $fuelTypes = $this->fuelTypes()->original;
         $employees = Employee::where('is_active', true)
             ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
@@ -57,30 +56,9 @@ class VehicleController extends Controller
         return Inertia::render('Stock/Vehicles/Index', [
             'vehicles' => $vehicles,
             'vehicleTypes' => $this->vehicleTypesFor($farmId),
-            'equipmentTypes' => $equipmentTypes,
+            'equipmentTypes' => $this->equipmentTypesFor($farmId),
             'fuelTypes' => $fuelTypes,
             'employees' => $employees,        ]);
-    }
-
-    // Non-vehicle assets (pumps, generators, sprayers, tools) — the "type" column is a plain
-    // string now (see migration), so this list is validated in the controller, not the DB.
-    public function equipmentTypes(): JsonResponse
-    {
-        $types = [
-            'pump',
-            'generator',
-            'sprayer',
-            'compressor',
-            'mulcher',
-            'plow',
-            'mower',
-            'leveler',
-            'roller',
-            'tool',
-            'other',
-        ];
-
-        return response()->json($types);
     }
 
     public function fuelTypes(): JsonResponse
@@ -95,12 +73,12 @@ class VehicleController extends Controller
         return response()->json($fuelTypes);
     }
 
-    // Equipment (pumps, generators...) has no plate — only vehicles do. Vehicle types are
-    // farm-configurable (vehicleTypesFor()); equipment types stay the fixed list above.
+    // Equipment (pumps, generators...) has no plate — only vehicles do. Both vehicle and
+    // equipment types are farm-configurable (vehicleTypesFor()/equipmentTypesFor()).
     private function allowedTypesFor(string $assetType, int $farmId, ?string $mustIncludeKey = null): array
     {
         return $assetType === 'equipment'
-            ? $this->equipmentTypes()->original
+            ? $this->equipmentTypesFor($farmId, $mustIncludeKey)->pluck('key')->all()
             : $this->vehicleTypesFor($farmId, $mustIncludeKey)->pluck('key')->all();
     }
 
@@ -195,7 +173,7 @@ class VehicleController extends Controller
         return Inertia::render('Stock/Vehicles/Show', [
             'vehicle' => $vehicle,
             'vehicleTypes' => $this->vehicleTypesFor($vehicle->farm_id, $vehicle->asset_type === 'vehicle' ? $vehicle->type : null),
-            'equipmentTypes' => $this->equipmentTypes()->original,
+            'equipmentTypes' => $this->equipmentTypesFor($vehicle->farm_id, $vehicle->asset_type === 'equipment' ? $vehicle->type : null),
             'fuelTypes' => $this->fuelTypes()->original,
             'employees' => $employees,
         ]);

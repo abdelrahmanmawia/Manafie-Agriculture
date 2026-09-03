@@ -108,6 +108,42 @@ class Controller extends BaseController
     }
 
     /**
+     * Active equipment "Type" options for a farm's Véhicules forms — configurable by
+     * farm_manager/super_admin (see EquipmentTypeController) instead of a hardcoded list. Same
+     * self-seeding/mustIncludeKey pattern as vehicleTypesFor()/exitTypesFor() — see there for
+     * why. Only asset_type=equipment vehicles use this table.
+     */
+    protected function equipmentTypesFor(?int $farmId, ?string $mustIncludeKey = null)
+    {
+        if (!$farmId) {
+            return collect();
+        }
+
+        if (! \App\Models\EquipmentType::where('farm_id', $farmId)->exists()) {
+            foreach ([
+                ['key' => 'pump', 'label' => 'Pompe'],
+                ['key' => 'generator', 'label' => 'Générateur'],
+                ['key' => 'sprayer', 'label' => 'Pulvérisateur / Atomiseur'],
+                ['key' => 'compressor', 'label' => 'Compresseur'],
+                ['key' => 'mulcher', 'label' => 'Broyeur'],
+                ['key' => 'plow', 'label' => 'Charrue à Disque'],
+                ['key' => 'mower', 'label' => 'Faucheuse'],
+                ['key' => 'leveler', 'label' => 'Lame Niveleuse'],
+                ['key' => 'roller', 'label' => 'Rouleau Cover Crop'],
+                ['key' => 'tool', 'label' => 'Outil'],
+                ['key' => 'other', 'label' => 'Autre'],
+            ] as $default) {
+                \App\Models\EquipmentType::create($default + ['farm_id' => $farmId]);
+            }
+        }
+
+        return \App\Models\EquipmentType::where('farm_id', $farmId)
+            ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
+            ->orderBy('id')
+            ->get(['id', 'key', 'label']);
+    }
+
+    /**
      * Validate a requested ?enterprise_id against the resolved farm scope before trusting it.
      * Several Pointage/Analytics/Payroll queries only apply their farm_id filter "when no
      * enterprise_id is given" — without this check, an unvalidated enterprise_id belonging to a

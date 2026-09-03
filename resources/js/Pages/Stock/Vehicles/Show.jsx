@@ -23,6 +23,8 @@ import {
 export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuelTypes, employees }) {
     const types = vehicleTypes.map((t) => t.key);
     const vehicleTypeLabelMap = Object.fromEntries(vehicleTypes.map((t) => [t.key, t.label]));
+    const equipmentTypeKeys = equipmentTypes.map((t) => t.key);
+    const equipmentTypeLabelMap = Object.fromEntries(equipmentTypes.map((t) => [t.key, t.label]));
     const [confirmingVehicleDeletion, setConfirmingVehicleDeletion] = useState(false);
     const [confirmingMaintenanceLogDeletion, setConfirmingMaintenanceLogDeletion] = useState(null);
     const [isEditing, setIsEditing] = useState(false);
@@ -30,8 +32,8 @@ export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuel
     const [editingMaintenanceLog, setEditingMaintenanceLog] = useState(null);
     const { delete: destroy, processing, errors } = useForm();
 
-    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypes : types);
-    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? EQUIPMENT_TYPE_LABELS : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
+    const typeOptionsFor = (assetType) => (assetType === 'equipment' ? equipmentTypeKeys : types);
+    const typeLabelsFor = (assetType) => (assetType === 'equipment' ? { ...EQUIPMENT_TYPE_LABELS, ...equipmentTypeLabelMap } : { ...TYPE_LABELS, ...vehicleTypeLabelMap });
 
     const editForm = useForm({
         asset_type: vehicle.asset_type,
