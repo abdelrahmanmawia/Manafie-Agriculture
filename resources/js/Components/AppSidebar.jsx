@@ -4,9 +4,15 @@ import { Link } from '@inertiajs/react';
 // Literal, complete class names per color — Tailwind's JIT scans source text for exact class
 // strings, so `bg-${color}-600` would silently produce no CSS. Same lookup-table pattern as
 // StatCard.jsx's `tones` map.
+//
+// Pointage was blue, Stock was purple — neither read as "the logo's app," so Pointage (the
+// original/primary domain) now uses the brand green (`primary`). Stock stays a genuinely
+// different hue on purpose — two green sections would be indistinguishable at a glance — teal
+// was picked over the old purple for a calmer, more "storage/inventory" feel that still
+// contrasts cleanly against green.
 const COLORS = {
-    blue: { text: 'text-blue-600', headerBg: 'bg-blue-50', activeBg: 'bg-blue-600', dot: 'bg-blue-600' },
-    purple: { text: 'text-purple-600', headerBg: 'bg-purple-50', activeBg: 'bg-purple-600', dot: 'bg-purple-600' },
+    green: { text: 'text-primary-600', headerBg: 'bg-primary-50', activeBg: 'bg-primary-600', dot: 'bg-primary-600' },
+    teal: { text: 'text-teal-600', headerBg: 'bg-teal-50', activeBg: 'bg-teal-600', dot: 'bg-teal-600' },
     gray: { text: 'text-gray-400', headerBg: 'bg-gray-50', activeBg: 'bg-gray-700', dot: 'bg-gray-400' },
 };
 

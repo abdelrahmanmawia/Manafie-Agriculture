@@ -181,7 +181,7 @@ export default function Index({ auth, stockInventory }) {
                                                             </button>
                                                             <Link
                                                                 href={route('stock.inventory.show', item.id)}
-                                                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                                className="text-gray-400 hover:text-primary-600 transition-colors"
                                                                 title="Détails"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

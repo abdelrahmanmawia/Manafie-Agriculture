@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import ApplicationLogo from '@/Components/ApplicationLogo';
+import Logo from '@/Components/Logo';
 import Dropdown from '@/Components/Dropdown';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
 import AppSidebar from '@/Components/AppSidebar';
@@ -106,10 +106,10 @@ export default function Authenticated({ user, header, children }) {
     // access to stays visible, with the section matching the current page open by default.
     const sections = [
         canAccessPointage && !needsFarmSelection
-            ? { id: 'pointage', label: t('pointage') || 'Pointage', color: 'blue', items: pointageItems, defaultOpen: isPointageZone }
+            ? { id: 'pointage', label: t('pointage') || 'Pointage', color: 'green', items: pointageItems, defaultOpen: isPointageZone }
             : null,
         canAccessStock && !needsFarmSelection
-            ? { id: 'stock', label: 'Gestion de Stock', color: 'purple', items: stockItems, defaultOpen: isStockZone }
+            ? { id: 'stock', label: 'Gestion de Stock', color: 'teal', items: stockItems, defaultOpen: isStockZone }
             : null,
         adminItems.length > 0
             ? { id: 'admin', label: 'Administration', color: 'gray', items: adminItems, defaultOpen: isAdminZone }
@@ -124,8 +124,8 @@ export default function Authenticated({ user, header, children }) {
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
                             <Link href="/" className="shrink-0 flex items-center gap-2.5">
-                                <ApplicationLogo className="block h-8 w-auto fill-current text-gray-800" />
-                                <span className="hidden sm:block font-black text-sm uppercase tracking-tight text-gray-800">Gestion Agricole</span>
+                                <Logo icon className="block h-8 w-auto" />
+                                <span className="hidden sm:block font-black text-sm uppercase tracking-tight text-gray-800">Manafie Agriculture</span>
                             </Link>
                         </div>
 
@@ -142,10 +142,10 @@ export default function Authenticated({ user, header, children }) {
                                     <span className="inline-flex rounded-md">
                                         <button
                                             type="button"
-                                            className="inline-flex items-center px-4 py-2 border-2 border-gray-100 text-sm leading-4 font-black rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-blue-200 focus:outline-none transition ease-in-out duration-150 shadow-sm uppercase tracking-tighter"
+                                            className="inline-flex items-center px-4 py-2 border-2 border-gray-100 text-sm leading-4 font-black rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-primary-200 focus:outline-none transition ease-in-out duration-150 shadow-sm uppercase tracking-tighter"
                                         >
                                             <div className="flex flex-col items-start mr-3 border-r pr-3 border-gray-100 hidden md:flex">
-                                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">
+                                                <span className="text-[10px] font-black text-primary-600 uppercase tracking-widest leading-none">
                                                     {user.role === 'super_admin' ? (activeFarm?.name || 'Aucune Ferme') : (user.farm?.name || 'Globale')}
                                                 </span>
                                                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter mt-1">{user.enterprise?.name || 'Accès Manager'}</span>
@@ -171,7 +171,7 @@ export default function Authenticated({ user, header, children }) {
                                 <Dropdown.Content>
                                     <div className="px-4 py-2 border-b border-gray-100 mb-1">
                                         <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('connected')}</p>
-                                        <p className="text-xs font-bold text-blue-600 truncate">{user.email}</p>
+                                        <p className="text-xs font-bold text-primary-600 truncate">{user.email}</p>
                                     </div>
                                     <Dropdown.Link href={route('profile.edit')}>{t('profile')}</Dropdown.Link>
                                     {user.role === 'super_admin' && activeFarm && (
@@ -192,7 +192,7 @@ export default function Authenticated({ user, header, children }) {
                         <div className="-me-2 flex items-center lg:hidden">
                             <button
                                 onClick={() => setShowingNavigationDropdown((previousState) => !previousState)}
-                                className="inline-flex items-center justify-center p-3 rounded-xl text-gray-400 hover:text-blue-600 hover:bg-blue-50 focus:outline-none transition duration-150 ease-in-out border-2 border-transparent hover:border-blue-100"
+                                className="inline-flex items-center justify-center p-3 rounded-xl text-gray-400 hover:text-primary-600 hover:bg-primary-50 focus:outline-none transition duration-150 ease-in-out border-2 border-transparent hover:border-primary-100"
                             >
                                 <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                                     <path

@@ -10,7 +10,7 @@ import { ENTRY_TYPE_LABELS as ENTRY_TYPE_TEXT, UNIT_TYPE_LABELS } from '@/utils/
 
 const ENTRY_TYPE_CLASSNAMES = {
     consumption: 'bg-red-100 text-red-800',
-    transfer: 'bg-blue-100 text-blue-800',
+    transfer: 'bg-primary-100 text-primary-800',
     loss: 'bg-orange-100 text-orange-800',
     theft: 'bg-purple-100 text-purple-800',
     damage: 'bg-yellow-100 text-yellow-800',
@@ -79,7 +79,7 @@ export default function Show({ auth, manualStockEntry }) {
                     <div className="flex items-center gap-2">
                         <Link
                             href={route('stock.manual-entries.edit', manualStockEntry.id)}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -105,8 +105,8 @@ export default function Show({ auth, manualStockEntry }) {
                         <div className="p-6">
                             <div className="flex items-start justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex-shrink-0 h-16 w-16 bg-indigo-100 rounded-xl flex items-center justify-center">
-                                        <svg className="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="flex-shrink-0 h-16 w-16 bg-primary-100 rounded-xl flex items-center justify-center">
+                                        <svg className="h-8 w-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                     </div>

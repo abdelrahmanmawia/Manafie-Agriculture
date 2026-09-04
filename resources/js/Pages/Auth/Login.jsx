@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import Checkbox from '@/Components/Checkbox';
 import InputError from '@/Components/InputError';
 import InputLabel from '@/Components/InputLabel';
-import PrimaryButton from '@/Components/PrimaryButton';
 import TextInput from '@/Components/TextInput';
-import ApplicationLogo from '@/Components/ApplicationLogo';
+import Logo from '@/Components/Logo';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
 
@@ -34,15 +33,20 @@ export default function Login({ status, canResetPassword }) {
 
             <div className="min-h-screen w-full flex bg-white">
                 {/* Brand panel — hidden below lg, this is a desktop-first split-screen layout */}
-                <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-gray-900 items-center justify-center p-16">
-                    {/* The real brand mark, oversized and faint, as texture rather than a stock icon */}
-                    <ApplicationLogo className="absolute -right-24 -bottom-24 h-[520px] w-[520px] text-white opacity-[0.06]" />
-                    <ApplicationLogo className="absolute -left-32 -top-32 h-[360px] w-[360px] text-white opacity-[0.04] rotate-12" />
+                <div className="hidden lg:flex lg:w-[45%] relative overflow-hidden bg-success-900 items-center justify-center p-16">
+                    {/* Oversized, faint background texture — the real mark, forced white via a
+                        brightness(0) invert(1) filter (turns any opaque pixel white while
+                        leaving the PNG's alpha shape untouched) since the raster can't be
+                        recolored the way an SVG's fill-current can. */}
+                    <Logo icon className="absolute -right-24 -bottom-24 h-[420px] w-auto opacity-[0.06]" style={{ filter: 'brightness(0) invert(1)' }} />
+                    <Logo icon className="absolute -left-32 -top-32 h-[290px] w-auto opacity-[0.04] rotate-12" style={{ filter: 'brightness(0) invert(1)' }} />
 
                     <div className="relative z-10 max-w-sm">
-                        <ApplicationLogo className="h-12 w-12 text-white mb-10" />
+                        <div className="inline-flex bg-white rounded-2xl px-3.5 py-2.5 mb-10 shadow-lg">
+                            <Logo icon className="h-9 w-auto" />
+                        </div>
                         <h1 className="text-4xl font-black text-white uppercase tracking-tighter leading-[1.1]">
-                            Gestion Agricole
+                            Manafie Agriculture
                         </h1>
                         <p className="mt-4 text-sm font-bold text-gray-400 uppercase tracking-widest leading-relaxed">
                             Pointage · Paie · Stock — en un seul endroit
@@ -54,8 +58,8 @@ export default function Login({ status, canResetPassword }) {
                 <div className="flex-1 flex items-center justify-center px-6 py-12 sm:px-12">
                     <div className="w-full max-w-sm">
                         <div className="flex items-center gap-3 mb-10 lg:hidden">
-                            <ApplicationLogo className="h-9 w-9 text-gray-900" />
-                            <span className="font-black text-lg text-gray-900 uppercase tracking-tighter">Gestion Agricole</span>
+                            <Logo icon className="h-8 w-auto" />
+                            <span className="font-black text-lg text-gray-900 uppercase tracking-tighter">Manafie Agriculture</span>
                         </div>
 
                         <h2 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">Connexion</h2>
@@ -75,7 +79,7 @@ export default function Login({ status, canResetPassword }) {
                                     type="email"
                                     name="email"
                                     value={data.email}
-                                    className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-primary-500 focus:bg-white focus:ring-primary-500 py-3 px-4 transition-all"
+                                    className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-success-500 focus:bg-white focus:ring-success-500 py-3 px-4 transition-all"
                                     autoComplete="username"
                                     isFocused={true}
                                     onChange={(e) => setData('email', e.target.value)}
@@ -91,7 +95,7 @@ export default function Login({ status, canResetPassword }) {
                                         type={showPassword ? 'text' : 'password'}
                                         name="password"
                                         value={data.password}
-                                        className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-primary-500 focus:bg-white focus:ring-primary-500 py-3 pl-4 pr-11 transition-all"
+                                        className="block w-full rounded-xl border-gray-200 bg-gray-50 text-sm font-bold text-gray-900 focus:border-success-500 focus:bg-white focus:ring-success-500 py-3 pl-4 pr-11 transition-all"
                                         autoComplete="current-password"
                                         onChange={(e) => setData('password', e.target.value)}
                                     />
@@ -122,6 +126,7 @@ export default function Login({ status, canResetPassword }) {
                                         name="remember"
                                         checked={data.remember}
                                         onChange={(e) => setData('remember', e.target.checked)}
+                                        style={{ accentColor: '#16a34a' }}
                                     />
                                     <span className="text-xs font-bold text-gray-600">{t('remember_me')}</span>
                                 </label>
@@ -129,14 +134,18 @@ export default function Login({ status, canResetPassword }) {
                                 {canResetPassword && (
                                     <Link
                                         href={route('password.request')}
-                                        className="text-xs font-bold text-primary-600 hover:text-primary-800 transition-colors"
+                                        className="text-xs font-bold text-success-600 hover:text-success-800 transition-colors"
                                     >
                                         {t('forgot_password')}
                                     </Link>
                                 )}
                             </div>
 
-                            <PrimaryButton className="w-full justify-center py-3.5 mt-2" disabled={processing}>
+                            <button
+                                type="submit"
+                                disabled={processing}
+                                className={`w-full inline-flex items-center justify-center py-3.5 mt-2 bg-success-600 border border-transparent rounded-full font-black text-xs text-white uppercase tracking-widest shadow-sm hover:bg-success-700 focus:bg-success-700 active:bg-success-800 focus:outline-none focus:ring-2 focus:ring-success-500 focus:ring-offset-2 transition ease-in-out duration-150 ${processing ? 'opacity-25' : ''}`}
+                            >
                                 {processing ? (
                                     <span className="flex items-center justify-center gap-2">
                                         <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -148,7 +157,7 @@ export default function Login({ status, canResetPassword }) {
                                 ) : (
                                     t('login')
                                 )}
-                            </PrimaryButton>
+                            </button>
                         </form>
                     </div>
                 </div>

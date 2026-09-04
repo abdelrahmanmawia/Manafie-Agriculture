@@ -14,7 +14,7 @@ const MOVEMENT_LABELS = {
     out: { label: 'Sortie', className: 'bg-red-100 text-red-700', sign: '-' },
     transfer: { label: 'Transfert', className: 'bg-purple-100 text-purple-700', sign: '-' },
     loss: { label: 'Perte', className: 'bg-gray-200 text-gray-700', sign: '-' },
-    adjustment: { label: 'Ajustement', className: 'bg-blue-100 text-blue-700', sign: '' },
+    adjustment: { label: 'Ajustement', className: 'bg-primary-100 text-primary-700', sign: '' },
 };
 
 export default function Dashboard({ auth, stats, recentAlerts, recentMovements, pendingManualEntries }) {
@@ -43,17 +43,17 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                     {pendingManualEntries > 0 && (
                         <Link
                             href={route('stock.manual-entries.index')}
-                            className="flex items-center justify-between bg-indigo-50 border border-indigo-200 rounded-xl px-5 py-4 hover:bg-indigo-100 transition-colors"
+                            className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-4 hover:bg-primary-100 transition-colors"
                         >
                             <div className="flex items-center gap-3">
-                                <svg className="w-5 h-5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 text-primary-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <p className="text-sm font-medium text-indigo-900">
+                                <p className="text-sm font-medium text-primary-900">
                                     {pendingManualEntries} entrée{pendingManualEntries > 1 ? 's' : ''} manuelle{pendingManualEntries > 1 ? 's' : ''} en attente de vérification
                                 </p>
                             </div>
-                            <span className="text-sm font-medium text-indigo-700">Vérifier →</span>
+                            <span className="text-sm font-medium text-primary-700">Vérifier →</span>
                         </Link>
                     )}
 
@@ -170,9 +170,9 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                             <Link
                                 href={route('stock.products.index')}
-                                className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-blue-300"
+                                className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-primary-300"
                             >
-                                <svg className="w-8 h-8 text-blue-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-8 h-8 text-primary-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Nouveau Produit</span>
@@ -188,9 +188,9 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                             </Link>
                             <Link
                                 href={route('stock.manual-entries.index')}
-                                className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-indigo-300"
+                                className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-primary-300"
                             >
-                                <svg className="w-8 h-8 text-indigo-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-8 h-8 text-primary-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Sorties de Stock</span>

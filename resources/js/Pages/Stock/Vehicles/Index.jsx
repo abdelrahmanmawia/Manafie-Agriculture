@@ -350,7 +350,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${vehicle.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-primary-100 text-primary-800'}`}>
                                                         {ASSET_TYPE_LABELS[vehicle.asset_type] || vehicle.asset_type}
                                                     </span>
                                                 </td>
@@ -390,7 +390,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                                                         <button
                                                             type="button"
                                                             onClick={() => openEdit(vehicle)}
-                                                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                            className="text-gray-400 hover:text-primary-600 transition-colors"
                                                             title="Modifier"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

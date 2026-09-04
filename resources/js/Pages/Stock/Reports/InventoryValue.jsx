@@ -33,7 +33,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Total Value Card */}
-                    <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6">
+                    <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <div className="h-16 w-16 bg-white/20 rounded-xl flex items-center justify-center">
@@ -42,12 +42,12 @@ export default function InventoryValue({ auth, inventoryValue }) {
                                     </svg>
                                 </div>
                                 <div>
-                                    <p className="text-blue-100 text-sm font-medium">Valeur Totale de l'Inventaire</p>
+                                    <p className="text-primary-100 text-sm font-medium">Valeur Totale de l'Inventaire</p>
                                     <p className="text-white text-3xl font-bold mt-1">{formatMAD(totalInventoryValue)}</p>
                                 </div>
                             </div>
                             <div className="text-right">
-                                <p className="text-blue-100 text-sm">Nombre de Produits</p>
+                                <p className="text-primary-100 text-sm">Nombre de Produits</p>
                                 <p className="text-white text-xl font-semibold">{formatInt(inventoryValue.length)}</p>
                             </div>
                         </div>
@@ -92,7 +92,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
                                                         {item.product_name}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-blue-50 text-blue-700 text-xs font-medium">
+                                                        <span className="inline-flex items-center px-2 py-1 rounded-md bg-primary-50 text-primary-700 text-xs font-medium">
                                                             {formatNumber(item.quantity_on_hand)} {UNIT_TYPE_LABELS[item.unit_type] || item.unit_type}
                                                         </span>
                                                     </td>

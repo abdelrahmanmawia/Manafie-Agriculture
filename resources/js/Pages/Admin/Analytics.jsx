@@ -164,7 +164,7 @@ export default function Analytics({
                         <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full justify-end">
                             {(auth.user.role === 'super_admin' || auth.user.farm_id) && (
                                 <select
-                                    className="rounded-xl border-gray-200 bg-white font-bold text-xs shadow-sm focus:ring-blue-500 min-w-[150px]"
+                                    className="rounded-xl border-gray-200 bg-white font-bold text-xs shadow-sm focus:ring-primary-500 min-w-[150px]"
                                     value={enterprise?.id || ''}
                                     onChange={handleEnterpriseChange}
                                 >
@@ -180,7 +180,7 @@ export default function Analytics({
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Bloc:</span>
                             <select
-                                className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-blue-500 min-w-[120px]"
+                                className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500 min-w-[120px]"
                                 value={blocId || ''}
                                 onChange={(e) => handleFilterChange({ bloc_id: e.target.value, sector_id: '' })}
                                 disabled={!farm}
@@ -196,7 +196,7 @@ export default function Analytics({
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Secteur:</span>
                                 <select
-                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-blue-500 min-w-[120px]"
+                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500 min-w-[120px]"
                                     value={sectorId || ''}
                                     onChange={(e) => handleFilterChange({ sector_id: e.target.value })}
                                 >
@@ -213,7 +213,7 @@ export default function Analytics({
                         <div className="flex items-center gap-2">
                             <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Période:</span>
                             <select
-                                className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-blue-500"
+                                className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500"
                                 value={selectedPeriodKey || ''}
                                 onChange={handleQuinzaineChange}
                             >
@@ -230,7 +230,7 @@ export default function Analytics({
                             <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Intervalle:</span>
                             <div className="flex items-center gap-1">
                                 <select
-                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-blue-500"
+                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500"
                                     value={selectedPeriodFromKey || ''}
                                     onChange={(e) => handleRangeChange(e.target.value, selectedPeriodToKey)}
                                 >
@@ -241,7 +241,7 @@ export default function Analytics({
                                 </select>
                                 <span className="text-gray-400 font-bold">→</span>
                                 <select
-                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-blue-500"
+                                    className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500"
                                     value={selectedPeriodToKey || ''}
                                     onChange={(e) => handleRangeChange(selectedPeriodFromKey, e.target.value)}
                                 >
@@ -273,8 +273,8 @@ export default function Analytics({
                     {/* SECTION 1: FINANCIAL OVERVIEW */}
                     <div>
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-lg sm:text-xl font-black text-blue-900 uppercase tracking-widest flex items-center gap-3">
-                                <span className="bg-blue-600 text-white p-2 rounded-lg">
+                            <h3 className="text-lg sm:text-xl font-black text-primary-900 uppercase tracking-widest flex items-center gap-3">
+                                <span className="bg-primary-600 text-white p-2 rounded-lg">
                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m.599-1c.53-.05 1.07-.13 1.599-.24M12 16H11.401c-.53-.05-1.07-.13-1.599-.24M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </span>
                                 Analyses Financières
@@ -282,7 +282,7 @@ export default function Analytics({
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8">
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-blue-600">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-primary-600">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Masse Salariale Net</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {formatNumber(totalNet)}
@@ -299,15 +299,15 @@ export default function Analytics({
                             </div>
 
                                 {/* PREDICTIVE FORECAST CARD REMOVED FOR NOW */}
-                            <div className="bg-blue-900 p-6 rounded-2xl shadow-xl border-l-8 border-blue-400 text-white relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
+                            <div className="bg-primary-900 p-6 rounded-2xl shadow-xl border-l-8 border-primary-400 text-white relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
                                 <div className="relative z-10">
-                                    <span className="text-[10px] font-black uppercase text-blue-300 tracking-widest block mb-1 flex items-center gap-1">
+                                    <span className="text-[10px] font-black uppercase text-primary-300 tracking-widest block mb-1 flex items-center gap-1">
                                         Vue d'ensemble
                                     </span>
-                                    <p className="text-sm font-bold text-blue-200 opacity-80">
+                                    <p className="text-sm font-bold text-primary-200 opacity-80">
                                         Ferme: {farm?.name || 'Globale'}
                                     </p>
-                                    <p className="text-sm font-bold text-blue-200 opacity-80">
+                                    <p className="text-sm font-bold text-primary-200 opacity-80">
                                         Division: {enterprise?.name || 'Toutes'}
                                     </p>
                                 </div>
@@ -319,7 +319,7 @@ export default function Analytics({
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Total Salariés Actifs</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">{formatNumber(employeeCount, 0)}</p>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-blue-600">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-primary-600">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Net Moyen par Salarié</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {formatNumber(avgNetPerEmployee)} <small className="text-xs ml-1 font-bold">DH</small>
@@ -412,7 +412,7 @@ export default function Analytics({
 
                         {/* Productivity Metrics row */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-                            <div className="bg-blue-50 p-6 rounded-2xl shadow-sm border-l-8 border-blue-500">
+                            <div className="bg-primary-50 p-6 rounded-2xl shadow-sm border-l-8 border-primary-500">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Revenu / ha</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {formatNumber(revenuePerHa)}
@@ -451,18 +451,18 @@ export default function Analytics({
                                                     <th className="text-left py-2 px-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Bloc</th>
                                                     <th className="text-right py-2 px-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Surface (Ha)</th>
                                                     <th className="text-right py-2 px-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Net (DH)</th>
-                                                    <th className="text-right py-2 px-3 text-[10px] font-black text-blue-700 uppercase tracking-widest">DH/Ha</th>
+                                                    <th className="text-right py-2 px-3 text-[10px] font-black text-primary-700 uppercase tracking-widest">DH/Ha</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {blocCosts.map((b, i) => (
-                                                    <tr key={i} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
+                                                    <tr key={i} className="border-b border-gray-50 hover:bg-primary-50/40 transition-colors">
                                                         <td className="py-3 px-3 font-black text-gray-800 uppercase">{b.name}</td>
                                                         <td className="py-3 px-3 text-right text-gray-600">{b.area_ha ? `${formatNumber(b.area_ha)} Ha` : '—'}</td>
                                                         <td className="py-3 px-3 text-right font-bold text-gray-800">{formatNumber(b.total_net)} DH</td>
                                                         <td className="py-3 px-3 text-right">
                                                             <span className={`inline-block px-2 py-1 rounded-lg font-black text-sm ${
-                                                                b.charge_per_ha !== null ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-400'
+                                                                b.charge_per_ha !== null ? 'bg-primary-100 text-primary-800' : 'bg-gray-100 text-gray-400'
                                                             }`}>
                                                                 {b.charge_per_ha !== null ? `${formatNumber(b.charge_per_ha)} DH` : '—'}
                                                             </span>
@@ -559,19 +559,19 @@ export default function Analytics({
                                         </thead>
                                         <tbody>
                                             {harvestBySector.map((h, i) => (
-                                                <tr key={i} className="border-b border-gray-50 hover:bg-blue-50/40 transition-colors">
+                                                <tr key={i} className="border-b border-gray-50 hover:bg-primary-50/40 transition-colors">
                                                     <td className="py-3 px-3 font-black text-gray-800 uppercase">{h.bloc_name}</td> {/* Display bloc_name */}
                                                     <td className="py-3 px-3 font-black text-gray-800 uppercase">{h.name}</td>
                                                     <td className="py-3 px-3 text-right text-gray-600">{h.area_ha ? formatNumber(h.area_ha) : '—'}</td>
                                                     <td className="py-3 px-3 text-right text-gray-600">{h.total_trees ? formatNumber(h.total_trees, 0) : '—'}</td>
                                                     <td className="py-3 px-3 text-right font-bold">{formatNumber(h.total_kg, 0)} Kg</td>
                                                     <td className="py-3 px-3 text-right">
-                                                        <span className="inline-block px-2 py-1 rounded-lg font-black text-sm bg-blue-100 text-blue-800">
+                                                        <span className="inline-block px-2 py-1 rounded-lg font-black text-sm bg-primary-100 text-primary-800">
                                                             {h.yield_per_ha !== null ? `${formatNumber(h.yield_per_ha)} Kg` : '—'}
                                                         </span>
                                                     </td>
                                                     <td className="py-3 px-3 text-right">
-                                                        <span className="inline-block px-2 py-1 rounded-lg font-black text-sm bg-indigo-100 text-indigo-800">
+                                                        <span className="inline-block px-2 py-1 rounded-lg font-black text-sm bg-primary-100 text-primary-800">
                                                             {h.yield_per_tree !== null ? `${h.yield_per_tree} Kg` : '—'}
                                                         </span>
                                                     </td>

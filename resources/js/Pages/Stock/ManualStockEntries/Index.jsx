@@ -85,7 +85,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     const getEntryTypeColor = (type) => {
         const colors = {
             'consumption': 'bg-red-100 text-red-800',
-            'transfer': 'bg-blue-100 text-blue-800',
+            'transfer': 'bg-primary-100 text-primary-800',
             'loss': 'bg-orange-100 text-orange-800',
             'theft': 'bg-purple-100 text-purple-800',
             'damage': 'bg-yellow-100 text-yellow-800',
@@ -150,7 +150,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                             </button>
                             <button
                                 onClick={() => setIsCreating(true)}
-                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -177,7 +177,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                         placeholder="Rechercher par produit, employé ou véhicule..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                     />
                                     <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -189,7 +189,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <select
                                     value={selectedType}
                                     onChange={(e) => setSelectedType(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                 >
                                     <option value="">Tous les types</option>
                                     {exitTypes.map((exitType) => (
@@ -218,7 +218,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 {auth.user.role !== 'data_entry' && (
                                     <button
                                         onClick={() => setIsCreating(true)}
-                                        className="mt-4 text-indigo-600 hover:text-indigo-700 font-medium"
+                                        className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
                                     >
                                         Enregistrer votre première sortie
                                     </button>
@@ -263,8 +263,8 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-8 w-8 bg-indigo-100 rounded-full flex items-center justify-center">
-                                                            <svg className="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <div className="flex-shrink-0 h-8 w-8 bg-primary-100 rounded-full flex items-center justify-center">
+                                                            <svg className="h-4 w-4 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
                                                             </svg>
                                                         </div>
@@ -325,7 +325,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                         )}
                                                         <Link
                                                             href={route('stock.manual-entries.show', entry.id)}
-                                                            className="text-gray-400 hover:text-indigo-600 transition-colors"
+                                                            className="text-gray-400 hover:text-primary-600 transition-colors"
                                                             title="Voir"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -335,7 +335,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                         </Link>
                                                         <Link
                                                             href={route('stock.manual-entries.edit', entry.id)}
-                                                            className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                            className="text-gray-400 hover:text-primary-600 transition-colors"
                                                             title="Modifier"
                                                         >
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -386,7 +386,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <InputLabel htmlFor="product_id" value="Produit *" />
                                 <select
                                     id="product_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                     value={data.product_id}
                                     onChange={(e) => {
                                         const nextProduct = products.find((p) => String(p.id) === e.target.value);
@@ -411,7 +411,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <InputLabel htmlFor="entry_type" value="Type de Sortie *" />
                                 <select
                                     id="entry_type"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                     value={data.entry_type}
                                     onChange={(e) => {
                                         const nextType = exitTypes.find((t) => t.key === e.target.value);
@@ -463,7 +463,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <InputLabel htmlFor="employee_id" value="Employé" />
                                 <select
                                     id="employee_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                     value={data.employee_id}
                                     onChange={(e) => setData('employee_id', e.target.value)}
                                 >
@@ -480,7 +480,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     <InputLabel htmlFor="vehicle_id" value="Véhicule" />
                                     <select
                                         id="vehicle_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={data.vehicle_id}
                                         onChange={(e) => setData((prev) => ({ ...prev, vehicle_id: e.target.value, maintenance_log_id: '' }))}
                                     >
@@ -515,7 +515,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
                                     <select
                                         id="maintenance_log_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={data.maintenance_log_id}
                                         onChange={(e) => setData('maintenance_log_id', e.target.value)}
                                     >
@@ -535,7 +535,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                         <InputLabel htmlFor="operation_id" value="Opération" />
                                         <select
                                             id="operation_id"
-                                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                            className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                             value={data.operation_id}
                                             onChange={(e) => setData('operation_id', e.target.value)}
                                         >
@@ -552,7 +552,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                             <InputLabel htmlFor="bloc_id" value="Bloc" />
                                             <select
                                                 id="bloc_id"
-                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                                className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                                 value={data.bloc_id}
                                                 onChange={(e) => setData((prev) => ({ ...prev, bloc_id: e.target.value, sector_id: '', parcelle_id: '' }))}
                                             >
@@ -567,7 +567,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                             <InputLabel htmlFor="sector_id" value="Secteur" />
                                             <select
                                                 id="sector_id"
-                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                                className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                 value={data.sector_id}
                                                 onChange={(e) => setData((prev) => ({ ...prev, sector_id: e.target.value, parcelle_id: '' }))}
                                                 disabled={!data.bloc_id}
@@ -583,7 +583,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                             <InputLabel htmlFor="parcelle_id" value="Parcelle" />
                                             <select
                                                 id="parcelle_id"
-                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                                className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                 value={data.parcelle_id}
                                                 onChange={(e) => setData('parcelle_id', e.target.value)}
                                                 disabled={!data.sector_id}
@@ -603,7 +603,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 <InputLabel htmlFor="notes" value="Notes" />
                                 <textarea
                                     id="notes"
-                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm"
+                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                     value={data.notes}
                                     onChange={(e) => setData('notes', e.target.value)}
                                     rows="3"
@@ -615,7 +615,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
-                            <PrimaryButton disabled={processing} className="bg-indigo-600 hover:bg-indigo-700">
+                            <PrimaryButton disabled={processing} className="bg-primary-600 hover:bg-primary-700">
                                 {processing ? 'Enregistrement...' : 'Enregistrer la Sortie'}
                             </PrimaryButton>
                         </div>
@@ -735,12 +735,12 @@ function ManageExitTypesModal({ exitTypes, onClose }) {
                                 onChange={(e) => setEditingLabel(e.target.value)}
                                 onBlur={() => saveEditing(exitType)}
                                 onKeyDown={(e) => e.key === 'Enter' && saveEditing(exitType)}
-                                className="flex-1 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-lg shadow-sm text-sm"
+                                className="flex-1 border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm text-sm"
                             />
                         ) : (
                             <button
                                 onClick={() => startEditing(exitType)}
-                                className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-indigo-600"
+                                className="flex-1 text-left text-sm font-medium text-gray-700 hover:text-primary-600"
                             >
                                 {exitType.label}
                                 {exitType.requires_maintenance_log && (
@@ -773,7 +773,7 @@ function ManageExitTypesModal({ exitTypes, onClose }) {
                         value={data.label}
                         onChange={(e) => setData('label', e.target.value)}
                     />
-                    <PrimaryButton disabled={processing} className="bg-indigo-600 hover:bg-indigo-700">
+                    <PrimaryButton disabled={processing} className="bg-primary-600 hover:bg-primary-700">
                         Ajouter
                     </PrimaryButton>
                 </div>
@@ -783,7 +783,7 @@ function ManageExitTypesModal({ exitTypes, onClose }) {
                         type="checkbox"
                         checked={data.requires_maintenance_log}
                         onChange={(e) => setData('requires_maintenance_log', e.target.checked)}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                     />
                     Ce type est lié à une intervention de maintenance (affiche le champ "Intervention liée")
                 </label>

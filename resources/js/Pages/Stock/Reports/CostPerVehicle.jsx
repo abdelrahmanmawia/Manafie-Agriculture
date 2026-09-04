@@ -212,7 +212,7 @@ export default function CostPerVehicle({ auth, costPerVehicleData }) {
                                                     <div className="text-xs text-gray-500">{row.plate_number || row.serial_number || '—'}</div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${row.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}`}>
+                                                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${row.asset_type === 'equipment' ? 'bg-purple-100 text-purple-800' : 'bg-primary-100 text-primary-800'}`}>
                                                         {typeLabel(row)}
                                                     </span>
                                                 </td>

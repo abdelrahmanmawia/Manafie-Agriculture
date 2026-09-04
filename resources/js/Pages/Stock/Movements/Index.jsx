@@ -147,7 +147,7 @@ export default function Index({ auth, stockMovements, products }) {
 
                     {products.length === 0 ? (
                         <p className="text-sm text-gray-500">
-                            Aucun produit actif. <Link href={route('stock.products.index')} className="text-blue-600 hover:underline">Créez d'abord un produit</Link>.
+                            Aucun produit actif. <Link href={route('stock.products.index')} className="text-primary-600 hover:underline">Créez d'abord un produit</Link>.
                         </p>
                     ) : (
                         <form onSubmit={submit} className="space-y-6">

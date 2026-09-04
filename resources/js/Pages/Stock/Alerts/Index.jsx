@@ -39,7 +39,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
         switch (alert.alert_type) {
             case 'low_stock': return 'bg-red-100 text-red-800';
             case 'overstock': return 'bg-yellow-100 text-yellow-800';
-            default: return 'bg-blue-100 text-blue-800';
+            default: return 'bg-primary-100 text-primary-800';
         }
     };
 
@@ -136,7 +136,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                                         {stockAlerts.map((alert) => (
                                             <tr key={alert.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap">
-                                                    <Link href={route('stock.products.show', alert.product.id)} className="text-sm font-medium text-gray-900 hover:text-blue-600">
+                                                    <Link href={route('stock.products.show', alert.product.id)} className="text-sm font-medium text-gray-900 hover:text-primary-600">
                                                         {alert.product.name}
                                                     </Link>
                                                 </td>

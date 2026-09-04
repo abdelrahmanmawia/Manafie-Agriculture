@@ -8,6 +8,9 @@ export default function Index({ auth }) {
             description: 'Vue d\'ensemble de la valeur actuelle de votre stock.', 
             route: 'stock.reports.inventory-value',
             icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+            // Was bg-primary-500 — now that primary is a brand green too, it read as a near
+            // duplicate of the "Historique des Mouvements" card right next to it. Blue keeps
+            // this picker's six cards visually distinct from each other.
             color: 'bg-blue-500'
         },
         { 
@@ -80,14 +83,14 @@ export default function Index({ auth }) {
                                     <Link
                                         key={index}
                                         href={route(report.route)}
-                                        className="group block p-6 bg-gray-50 rounded-xl border border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all duration-300"
+                                        className="group block p-6 bg-gray-50 rounded-xl border border-gray-200 hover:border-primary-300 hover:shadow-lg transition-all duration-300"
                                     >
                                         <div className={`h-12 w-12 ${report.color} rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
                                             <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={report.icon} />
                                             </svg>
                                         </div>
-                                        <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-2 group-hover:text-blue-600 transition-colors">{report.name}</h4>
+                                        <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-2 group-hover:text-primary-600 transition-colors">{report.name}</h4>
                                         <p className="text-sm text-gray-600">{report.description}</p>
                                     </Link>
                                 ))}

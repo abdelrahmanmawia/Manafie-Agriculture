@@ -152,7 +152,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                     onClick={() => setActiveTab(tab.id)}
                                     className={`px-4 py-3 text-sm font-bold uppercase tracking-wider border-b-2 transition-colors flex items-center ${
                                         activeTab === tab.id
-                                            ? 'border-blue-600 text-blue-600'
+                                            ? 'border-primary-600 text-primary-600'
                                             : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                                 >
@@ -204,7 +204,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                         {farmSettingsForm.errors.box_weight_kg && <div className="text-red-500 text-xs mt-1">{farmSettingsForm.errors.box_weight_kg}</div>}
                                     </div>
                                     <div>
-                                        <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors" disabled={farmSettingsForm.processing}>
+                                        <button type="submit" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors" disabled={farmSettingsForm.processing}>
                                             Mettre à jour
                                         </button>
                                     </div>
@@ -240,7 +240,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                         value={opForm.data.unit_rate}
                                         onChange={e => opForm.setData('unit_rate', e.target.value)}
                                     />
-                                    <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
+                                    <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
                                 </form>
                                 {Object.keys(opForm.errors).length > 0 && (
                                     <div className="text-red-500 text-xs mb-3 max-w-2xl">{Object.values(opForm.errors).join(' ')}</div>
@@ -263,11 +263,11 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                 editingOpId === op.id ? (
                                                     <Fragment key={op.id}>
                                                     {Object.keys(editOpForm.errors).length > 0 && (
-                                                        <tr className="bg-blue-50">
+                                                        <tr className="bg-primary-50">
                                                             <td colSpan="4" className="px-4 pb-2 text-red-500 text-xs">{Object.values(editOpForm.errors).join(' ')}</td>
                                                         </tr>
                                                     )}
-                                                    <tr className="bg-blue-50">
+                                                    <tr className="bg-primary-50">
                                                         <td className="px-4 py-2">
                                                             <input
                                                                 type="text"

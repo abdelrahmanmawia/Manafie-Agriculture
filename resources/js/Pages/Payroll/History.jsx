@@ -19,7 +19,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                     </div>
                     {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
                         <select
-                            className="w-full md:w-auto rounded-xl border-gray-200 bg-white font-bold text-sm shadow-sm focus:ring-blue-500"
+                            className="w-full md:w-auto rounded-xl border-gray-200 bg-white font-bold text-sm shadow-sm focus:ring-primary-500"
                             value={selectedEnterpriseId || ''}
                             onChange={handleEnterpriseChange}
                         >
@@ -34,15 +34,15 @@ export default function History({ auth, employees, periods, history, selectedEnt
 
             <div className="py-6 sm:py-12 bg-gray-50 min-h-screen">
                 <div className="max-w-full mx-auto px-2 sm:px-6 lg:px-8">
-                    <div className="bg-white shadow-2xl sm:rounded-3xl border-t-[8px] sm:border-t-[12px] border-blue-700 overflow-hidden">
+                    <div className="bg-white shadow-2xl sm:rounded-3xl border-t-[8px] sm:border-t-[12px] border-primary-700 overflow-hidden">
                         <div className="p-4 sm:p-8 bg-white border-b flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
                             <div>
                                 <h3 className="text-xl sm:text-2xl font-black text-gray-900 leading-none mb-2">Matrice des Paiements</h3>
-                                <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg inline-block uppercase tracking-widest">Total Net à payer (DH)</span>
+                                <span className="text-[10px] font-black text-primary-600 bg-primary-50 px-3 py-1 rounded-lg inline-block uppercase tracking-widest">Total Net à payer (DH)</span>
                             </div>
                             <div className="text-left sm:text-right">
                                 <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Masse Salariale Cumulée</span>
-                                <span className="text-2xl sm:text-3xl font-black text-blue-700 leading-none">
+                                <span className="text-2xl sm:text-3xl font-black text-primary-700 leading-none">
                                     {formatNumber(employees.reduce((acc, emp) => {
                                         const empHistory = history[emp.id] || [];
                                         return acc + empHistory.reduce((s, h) => s + parseFloat(h.total_net), 0);
@@ -60,14 +60,14 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                         {periods.map(period => (
                                             <th key={period.key} className="border border-gray-200 p-3 min-w-[120px] text-center">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] font-black text-blue-500 uppercase">{period.label}</span>
+                                                    <span className="text-[8px] font-black text-primary-500 uppercase">{period.label}</span>
                                                     <span className="font-black text-gray-800 leading-none">
                                                         {new Date(period.start_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} - {new Date(period.end_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
                                                     </span>
                                                 </div>
                                             </th>
                                         ))}
-                                        <th className="border border-gray-200 p-4 sticky right-0 z-20 bg-blue-700 text-white font-black uppercase tracking-widest text-center shadow-md">Cumul Total</th>
+                                        <th className="border border-gray-200 p-4 sticky right-0 z-20 bg-primary-700 text-white font-black uppercase tracking-widest text-center shadow-md">Cumul Total</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -76,8 +76,8 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                         let cumulativeRowTotal = 0;
 
                                         return (
-                                            <tr key={emp.id} className="hover:bg-blue-50/50 transition-colors group">
-                                                <td className="border border-gray-100 p-4 sticky left-0 z-10 bg-white group-hover:bg-blue-50 shadow-sm">
+                                            <tr key={emp.id} className="hover:bg-primary-50/50 transition-colors group">
+                                                <td className="border border-gray-100 p-4 sticky left-0 z-10 bg-white group-hover:bg-primary-50 shadow-sm">
                                                     <div className="flex flex-col">
                                                         <span className="font-black text-gray-900 uppercase leading-none mb-1">{emp.full_name}</span>
                                                         <span className="text-[8px] font-bold text-gray-400 tracking-tighter">{emp.matricule} • {emp.cin || 'PAS DE CIN'}</span>
@@ -98,7 +98,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="border border-gray-100 p-4 sticky right-0 z-10 bg-blue-50 font-black text-blue-700 text-right shadow-sm group-hover:bg-blue-100 transition-colors">
+                                                <td className="border border-gray-100 p-4 sticky right-0 z-10 bg-primary-50 font-black text-primary-700 text-right shadow-sm group-hover:bg-primary-100 transition-colors">
                                                     {formatNumber(cumulativeRowTotal)} <small className="text-[8px]">DH</small>
                                                 </td>
                                             </tr>

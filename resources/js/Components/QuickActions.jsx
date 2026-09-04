@@ -8,6 +8,10 @@ const COLORS = {
     purple: { icon: 'text-purple-500', hoverBorder: 'hover:border-purple-300' },
     green: { icon: 'text-green-500', hoverBorder: 'hover:border-green-300' },
     orange: { icon: 'text-orange-500', hoverBorder: 'hover:border-orange-300' },
+    // Matches AppSidebar's Stock section color — used for the Stock launchpad tile specifically,
+    // not added to Pointage/Index.jsx's own decorative tile row (blue/purple/green/orange there
+    // are pure visual variety, not domain-coded, and stay as they are).
+    teal: { icon: 'text-teal-500', hoverBorder: 'hover:border-teal-300' },
 };
 
 function TileIcon({ d, colorClass }) {

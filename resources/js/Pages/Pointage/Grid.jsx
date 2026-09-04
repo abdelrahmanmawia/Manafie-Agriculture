@@ -292,13 +292,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center">
                             <h2 className="font-black text-xl text-gray-800 uppercase tracking-tighter">Mode Terrain</h2>
-                            <span className="text-[10px] bg-blue-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">{quinzaine.enterprise.name}</span>
+                            <span className="text-[10px] bg-primary-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">{quinzaine.enterprise.name}</span>
                         </div>
                         <div className="flex gap-2">
                              <select
                                 value={currentDate}
                                 onChange={(e) => setCurrentDate(e.target.value)}
-                                className="flex-1 rounded-xl border-gray-200 font-bold text-sm shadow-sm focus:ring-blue-500"
+                                className="flex-1 rounded-xl border-gray-200 font-bold text-sm shadow-sm focus:ring-primary-500"
                             >
                                 {days.map(d => (
                                     <option key={d} value={d}>
@@ -387,7 +387,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     <div className="flex justify-between items-center max-w-7xl mx-auto">
                         <div className="flex flex-col">
                             <span className="text-[10px] font-black text-gray-400 uppercase">Présents</span>
-                            <span className="text-2xl font-black text-blue-700">{Object.keys(dailyRecords).length} / {employees.length}</span>
+                            <span className="text-2xl font-black text-primary-700">{Object.keys(dailyRecords).length} / {employees.length}</span>
                         </div>
                         <button onClick={() => setIsMobile(false)} className="bg-gray-900 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase shadow-xl">Vue Tableau</button>
                     </div>
@@ -445,21 +445,21 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 <div className="max-w-full mx-auto sm:px-4 lg:px-8 space-y-10">
 
                     {/* 1. THE MAIN POINTAGE MATRIX */}
-                    <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-blue-600 overflow-hidden">
+                    <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-primary-600 overflow-hidden">
                         <div className="p-6 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
-                            <h3 className="text-xl font-black text-blue-900 uppercase tracking-tighter">1. Pointage du Personnel (Journalier)</h3>
+                            <h3 className="text-xl font-black text-primary-900 uppercase tracking-tighter">1. Pointage du Personnel (Journalier)</h3>
                             <div className="flex flex-wrap items-center gap-3">
                                 <input
                                     type="text"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     placeholder="Rechercher un ouvrier..."
-                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-primary-500 focus:border-primary-500"
                                 />
                                 <select
                                     value={dayFilter}
                                     onChange={(e) => setDayFilter(e.target.value)}
-                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                    className="text-xs font-bold rounded-lg border-gray-200 shadow-sm focus:ring-primary-500 focus:border-primary-500"
                                 >
                                     <option value="all">Tous les ouvriers</option>
                                     <option value="zero">Non pointés (0 jour)</option>
@@ -473,10 +473,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             </div>
                         </div>
                         {clipboard && (
-                            <div className="px-6 py-3 bg-blue-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
+                            <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                                 <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller</span>
-                                <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-blue-800 hover:bg-blue-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
+                                <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-primary-800 hover:bg-primary-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
                             </div>
                         )}
                         <div className="flex items-center gap-2 px-4 pt-3">
@@ -508,10 +508,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {day.split('-')[2]}
                                             </th>
                                         ))}
-                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[225px] z-20 text-blue-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">NET/J</th>
-                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[170px] z-20 text-blue-800 font-black shadow-md w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">JOURS</th>
-                                        <th className="border border-gray-300 p-2 bg-blue-50 sticky right-[100px] z-20 text-blue-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">Total H.S</th>
-                                        <th className="border border-gray-300 p-2 bg-blue-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">Total Net</th>
+                                        <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[225px] z-20 text-primary-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">NET/J</th>
+                                        <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[170px] z-20 text-primary-800 font-black shadow-md w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">JOURS</th>
+                                        <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[100px] z-20 text-primary-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">Total H.S</th>
+                                        <th className="border border-gray-300 p-2 bg-primary-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">Total Net</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -530,8 +530,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             : parseFloat(quinzaine.enterprise.default_brut_rate);
 
                                         return (
-                                            <tr key={emp.id} className="hover:bg-blue-50 transition-colors group">
-                                                <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-blue-50">
+                                            <tr key={emp.id} className="hover:bg-primary-50 transition-colors group">
+                                                <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-primary-50">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex flex-col">
                                                             <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{emp.full_name}</span>
@@ -543,7 +543,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                 title="Coller sur les jours restants"
                                                                 onClick={() => pasteRemainingDays(emp.id)}
                                                                 disabled={pasting}
-                                                                className="shrink-0 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 disabled:opacity-50 transition-colors"
+                                                                className="shrink-0 bg-primary-600 hover:bg-primary-700 text-white rounded-full p-1.5 disabled:opacity-50 transition-colors"
                                                             >
                                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
                                                             </button>
@@ -558,7 +558,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                         <td
                                                             key={day}
                                                             onClick={() => clipboard ? pasteToCell(emp.id, day) : openForm(emp.id, day)}
-                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-blue-400' : ''}`}
+                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-primary-400' : ''}`}
                                                         >
                                                             {record ? (
                                                                 <div className="font-black leading-tight">
@@ -570,7 +570,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                         {blocs.find(b => b.id === record.bloc_id)?.name}
                                                                     </div>
                                                                     {record.quantity > 0 && <div className="text-emerald-600 text-[8px]">{record.quantity}u</div>}
-                                                                    {record.hours > 0 && <div className="text-blue-600 text-[8px]">+{record.hours}h</div>}
+                                                                    {record.hours > 0 && <div className="text-primary-600 text-[8px]">+{record.hours}h</div>}
                                                                 </div>
                                                             ) : '-'}
                                                             {canCopy && !clipboard && (
@@ -587,9 +587,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                     );
                                                 })}
                                                 <td className="border border-gray-200 p-2 text-right font-bold text-gray-500 bg-gray-50 sticky right-[225px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{formatNumber(salNetJ)}</td>
-                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[170px] z-10 shadow-sm w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">{totalJours}</td>
-                                                <td className="border border-gray-200 p-2 text-center font-black text-blue-600 bg-blue-50 sticky right-[100px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{totalHs > 0 ? formatNumber(totalHs, 2) : '-'}</td>
-                                                <td className="border border-gray-200 p-2 text-right font-black text-blue-900 bg-blue-100 sticky right-0 z-10 shadow-sm w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">
+                                                <td className="border border-gray-200 p-2 text-center font-black text-primary-600 bg-primary-50 sticky right-[170px] z-10 shadow-sm w-[55px] min-w-[55px] max-w-[55px] whitespace-nowrap overflow-hidden">{totalJours}</td>
+                                                <td className="border border-gray-200 p-2 text-center font-black text-primary-600 bg-primary-50 sticky right-[100px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{totalHs > 0 ? formatNumber(totalHs, 2) : '-'}</td>
+                                                <td className="border border-gray-200 p-2 text-right font-black text-primary-900 bg-primary-100 sticky right-0 z-10 shadow-sm w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">
                                                     {formatNumber(totalNet)}
                                             </td>
                                             </tr>
@@ -647,7 +647,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {days.map(day => (
                                                     <th key={day} className="border border-gray-300 p-1 min-w-[38px] text-gray-600">{day.split('-')[2]}</th>
                                                 ))}
-                                                <th className="border border-gray-300 p-2 bg-blue-600 text-white font-black uppercase text-center sticky right-0 z-10">Total Net Op</th>
+                                                <th className="border border-gray-300 p-2 bg-primary-600 text-white font-black uppercase text-center sticky right-0 z-10">Total Net Op</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -660,11 +660,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                     <tr key={opName} className="hover:bg-green-50 transition-colors">
                                                         <td className="border border-gray-200 p-2 font-black text-gray-700 bg-white sticky left-0 z-10 shadow-sm uppercase">{opName}</td>
                                                         {days.map(day => (
-                                                            <td key={day} className={`border border-gray-200 p-1 text-center font-bold ${dayValues[day] > 0 ? 'bg-blue-50 text-blue-700' : 'text-gray-200'}`}>
+                                                            <td key={day} className={`border border-gray-200 p-1 text-center font-bold ${dayValues[day] > 0 ? 'bg-primary-50 text-primary-700' : 'text-gray-200'}`}>
                                                                 {dayValues[day] > 0 ? formatNumber(dayValues[day], 1) : '-'}
                                                             </td>
                                                         ))}
-                                                        <td className="border border-gray-200 p-2 text-center font-black text-blue-800 bg-blue-100 sticky right-0 z-10 shadow-sm">
+                                                        <td className="border border-gray-200 p-2 text-center font-black text-primary-800 bg-primary-100 sticky right-0 z-10 shadow-sm">
                                                             {formatNumber(opTotal)}
                                                         </td>
                                                     </tr>
@@ -678,12 +678,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                     let colTotal = 0;
                                                     summaryData.operations.forEach(op => colTotal += (summaryData.bloc_matrices[blocName]?.[op]?.[day] || 0));
                                                     return (
-                                                        <td key={day} className="border border-gray-700 p-1 text-center text-blue-400 text-[8px] shadow-inner">
+                                                        <td key={day} className="border border-gray-700 p-1 text-center text-primary-400 text-[8px] shadow-inner">
                                                             {colTotal > 0 ? formatNumber(colTotal, 1) : '-'}
                                                         </td>
                                                     );
                                                 })}
-                                                <td className="border border-gray-700 bg-blue-600 text-white p-3 text-center sticky right-0 z-10 uppercase tracking-tighter text-[10px]">
+                                                <td className="border border-gray-700 bg-primary-600 text-white p-3 text-center sticky right-0 z-10 uppercase tracking-tighter text-[10px]">
                                                     NET BLOC
                                                 </td>
                                             </tr>
@@ -697,11 +697,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     {/* POPUP FORM */}
                     {selectedCell && (
                         <div className="fixed inset-0 bg-gray-900 bg-opacity-80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border-t-[12px] border-blue-600 transform transition-all scale-105">
+                            <div className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md border-t-[12px] border-primary-600 transform transition-all scale-105">
                                 <div className="flex justify-between items-start mb-8">
                                     <div>
                                         <h3 className="text-3xl font-black text-gray-900 leading-none mb-2 tracking-tighter uppercase">Pointage</h3>
-                                        <p className="text-sm font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-lg inline-block uppercase tracking-widest">{employees.find(e => e.id === selectedCell.employeeId).full_name}</p>
+                                        <p className="text-sm font-black text-primary-600 bg-primary-50 px-3 py-1 rounded-lg inline-block uppercase tracking-widest">{employees.find(e => e.id === selectedCell.employeeId).full_name}</p>
                                         <div className="mt-2 text-xs font-black text-gray-400 uppercase tracking-widest">Date: {selectedCell.date}</div>
                                     </div>
                                     <button onClick={() => setSelectedCell(null)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-400 transition-all">
@@ -721,7 +721,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             <label htmlFor="cell_operation_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
                                             <input
                                                 id="cell_operation_id"
-                                                className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all"
+                                                className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-primary-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all"
                                                 value={data.operation_id ? operations.find(o => o.id === data.operation_id)?.name.toUpperCase() + (operations.find(o => o.id === data.operation_id)?.abbreviation ? ` (${operations.find(o => o.id === data.operation_id).abbreviation.toUpperCase()})` : '') : operationSearchTerm}
                                                 onChange={e => {
                                                     setOperationSearchTerm(e.target.value);
@@ -753,7 +753,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                 setOperationSearchTerm('');
                                                                 setShowOperationDropdown(false);
                                                             }}
-                                                            className="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors font-black text-sm"
+                                                            className="w-full text-left px-4 py-3 hover:bg-primary-50 transition-colors font-black text-sm"
                                                         >
                                                             {o.name.toUpperCase()} {o.abbreviation ? `(${o.abbreviation.toUpperCase()})` : ''}
                                                         </button>
@@ -763,7 +763,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         </div>
                                         <div className="relative">
                                             <label htmlFor="cell_bloc_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>
-                                            <select id="cell_bloc_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-blue-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.bloc_id} onChange={e => setData('bloc_id', e.target.value)}>
+                                            <select id="cell_bloc_id" className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-primary-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all" value={data.bloc_id} onChange={e => setData('bloc_id', e.target.value)}>
                                                 <option value="">-- CHOISIR UN BLOC --</option>
                                                 {blocs.map(b => <option key={b.id} value={b.id}>🏠 {b.name.toUpperCase()}</option>)}
                                             </select>
@@ -786,10 +786,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         ) : (
                                             <div className="grid grid-cols-2 gap-6">
                                                 <div className="group">
-                                                    <label htmlFor="cell_hours" className="text-[10px] font-black uppercase text-blue-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
+                                                    <label htmlFor="cell_hours" className="text-[10px] font-black uppercase text-primary-500 tracking-[0.2em] mb-2 block ml-1">Heures Sup (H.S)</label>
                                                     <div className="relative">
-                                                        <input id="cell_hours" type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-blue-100 bg-blue-50/50 font-black text-blue-900 text-2xl focus:border-blue-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
-                                                        <span className="absolute right-4 top-3.5 text-blue-300 font-black text-sm">H</span>
+                                                        <input id="cell_hours" type="number" step="0.01" min="0" className="block w-full rounded-2xl border-2 border-primary-100 bg-primary-50/50 font-black text-primary-900 text-2xl focus:border-primary-500 focus:ring-0 py-3 pl-6 pr-10 transition-all" value={data.hours} onChange={e => setData('hours', e.target.value)} />
+                                                        <span className="absolute right-4 top-3.5 text-primary-300 font-black text-sm">H</span>
                                                     </div>
                                                 </div>
 
@@ -804,7 +804,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     </div>
 
                                     <div className="flex flex-col gap-4 pt-6">
-                                        <button type="submit" disabled={processing} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-blue-100 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 tracking-[0.3em] uppercase">
+                                        <button type="submit" disabled={processing} className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary-100 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 tracking-[0.3em] uppercase">
                                             {processing ? 'Chargement...' : 'Enregistrer'}
                                         </button>
                                     </div>

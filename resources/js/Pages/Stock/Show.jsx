@@ -148,7 +148,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                         <button
                             type="button"
                             onClick={openEdit}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -190,8 +190,8 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                             </span>
                                         </button>
                                     ) : (
-                                        <div className="flex-shrink-0 h-16 w-16 bg-blue-100 rounded-xl flex items-center justify-center">
-                                            <svg className="h-8 w-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <div className="flex-shrink-0 h-16 w-16 bg-primary-100 rounded-xl flex items-center justify-center">
+                                            <svg className="h-8 w-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
                                             </svg>
                                         </div>
@@ -199,7 +199,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                     <div>
                                         <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{product.name}</h3>
                                         <div className="flex items-center gap-3 mt-2">
-                                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">
                                                 {product.category?.name ?? 'Sans catégorie'}
                                             </span>
                                             <div className="flex items-center gap-2">
@@ -234,8 +234,8 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                     <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(currentStock)}</p>
                                     <p className="text-xs text-gray-500 mt-1">{UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}</p>
                                 </div>
-                                <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="h-12 w-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                                    <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
                                     </svg>
                                 </div>
@@ -426,8 +426,8 @@ export default function Show({ auth, product, categories, unitTypes }) {
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="h-10 w-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                                <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                 </svg>
                             </div>
@@ -467,7 +467,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                             type="file"
                                             accept="image/*"
                                             onChange={handleImageChange}
-                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
                                         />
                                     </div>
                                     <InputError message={editForm.errors.image} className="mt-2" />
@@ -479,14 +479,14 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                         <button
                                             type="button"
                                             onClick={() => setIsManagingCategories(true)}
-                                            className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                                            className="text-xs font-medium text-primary-600 hover:text-primary-800"
                                         >
                                             Gérer les catégories
                                         </button>
                                     </div>
                                     <select
                                         id="edit_category"
-                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={editForm.data.category_id}
                                         onChange={(e) => editForm.setData('category_id', e.target.value)}
                                         required
@@ -502,7 +502,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                     <InputLabel htmlFor="edit_unit_type" value="Type d'Unité *" />
                                     <select
                                         id="edit_unit_type"
-                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={editForm.data.unit_type}
                                         onChange={(e) => editForm.setData('unit_type', e.target.value)}
                                         required
@@ -558,7 +558,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeEdit}>Annuler</SecondaryButton>
-                            <PrimaryButton disabled={editForm.processing} className="bg-blue-600 hover:bg-blue-700">
+                            <PrimaryButton disabled={editForm.processing} className="bg-primary-600 hover:bg-primary-700">
                                 {editForm.processing ? 'Mise à jour...' : 'Mettre à Jour le Produit'}
                             </PrimaryButton>
                         </div>

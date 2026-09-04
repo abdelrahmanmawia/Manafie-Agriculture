@@ -187,7 +187,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                     </label>
                                     <select
                                         id="global_period_select"
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
                                         value={selectedPeriodKey}
                                         onChange={(e) => setSelectedPeriodKey(e.target.value)}
                                     >
@@ -208,7 +208,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                     target="_blank"
                                     className={`inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors justify-center ${
                                         selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id
-                                            ? 'bg-blue-600 hover:bg-blue-700'
+                                            ? 'bg-primary-600 hover:bg-primary-700'
                                             : 'bg-gray-400 cursor-not-allowed opacity-75'
                                     }`}
                                     onClick={(e) => {
@@ -243,7 +243,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                             </label>
                             <select
                                 id="enterprise_filter_select"
-                                className="block w-auto min-w-[200px] pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm"
+                                className="block w-auto min-w-[200px] pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
                                 value={filterEnterpriseId}
                                 onChange={handleFilterChange}
                             >
@@ -269,10 +269,10 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {quinzaines.map((q) => (
-                                        <div key={q.id} className={`relative flex flex-col p-6 rounded-xl border-2 transition-all ${q.is_closed ? 'bg-gray-50 border-gray-100 opacity-75' : 'bg-white border-blue-50 hover:border-blue-300 shadow-sm'}`}>
+                                        <div key={q.id} className={`relative flex flex-col p-6 rounded-xl border-2 transition-all ${q.is_closed ? 'bg-gray-50 border-gray-100 opacity-75' : 'bg-white border-primary-50 hover:border-primary-300 shadow-sm'}`}>
                                             <div className="flex justify-between items-start mb-4">
                                                 <div className="flex flex-col w-full">
-                                                    <h4 className="text-2xl font-black uppercase tracking-tighter text-blue-600 mb-1 leading-none">
+                                                    <h4 className="text-2xl font-black uppercase tracking-tighter text-primary-600 mb-1 leading-none">
                                                         {q.label || 'Sans Nom'}
                                                     </h4>
                                                     <p className="text-sm font-bold text-gray-400">
@@ -296,7 +296,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                             <div className="mt-auto space-y-2">
                                                 <Link
                                                     href={route('pointage.grid', q.id)}
-                                                    className={`w-full block text-center py-2.5 rounded-lg font-black text-sm shadow-sm transition-all ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                                    className={`w-full block text-center py-2.5 rounded-lg font-black text-sm shadow-sm transition-all ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-primary-600 text-white hover:bg-primary-700'}`}
                                                 >
                                                     {q.is_closed ? 'VOIR LES DÉTAILS' : 'REMPLIR LE POINTAGE'}
                                                 </Link>
@@ -328,7 +328,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                             type="button"
                                                             onClick={() => openEditModal(q)}
                                                             title="Modifier"
-                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-blue-600 transition-colors"
+                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-primary-600 transition-colors"
                                                         >
                                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

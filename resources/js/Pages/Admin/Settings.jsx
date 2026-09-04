@@ -80,7 +80,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                         structural, payroll-formula-affecting change kept farm_manager/super_admin-only
                         (see EnterpriseController::assertEnterpriseStructuralAccess); a data_entry
                         granted Pointage access only gets a read-only summary here. */}
-                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-blue-600">
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-primary-600">
                         <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">Détails de la Division</h3>
                         {auth.user.role === 'data_entry' ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
@@ -150,7 +150,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     <button
                                         type="submit"
                                         disabled={editForm.processing}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
+                                        className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
                                     >
                                         Enregistrer les modifications
                                     </button>

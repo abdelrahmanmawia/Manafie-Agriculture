@@ -75,7 +75,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                     <InputLabel htmlFor="product_id" value="Produit *" />
                                     <select
                                         id="product_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                         value={data.product_id}
                                         onChange={(e) => setData('product_id', e.target.value)}
                                         required
@@ -92,7 +92,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                     <InputLabel htmlFor="entry_type" value="Type de Sortie *" />
                                     <select
                                         id="entry_type"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                         value={data.entry_type}
                                         onChange={(e) => {
                                             const nextType = exitTypes.find((t) => t.key === e.target.value);
@@ -130,7 +130,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                     <InputLabel htmlFor="employee_id" value="Employé (Qui a utilisé/consommé)" />
                                     <select
                                         id="employee_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                         value={data.employee_id}
                                         onChange={(e) => setData('employee_id', e.target.value)}
                                     >
@@ -147,7 +147,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         <InputLabel htmlFor="vehicle_id" value="Véhicule" />
                                         <select
                                             id="vehicle_id"
-                                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                            className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                             value={data.vehicle_id}
                                             onChange={(e) => setData((prev) => ({ ...prev, vehicle_id: e.target.value, maintenance_log_id: '' }))}
                                         >
@@ -182,7 +182,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                         <InputLabel htmlFor="maintenance_log_id" value="Intervention de Maintenance Liée" />
                                         <select
                                             id="maintenance_log_id"
-                                            className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                            className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                             value={data.maintenance_log_id}
                                             onChange={(e) => setData('maintenance_log_id', e.target.value)}
                                         >
@@ -201,7 +201,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                             <InputLabel htmlFor="operation_id" value="Opération" />
                                             <select
                                                 id="operation_id"
-                                                className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                                className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                                 value={data.operation_id}
                                                 onChange={(e) => setData('operation_id', e.target.value)}
                                             >
@@ -218,7 +218,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                 <InputLabel htmlFor="bloc_id" value="Bloc" />
                                                 <select
                                                     id="bloc_id"
-                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                                     value={data.bloc_id}
                                                     onChange={(e) => setData((prev) => ({ ...prev, bloc_id: e.target.value, sector_id: '', parcelle_id: '' }))}
                                                 >
@@ -233,7 +233,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                 <InputLabel htmlFor="sector_id" value="Secteur" />
                                                 <select
                                                     id="sector_id"
-                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                     value={data.sector_id}
                                                     onChange={(e) => setData((prev) => ({ ...prev, sector_id: e.target.value, parcelle_id: '' }))}
                                                     disabled={!data.bloc_id}
@@ -249,7 +249,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                                 <InputLabel htmlFor="parcelle_id" value="Parcelle" />
                                                 <select
                                                     id="parcelle_id"
-                                                    className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm disabled:bg-gray-100 disabled:text-gray-400"
                                                     value={data.parcelle_id}
                                                     onChange={(e) => setData('parcelle_id', e.target.value)}
                                                     disabled={!data.sector_id}
@@ -282,7 +282,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                     <InputLabel htmlFor="notes" value="Notes" />
                                     <textarea
                                         id="notes"
-                                        className="mt-1 block w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
                                         value={data.notes}
                                         onChange={(e) => setData('notes', e.target.value)}
                                         rows="3"

@@ -241,7 +241,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                             </button>
                             <button
                                 onClick={openCreate}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -268,7 +268,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                         placeholder="Rechercher par nom..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                     />
                                     <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -280,7 +280,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                 <select
                                     value={selectedCategory}
                                     onChange={(e) => setSelectedCategory(e.target.value)}
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                 >
                                     <option value="">Toutes les catégories</option>
                                     {categories.map((cat) => (
@@ -309,7 +309,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                 {auth.user.role !== 'data_entry' && (
                                     <button
                                         onClick={openCreate}
-                                        className="mt-4 text-blue-600 hover:text-blue-700 font-medium"
+                                        className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
                                     >
                                         Ajouter votre premier produit
                                     </button>
@@ -357,8 +357,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                                     className="flex-shrink-0 h-10 w-10 rounded-lg object-cover"
                                                                 />
                                                             ) : (
-                                                                <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                                                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <div className="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                                                                    <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
                                                                     </svg>
                                                                 </div>
@@ -369,7 +369,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
-                                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">
                                                             {product.category?.name ?? 'Sans catégorie'}
                                                         </span>
                                                     </td>
@@ -417,7 +417,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                             </button>
                                                             <Link
                                                                 href={route('stock.products.show', product.id)}
-                                                                className="text-gray-400 hover:text-blue-600 transition-colors"
+                                                                className="text-gray-400 hover:text-primary-600 transition-colors"
                                                                 title="Voir"
                                                             >
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,8 +453,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                 <div className="p-8">
                     <div className="flex justify-between items-center mb-6">
                         <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                                <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <div className="h-10 w-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                                <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                                 </svg>
                             </div>
@@ -505,7 +505,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             type="file"
                                             accept="image/*"
                                             onChange={handleImageChange}
-                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                            className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100"
                                         />
                                     </div>
                                     <InputError message={errors.image} className="mt-2" />
@@ -515,7 +515,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                     <InputLabel htmlFor="category" value="Catégorie *" />
                                     <select
                                         id="category"
-                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={data.category_id}
                                         onChange={(e) => setData('category_id', e.target.value)}
                                         required
@@ -531,7 +531,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                     <InputLabel htmlFor="unit_type" value="Type d'Unité *" />
                                     <select
                                         id="unit_type"
-                                        className="mt-1 block w-full border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg shadow-sm"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
                                         value={data.unit_type}
                                         onChange={(e) => setData('unit_type', e.target.value)}
                                         required
@@ -598,7 +598,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={closeProductModal}>Annuler</SecondaryButton>
-                            <PrimaryButton disabled={processing} className="bg-blue-600 hover:bg-blue-700">
+                            <PrimaryButton disabled={processing} className="bg-primary-600 hover:bg-primary-700">
                                 {processing
                                     ? (editingProduct ? 'Mise à jour...' : 'Création en cours...')
                                     : (editingProduct ? 'Mettre à Jour le Produit' : 'Ajouter le Produit')}

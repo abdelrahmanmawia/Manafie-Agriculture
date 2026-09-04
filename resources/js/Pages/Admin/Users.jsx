@@ -59,7 +59,7 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                     <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('user_management')}</h2>
                     <button
                         onClick={() => setIsAddingUser(true)}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                        className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                     >
                         <span>+</span> {t('add_user')}
                     </button>

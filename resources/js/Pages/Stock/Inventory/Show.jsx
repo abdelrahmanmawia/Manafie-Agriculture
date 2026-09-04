@@ -105,7 +105,7 @@ export default function Show({ auth, stockInventory }) {
                                 <div>
                                     <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tighter">{stockInventory.product.name}</h3>
                                     <div className="flex items-center gap-3 mt-2">
-                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
+                                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">
                                             {stockInventory.product.category?.name ?? 'Sans catégorie'}
                                         </span>
                                         {stockInventory.batch_number && (

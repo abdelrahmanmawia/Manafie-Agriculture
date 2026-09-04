@@ -66,7 +66,7 @@ export default function FarmDashboard({
                             )}
                             <Link
                                 href={route('farms.settings', farm.id)}
-                                className="text-xs bg-blue-600 text-white hover:bg-blue-700 px-3 py-1 rounded font-bold transition-colors"
+                                className="text-xs bg-primary-600 text-white hover:bg-primary-700 px-3 py-1 rounded font-bold transition-colors"
                             >
                                 {t('settings')} {t('fermes')}
                             </Link>
@@ -131,7 +131,7 @@ export default function FarmDashboard({
                             <h3 className="text-2xl font-black text-gray-900 uppercase tracking-tight">Pointage &amp; Paie</h3>
                             <Link
                                 href={route('analytics.index')}
-                                className="text-sm font-bold text-blue-600 hover:text-blue-800 uppercase tracking-widest"
+                                className="text-sm font-bold text-primary-600 hover:text-primary-800 uppercase tracking-widest"
                             >
                                 Voir l'Analyse Complète →
                             </Link>
@@ -181,13 +181,13 @@ export default function FarmDashboard({
                             canAccessPointage && {
                                 href: route('pointage.index'),
                                 label: 'Divisions & Pointage',
-                                color: 'blue',
+                                color: 'green',
                                 icon: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
                             },
                             canAccessStock && {
                                 href: route('stock.dashboard'),
                                 label: 'Gestion de Stock',
-                                color: 'purple',
+                                color: 'teal',
                                 icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10',
                             },
                             {

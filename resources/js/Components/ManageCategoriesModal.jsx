@@ -102,7 +102,7 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                                             type="checkbox"
                                             checked={renameForm.data.is_vehicle_related}
                                             onChange={(e) => renameForm.setData('is_vehicle_related', e.target.checked)}
-                                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                                         />
                                         Usage véhicule (affiche véhicule/kilométrage à la sortie)
                                     </label>
@@ -117,7 +117,7 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                                     <div className="min-w-0">
                                         <p className="font-medium text-gray-800 truncate">{category.name}</p>
                                         {category.is_vehicle_related && (
-                                            <p className="text-xs text-blue-600 mt-0.5">Usage véhicule</p>
+                                            <p className="text-xs text-primary-600 mt-0.5">Usage véhicule</p>
                                         )}
                                     </div>
                                     {confirmingDeleteId === category.id ? (
@@ -187,7 +187,7 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                             type="checkbox"
                             checked={createForm.data.is_vehicle_related}
                             onChange={(e) => createForm.setData('is_vehicle_related', e.target.checked)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                         />
                         Usage véhicule (affiche véhicule/kilométrage à la sortie)
                     </label>

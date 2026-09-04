@@ -40,7 +40,7 @@ export default function Badges({ auth, employees, enterprises }) {
 
             <div className="py-6">
                 <div className="max-w-5xl mx-auto sm:px-4 lg:px-8 space-y-4">
-                    <div className="flex flex-wrap gap-3 items-center justify-between bg-white shadow-sm sm:rounded-2xl border-t-4 border-blue-600 p-4">
+                    <div className="flex flex-wrap gap-3 items-center justify-between bg-white shadow-sm sm:rounded-2xl border-t-4 border-primary-600 p-4">
                         <p className="text-xs text-gray-500 font-bold">
                             Sélectionnez des employés pour n'imprimer que leurs badges, ou laissez la sélection vide pour tout imprimer.
                             Un badge déjà imprimé garde le même QR code à vie, même après une réimpression.
@@ -65,7 +65,7 @@ export default function Badges({ auth, employees, enterprises }) {
                         </div>
                     </div>
 
-                    <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-blue-600 overflow-hidden">
+                    <section className="bg-white shadow-2xl sm:rounded-2xl border-t-8 border-primary-600 overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="min-w-full text-sm">
                                 <thead className="bg-gray-50">
@@ -88,7 +88,7 @@ export default function Badges({ auth, employees, enterprises }) {
                                             <td className="px-4 py-3 font-medium text-gray-900">{emp.matricule}</td>
                                             <td className="px-4 py-3 font-bold text-gray-800">{emp.full_name}</td>
                                             {auth.user.role === 'super_admin' && (
-                                                <td className="px-4 py-3 text-xs text-blue-600 font-bold">{emp.enterprise?.name || '-'}</td>
+                                                <td className="px-4 py-3 text-xs text-primary-600 font-bold">{emp.enterprise?.name || '-'}</td>
                                             )}
                                             <td className="px-4 py-3 text-xs">
                                                 {emp.badge_uuid

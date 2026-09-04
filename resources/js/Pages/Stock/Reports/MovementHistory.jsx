@@ -14,7 +14,7 @@ export default function MovementHistory({ auth, movementHistory }) {
         switch (type) {
             case 'in': return 'bg-green-100 text-green-800';
             case 'out': return 'bg-red-100 text-red-800';
-            case 'transfer': return 'bg-blue-100 text-blue-800';
+            case 'transfer': return 'bg-primary-100 text-primary-800';
             case 'adjustment': return 'bg-yellow-100 text-yellow-800';
             default: return 'bg-gray-100 text-gray-800';
         }
@@ -64,8 +64,8 @@ export default function MovementHistory({ auth, movementHistory }) {
                                     <p className="text-sm text-gray-500">Total Mouvements</p>
                                     <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(movementHistory.length)}</p>
                                 </div>
-                                <div className="h-12 w-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                    <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <div className="h-12 w-12 bg-primary-100 rounded-xl flex items-center justify-center">
+                                    <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                     </svg>
                                 </div>

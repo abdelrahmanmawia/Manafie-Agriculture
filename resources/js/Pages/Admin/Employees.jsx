@@ -125,7 +125,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                         {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                             <button
                                 onClick={() => setIsAddingEmployee(true)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                             >
                                 <span>+</span> {t('add_employee_btn')}
                             </button>
@@ -222,7 +222,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                     onChange={() => handleToggleActive(emp)}
                                                     className="sr-only peer"
                                                 />
-                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+                                                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                                             </label>
                                             {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
                                                 <div className="flex items-center justify-end gap-4">
@@ -264,7 +264,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 <tr className="text-left text-xs font-bold uppercase tracking-wider text-gray-500">
                                     <th className="px-4 py-3">{t('matricule')}</th>
                                     <th className="px-4 py-3">{t('full_name')}</th>
-                                    {auth.user.role === 'super_admin' && <th className="px-4 py-3 text-blue-600">{t('fermes')}</th>}
+                                    {auth.user.role === 'super_admin' && <th className="px-4 py-3 text-primary-600">{t('fermes')}</th>}
                                     <th className="px-4 py-3">{t('cin')}</th>
                                     <th className="px-4 py-3">{t('cnss')}</th>
                                     <th className="px-4 py-3">{t('phone')}</th>
@@ -293,7 +293,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 <div className="font-bold text-gray-800">{emp.full_name}</div>
                                             </td>
                                             {auth.user.role === 'super_admin' && (
-                                                <td className="px-4 py-3 font-bold text-blue-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
+                                                <td className="px-4 py-3 font-bold text-primary-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
                                             )}
                                             <td className="px-4 py-3">{emp.cin || '-'}</td>
                                             <td className="px-4 py-3">{emp.cnss_number || '-'}</td>
@@ -316,7 +316,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                         onChange={() => handleToggleActive(emp)}
                                                         className="sr-only peer"
                                                     />
-                                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                                                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                                                 </label>
                                             </td>
                                             <td className="px-4 py-3 text-center">
@@ -426,10 +426,10 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 super_admin/farm_manager and a farm-scoped (no fixed enterprise_id) data_entry. */}
                             {enterprises.length > 0 && (
                                 <div>
-                                    <label htmlFor="emp_enterprise_id" className="block text-xs font-black uppercase text-blue-600 mb-1">{t('assign_to_ferme')}</label>
+                                    <label htmlFor="emp_enterprise_id" className="block text-xs font-black uppercase text-primary-600 mb-1">{t('assign_to_ferme')}</label>
                                     <select
                                         id="emp_enterprise_id"
-                                        className="w-full rounded-lg border-blue-200 bg-blue-50"
+                                        className="w-full rounded-lg border-primary-200 bg-primary-50"
                                         value={data.enterprise_id}
                                         onChange={e => setData('enterprise_id', e.target.value)}
                                     >
@@ -449,7 +449,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             </div>
                             <div>
                                 <label htmlFor="emp_base_rate" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('daily_rate_dh')}</label>
-                                <input id="emp_base_rate" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-blue-700" value={data.base_rate} onChange={e => setData('base_rate', e.target.value)} />
+                                <input id="emp_base_rate" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-primary-700" value={data.base_rate} onChange={e => setData('base_rate', e.target.value)} />
                                 {errors.base_rate && <div className="text-red-500 text-xs mt-1">{errors.base_rate}</div>}
                             </div>
                             <div>

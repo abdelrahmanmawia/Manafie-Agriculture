@@ -43,13 +43,13 @@ class AppServiceProvider extends ServiceProvider
             $expireMinutes = config('auth.passwords.'.config('auth.defaults.passwords').'.expire');
 
             return (new MailMessage)
-                ->subject('Réinitialisation de votre mot de passe - Gestion Agricole')
+                ->subject('Réinitialisation de votre mot de passe - Manafie Agriculture')
                 ->greeting('Bonjour,')
                 ->line('Vous recevez cet e-mail car une demande de réinitialisation de mot de passe a été effectuée pour votre compte.')
                 ->action('Réinitialiser le mot de passe', $url)
                 ->line("Ce lien de réinitialisation expirera dans {$expireMinutes} minutes.")
                 ->line("Si vous n'êtes pas à l'origine de cette demande, aucune action n'est requise.")
-                ->salutation('Cordialement, L\'équipe Gestion Agricole');
+                ->salutation('Cordialement, L\'équipe Manafie Agriculture');
         });
     }
 }
