@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { t } from '@/Helpers/i18n';
+import DashboardHeader from '@/Components/DashboardHeader';
 
 export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
     const [showFarmForm, setShowFarmForm] = useState(false);
@@ -41,7 +42,7 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
-            header={<h2 className="font-semibold text-xl text-gray-800 leading-tight uppercase tracking-widest">Tableau de Bord - Fermes</h2>}
+            header={<DashboardHeader title="Tableau de Bord - Fermes" />}
         >
             <Head title="Super Admin Dashboard" />
 
@@ -53,12 +54,12 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
                         {!showFarmForm ? (
                             <button
                                 onClick={() => setShowFarmForm(true)}
-                                className="bg-success-600 hover:bg-success-700 text-white px-8 py-3 rounded-full font-black uppercase tracking-widest shadow-lg transition-all transform hover:scale-105"
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-black uppercase tracking-widest shadow-sm transition-colors"
                             >
                                 + Créer une Nouvelle Ferme
                             </button>
                         ) : (
-                            <div className="bg-white p-8 shadow-2xl rounded-2xl border-2 border-success-500 w-full max-w-md">
+                            <div className="bg-white p-8 shadow-xl rounded-2xl border border-gray-200 w-full max-w-md">
                                 <div className="flex justify-between items-center mb-6">
                                     <h3 className="text-xl font-black uppercase tracking-tight">Nouvelle Ferme</h3>
                                     <button onClick={() => setShowFarmForm(false)} className="text-gray-400 hover:text-gray-600 font-bold">X</button>
@@ -68,7 +69,7 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
                                         <label className="block text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Nom de la Ferme</label>
                                         <input
                                             type="text"
-                                            className="w-full rounded-xl border-gray-200 text-sm focus:border-success-500 focus:ring-success-500 py-3"
+                                            className="w-full rounded-xl border-gray-200 text-sm focus:border-blue-500 focus:ring-blue-500 py-3"
                                             placeholder="Ex: Ferme Souss"
                                             value={farmForm.data.name}
                                             onChange={e => farmForm.setData('name', e.target.value)}
@@ -76,10 +77,10 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
                                         />
                                         {farmForm.errors.name && <div className="text-red-500 text-xs mt-1">{farmForm.errors.name}</div>}
                                     </div>
-                                    <button 
-                                        type="submit" 
+                                    <button
+                                        type="submit"
                                         disabled={farmForm.processing}
-                                        className="w-full bg-success-600 hover:bg-success-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md"
+                                        className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md"
                                     >
                                         Enregistrer la Ferme
                                     </button>
@@ -90,12 +91,12 @@ export default function SuperDashboard({ auth, farms = [], enterprises = [] }) {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                         {farms.map(farm => (
-                            <div key={farm.id} className="bg-white overflow-hidden shadow-sm sm:rounded-2xl p-8 border border-gray-100 hover:border-success-500 hover:shadow-xl transition-all group">
+                            <div key={farm.id} className="bg-white overflow-hidden shadow-sm sm:rounded-2xl p-8 border border-gray-100 hover:border-blue-300 hover:shadow-lg transition-all group">
                                 <div className="flex justify-between items-start mb-6">
                                     <div>
-                                        <h4 className="text-3xl font-black text-gray-900 leading-tight uppercase group-hover:text-success-600 transition-colors">{farm.name}</h4>
+                                        <h4 className="text-3xl font-black text-gray-900 leading-tight uppercase group-hover:text-blue-600 transition-colors">{farm.name}</h4>
                                         <div className="flex items-center gap-2 mt-1">
-                                            <span className="w-2 h-2 rounded-full bg-success-500"></span>
+                                            <span className="w-2 h-2 rounded-full bg-green-500"></span>
                                             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Active</span>
                                         </div>
                                     </div>

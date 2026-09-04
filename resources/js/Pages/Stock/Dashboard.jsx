@@ -2,6 +2,7 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { formatInt, formatNumber } from '@/utils/number';
 import StatCard from '@/Components/StatCard';
+import DashboardHeader from '@/Components/DashboardHeader';
 
 const ALERT_LABELS = {
     low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
@@ -21,17 +22,17 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
         <AuthenticatedLayout
             user={auth.user}
             header={
-                <div className="flex flex-wrap justify-between items-center gap-4">
-                    <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Tableau de Bord de Gestion de Stock</h2>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500">
-                        <span className="flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <DashboardHeader
+                    title="Tableau de Bord de Gestion de Stock"
+                    actions={
+                        <span className="flex items-center gap-1 text-sm text-gray-500 normal-case tracking-normal font-normal">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                             {new Date().toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                         </span>
-                    </div>
-                </div>
+                    }
+                />
             }
         >
             <Head title="Gestion de Stock" />
@@ -62,40 +63,40 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                             label="Produits Actifs"
                             value={formatInt(stats.products)}
                             tone="blue"
+                            href={route('stock.products.index')}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />}
                         />
-                        <Link href={route('stock.alerts.index', { alert_type: 'low_stock' })}>
-                            <StatCard
-                                label="Stock Faible"
-                                value={formatInt(stats.lowStock)}
-                                tone="red"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
-                            />
-                        </Link>
-                        <Link href={route('stock.vehicles.index')}>
-                            <StatCard
-                                label="Véhicules"
-                                value={formatInt(stats.vehicles)}
-                                tone="gray"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />}
-                            />
-                        </Link>
-                        <Link href={route('stock.vehicles.index', { asset_type: 'equipment', status: 'in_repair' })}>
-                            <StatCard
-                                label="Équipement en Panne"
-                                value={formatInt(stats.equipmentDown)}
-                                tone="orange"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />}
-                            />
-                        </Link>
-                        <Link href={route('stock.alerts.index')}>
-                            <StatCard
-                                label="Alertes"
-                                value={formatInt(stats.alerts)}
-                                tone="orange"
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
-                            />
-                        </Link>
+                        <StatCard
+                            label="Stock Faible"
+                            value={formatInt(stats.lowStock)}
+                            tone="red"
+                            href={route('stock.alerts.index', { alert_type: 'low_stock' })}
+                            trend={stats.lowStock === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
+                        />
+                        <StatCard
+                            label="Véhicules"
+                            value={formatInt(stats.vehicles)}
+                            tone="gray"
+                            href={route('stock.vehicles.index')}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />}
+                        />
+                        <StatCard
+                            label="Équipement en Panne"
+                            value={formatInt(stats.equipmentDown)}
+                            tone="orange"
+                            href={route('stock.vehicles.index', { asset_type: 'equipment', status: 'in_repair' })}
+                            trend={stats.equipmentDown === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />}
+                        />
+                        <StatCard
+                            label="Alertes"
+                            value={formatInt(stats.alerts)}
+                            tone="orange"
+                            href={route('stock.alerts.index')}
+                            trend={stats.alerts === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
+                        />
                     </div>
 
                     {/* Alerts + Recent Movements */}
