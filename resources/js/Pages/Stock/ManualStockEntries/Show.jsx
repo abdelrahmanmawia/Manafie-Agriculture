@@ -141,8 +141,12 @@ export default function Show({ auth, manualStockEntry }) {
                             <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(manualStockEntry.quantity)} {UNIT_TYPE_LABELS[manualStockEntry.product?.unit_type] || manualStockEntry.product?.unit_type || ''}</p>
                         </div>
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                            <p className="text-sm text-gray-500">Employé</p>
-                            <p className="text-lg font-semibold text-gray-900 mt-1">{manualStockEntry.employee?.full_name || 'N/A'}</p>
+                            <p className="text-sm text-gray-500">Qui a pris le produit</p>
+                            <p className="text-lg font-semibold text-gray-900 mt-1">
+                                {manualStockEntry.employee?.full_name || (manualStockEntry.employee_name ? (
+                                    <>{manualStockEntry.employee_name} <span className="text-xs font-bold text-amber-600 uppercase">(externe)</span></>
+                                ) : 'N/A')}
+                            </p>
                         </div>
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <p className="text-sm text-gray-500">Véhicule</p>

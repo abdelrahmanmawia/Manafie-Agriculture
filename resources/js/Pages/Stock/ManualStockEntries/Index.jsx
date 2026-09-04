@@ -18,6 +18,10 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     const [deletingEntry, setDeletingEntry] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isManagingTypes, setIsManagingTypes] = useState(false);
+    // Toggle between picking an existing Employee and typing a name for someone outside the
+    // farm's employee list (a contractor, another farm's driver...) — the two fields are
+    // mutually exclusive on submit, so switching modes clears whichever one isn't shown.
+    const [employeeInputMode, setEmployeeInputMode] = useState('list');
     const canManageTypes = auth.user.role !== 'data_entry';
 
     const { data, setData, post, processing, reset, errors } = useForm({
@@ -25,6 +29,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         entry_type: 'consumption',
         quantity: '',
         employee_id: '',
+        employee_name: '',
         vehicle_id: '',
         maintenance_log_id: '',
         pointage_record_id: '',
@@ -59,6 +64,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
         post(route('stock.manual-entries.store'), {
             onSuccess: () => {
                 reset();
+                setEmployeeInputMode('list');
                 setIsCreating(false);
             },
         });
@@ -77,6 +83,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     const filteredEntries = manualStockEntries.filter(entry => {
         const matchesSearch = entry.product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              entry.employee?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                             entry.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                              entry.vehicle?.name?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesType = !selectedType || entry.entry_type === selectedType;
         return matchesSearch && matchesType;
@@ -282,7 +289,9 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                                     <div className="text-sm font-medium text-gray-900">{formatNumber(entry.quantity)} {UNIT_TYPE_LABELS[entry.product?.unit_type] || entry.product?.unit_type || ''}</div>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {entry.employee?.full_name || 'N/A'}
+                                                    {entry.employee?.full_name || (entry.employee_name ? (
+                                                        <span>{entry.employee_name} <span className="text-[10px] font-bold text-amber-600 uppercase">(externe)</span></span>
+                                                    ) : 'N/A')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     <div className="text-xs">
@@ -460,19 +469,45 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                             </div>
 
                             <div>
-                                <InputLabel htmlFor="employee_id" value="Employé" />
-                                <select
-                                    id="employee_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
-                                    value={data.employee_id}
-                                    onChange={(e) => setData('employee_id', e.target.value)}
-                                >
-                                    <option value="">-- Sélectionner un employé --</option>
-                                    {employees.map((employee) => (
-                                        <option key={employee.id} value={employee.id}>{employee.full_name}</option>
-                                    ))}
-                                </select>
+                                <div className="flex items-center justify-between mb-1">
+                                    <InputLabel htmlFor="employee_id" value="Qui a pris le produit ?" />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            const next = employeeInputMode === 'list' ? 'text' : 'list';
+                                            setEmployeeInputMode(next);
+                                            setData(next === 'list'
+                                                ? { ...data, employee_name: '' }
+                                                : { ...data, employee_id: '' });
+                                        }}
+                                        className="text-xs font-bold text-primary-600 hover:text-primary-800"
+                                    >
+                                        {employeeInputMode === 'list' ? 'Personne hors ferme ?' : '← Choisir un employé'}
+                                    </button>
+                                </div>
+                                {employeeInputMode === 'list' ? (
+                                    <select
+                                        id="employee_id"
+                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
+                                        value={data.employee_id}
+                                        onChange={(e) => setData('employee_id', e.target.value)}
+                                    >
+                                        <option value="">-- Sélectionner un employé --</option>
+                                        {employees.map((employee) => (
+                                            <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                        ))}
+                                    </select>
+                                ) : (
+                                    <TextInput
+                                        id="employee_name"
+                                        className="mt-1 block w-full"
+                                        placeholder="Nom de la personne"
+                                        value={data.employee_name}
+                                        onChange={(e) => setData('employee_name', e.target.value)}
+                                    />
+                                )}
                                 <InputError message={errors.employee_id} className="mt-2" />
+                                <InputError message={errors.employee_name} className="mt-2" />
                             </div>
 
                             {isVehicleConsumable && (

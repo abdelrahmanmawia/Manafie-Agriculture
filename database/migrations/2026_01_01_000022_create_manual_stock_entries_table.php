@@ -15,6 +15,11 @@ return new class extends Migration
             $table->string('entry_type');
             $table->decimal('quantity', 12, 2);
             $table->foreignId('employee_id')->nullable()->constrained('employees')->nullOnDelete();
+            // Free-text fallback for someone who took stock but isn't in the Employee list (an
+            // outside contractor, another farm's driver...) — mutually exclusive with
+            // employee_id in practice (the form toggles between the two), not enforced in the
+            // schema since either can legitimately be null on its own.
+            $table->string('employee_name')->nullable();
             $table->foreignId('vehicle_id')->nullable()->constrained('vehicles');
             // A maintenance intervention (VehicleMaintenanceLog) can consume several products
             // (filtre + huile + joint...), so the FK lives here rather than the other way round.

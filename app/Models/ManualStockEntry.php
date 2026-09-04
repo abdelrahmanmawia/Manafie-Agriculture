@@ -17,6 +17,7 @@ class ManualStockEntry extends Model
         'entry_type',
         'quantity',
         'employee_id',
+        'employee_name',
         'vehicle_id',
         'maintenance_log_id',
         'pointage_record_id',

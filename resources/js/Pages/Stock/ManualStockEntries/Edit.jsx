@@ -1,5 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
+import { useState } from 'react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
@@ -13,6 +14,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
         entry_type: manualStockEntry.entry_type,
         quantity: manualStockEntry.quantity,
         employee_id: manualStockEntry.employee_id || '',
+        employee_name: manualStockEntry.employee_name || '',
         vehicle_id: manualStockEntry.vehicle_id || '',
         maintenance_log_id: manualStockEntry.maintenance_log_id || '',
         pointage_record_id: manualStockEntry.pointage_record_id || '',
@@ -24,6 +26,9 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
         notes: manualStockEntry.notes || '',
         odometer_km: manualStockEntry.odometer_km || '',
     });
+
+    // Defaults to whichever field the entry already has data in.
+    const [employeeInputMode, setEmployeeInputMode] = useState(manualStockEntry.employee_name ? 'text' : 'list');
 
     const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
     const isVehicleConsumable = Boolean(selectedProduct?.category?.is_vehicle_related);
@@ -127,19 +132,45 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                 </div>
 
                                 <div>
-                                    <InputLabel htmlFor="employee_id" value="Employé (Qui a utilisé/consommé)" />
-                                    <select
-                                        id="employee_id"
-                                        className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
-                                        value={data.employee_id}
-                                        onChange={(e) => setData('employee_id', e.target.value)}
-                                    >
-                                        <option value="">-- Sélectionner un employé --</option>
-                                        {employees.map((employee) => (
-                                            <option key={employee.id} value={employee.id}>{employee.full_name}</option>
-                                        ))}
-                                    </select>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <InputLabel htmlFor="employee_id" value="Qui a utilisé/consommé ?" />
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const next = employeeInputMode === 'list' ? 'text' : 'list';
+                                                setEmployeeInputMode(next);
+                                                setData(next === 'list'
+                                                    ? { ...data, employee_name: '' }
+                                                    : { ...data, employee_id: '' });
+                                            }}
+                                            className="text-xs font-bold text-primary-600 hover:text-primary-800"
+                                        >
+                                            {employeeInputMode === 'list' ? 'Personne hors ferme ?' : '← Choisir un employé'}
+                                        </button>
+                                    </div>
+                                    {employeeInputMode === 'list' ? (
+                                        <select
+                                            id="employee_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-md shadow-sm"
+                                            value={data.employee_id}
+                                            onChange={(e) => setData('employee_id', e.target.value)}
+                                        >
+                                            <option value="">-- Sélectionner un employé --</option>
+                                            {employees.map((employee) => (
+                                                <option key={employee.id} value={employee.id}>{employee.full_name}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <TextInput
+                                            id="employee_name"
+                                            className="mt-1 block w-full"
+                                            placeholder="Nom de la personne"
+                                            value={data.employee_name}
+                                            onChange={(e) => setData('employee_name', e.target.value)}
+                                        />
+                                    )}
                                     <InputError message={errors.employee_id} className="mt-2" />
+                                    <InputError message={errors.employee_name} className="mt-2" />
                                 </div>
 
                                 {isVehicleConsumable && (

@@ -119,6 +119,10 @@ class ManualStockEntryController extends Controller
             'entry_type' => ['required', Rule::in($exitTypeKeys)],
             'quantity' => 'required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
+            // Free-text fallback for someone who took stock but isn't in the Employee list — the
+            // form only ever sends one of the two (a toggle switches which field is active), but
+            // nothing here forces that; either can be null on its own.
+            'employee_name' => 'nullable|string|max:255',
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',
             'pointage_record_id' => 'nullable|exists:pointage_records,id',
@@ -171,6 +175,7 @@ class ManualStockEntryController extends Controller
                 'entry_type' => $validated['entry_type'],
                 'quantity' => $validated['quantity'],
                 'employee_id' => $validated['employee_id'] ?? null,
+                'employee_name' => $validated['employee_name'] ?? null,
                 'vehicle_id' => $validated['vehicle_id'] ?? null,
                 'maintenance_log_id' => $validated['maintenance_log_id'] ?? null,
                 'pointage_record_id' => $validated['pointage_record_id'] ?? null,
@@ -266,6 +271,7 @@ class ManualStockEntryController extends Controller
             'entry_type' => ['sometimes', 'required', Rule::in($exitTypeKeys)],
             'quantity' => 'sometimes|required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
+            'employee_name' => 'nullable|string|max:255',
             'vehicle_id' => 'nullable|exists:vehicles,id',
             'maintenance_log_id' => 'nullable|exists:vehicle_maintenance_logs,id',
             'pointage_record_id' => 'nullable|exists:pointage_records,id',
