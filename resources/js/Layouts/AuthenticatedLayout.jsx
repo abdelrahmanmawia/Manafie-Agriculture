@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import ApplicationLogo from '@/Components/ApplicationLogo';
 import Dropdown from '@/Components/Dropdown';
-import NavLink from '@/Components/NavLink';
 import ResponsiveNavLink from '@/Components/ResponsiveNavLink';
-import WorkspaceSubNav from '@/Components/WorkspaceSubNav';
+import AppSidebar from '@/Components/AppSidebar';
 import FlashToast from '@/Components/FlashToast';
 import { Link, usePage } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
@@ -19,7 +18,7 @@ export default function Authenticated({ user, header, children }) {
     const needsFarmSelection = user.role === 'super_admin' && !activeFarm;
 
     // Only data_entry accounts are ever restricted — super_admin/farm_manager always see both
-    // zones (see User::canAccessPointage()/canAccessStock() on the backend, mirrored here so
+    // domains (see User::canAccessPointage()/canAccessStock() on the backend, mirrored here so
     // the nav doesn't offer an entry point the middleware would just 403 on).
     const canAccessPointage = user.role !== 'data_entry' || user.can_access_pointage;
     const canAccessStock = user.role !== 'data_entry' || user.can_access_stock;
@@ -29,14 +28,9 @@ export default function Authenticated({ user, header, children }) {
     // back out is confusing. A data_entry with both (or neither) flag still sees it normally.
     const isSingleDomainDataEntry = user.role === 'data_entry' && (canAccessPointage !== canAccessStock);
 
-    // "Paramètres Système" (farms.settings) is shared across all three zones — its route name
-    // alone can't say which sidebar to show, so each zone's own link tags it with ?zone=... (see
-    // farmSettingsItemFor below) and we read that back here to keep the sidebar/theme consistent
-    // with wherever the user actually came from, instead of always falling back to the Hub.
-    const farmSettingsZone = new URLSearchParams(window.location.search).get('zone');
-    const onFarmSettings = route().current('farms.settings');
-
-    const isStockZone = route().current('stock.*') || (onFarmSettings && farmSettingsZone === 'stock');
+    // Only used to decide which sidebar section opens by default on this page load — the
+    // sidebar itself is one persistent tree now, not three that swap (see AppSidebar).
+    const isStockZone = route().current('stock.*');
     const isPointageZone = !isStockZone && (
         route().current('pointage.*') ||
         route().current('harvests.*') ||
@@ -45,16 +39,15 @@ export default function Authenticated({ user, header, children }) {
         route().current('settings.*') ||
         route().current('badges.*') ||
         // Employees is Pointage-domain master data (see EmployeeController) — gated the same
-        // way behind access.domain:pointage, so it belongs visually in this zone, not the Hub.
-        route().current('employees.*') ||
-        (onFarmSettings && farmSettingsZone === 'pointage')
+        // way behind access.domain:pointage, so it groups visually under Pointage, not Accueil.
+        route().current('employees.*')
     );
-    const isHubZone = !isStockZone && !isPointageZone;
+    const isAdminZone = !isStockZone && !isPointageZone && (route().current('farms.settings') || route().current('users.*'));
+    const isHubZone = !isStockZone && !isPointageZone && !isAdminZone;
 
     const ICONS = {
         home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
         employees: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
-        map: 'M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
         shield: 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z',
         clock: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
         sun: 'M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m12.728 12.728l-.707.707M12 8a4 4 0 100 8 4 4 0 000-8z',
@@ -71,24 +64,11 @@ export default function Authenticated({ user, header, children }) {
         truck: 'M3 13l1.5-5A2 2 0 016.4 6.5h5.2a2 2 0 011.9 1.5l1 4M3 13v4a1 1 0 001 1h1m14-5v4a1 1 0 01-1 1h-1m-12 0a2 2 0 104 0m-4 0a2 2 0 114 0m8 0a2 2 0 104 0m-4 0a2 2 0 114 0M3 13h15',
     };
 
-    // Tags the link with which zone it was reached from — see the isPointageZone/isStockZone
-    // computation above. `match` intentionally omits the zone query string: WorkspaceSubNav's
-    // isActive() only cares that we're on farms.settings at all, from either zone's sidebar.
-    const farmSettingsItemFor = (zone) => (user.farm_id || activeFarm)
-        ? { label: t('system_settings') || 'Paramètres', href: 'farms.settings', params: { farm: user.farm_id || activeFarm.id, zone }, match: 'farms.settings', icon: ICONS.sliders }
+    const farmSettingsItem = (user.farm_id || activeFarm)
+        ? { label: t('system_settings') || 'Paramètres Système', href: 'farms.settings', params: user.farm_id || activeFarm.id, match: 'farms.settings', icon: ICONS.sliders }
         : null;
 
-    const hubFarmSettingsItem = farmSettingsItemFor('hub');
-    const pointageFarmSettingsItem = farmSettingsItemFor('pointage');
-    const stockFarmSettingsItem = farmSettingsItemFor('stock');
-
-    const hubItems = [
-        { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home },
-        ...(user.role === 'super_admin'
-            ? [{ label: t('users') || 'Utilisateurs', href: 'users.index', match: 'users.*', icon: ICONS.shield }]
-            : []),
-        ...(hubFarmSettingsItem ? [hubFarmSettingsItem] : []),
-    ];
+    const homeItem = { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home };
 
     const pointageItems = [
         { label: 'Tableau de Bord', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
@@ -100,7 +80,6 @@ export default function Authenticated({ user, header, children }) {
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
         { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
-        ...(pointageFarmSettingsItem ? [pointageFarmSettingsItem] : []),
     ];
 
     const stockItems = [
@@ -114,118 +93,102 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Carburant', href: 'stock.fuel-transactions.index', match: 'stock.fuel-transactions.*', icon: ICONS.fuel },
         { label: 'Sorties de Stock', href: 'stock.manual-entries.index', match: 'stock.manual-entries.*', icon: ICONS.pencil },
         { label: 'Rapports', href: 'stock.reports.index', match: 'stock.reports.*', icon: ICONS.chart },
-        ...(stockFarmSettingsItem ? [stockFarmSettingsItem] : []),
     ];
 
-    const activeSubNav = isStockZone
-        ? { items: stockItems, colorClass: 'bg-purple-600', label: 'Gestion de Stock' }
-        : isPointageZone
-        ? { items: pointageItems, colorClass: 'bg-blue-600', label: t('pointage') || 'Pointage' }
-        : { items: hubItems, colorClass: 'bg-gray-800', label: 'Accueil' };
+    const adminItems = [
+        ...(user.role === 'super_admin'
+            ? [{ label: t('users') || 'Utilisateurs', href: 'users.index', match: 'users.*', icon: ICONS.shield }]
+            : []),
+        ...(farmSettingsItem ? [farmSettingsItem] : []),
+    ];
+
+    // One persistent tree instead of three that swap wholesale — every domain the user has
+    // access to stays visible, with the section matching the current page open by default.
+    const sections = [
+        canAccessPointage && !needsFarmSelection
+            ? { id: 'pointage', label: t('pointage') || 'Pointage', color: 'blue', items: pointageItems, defaultOpen: isPointageZone }
+            : null,
+        canAccessStock && !needsFarmSelection
+            ? { id: 'stock', label: 'Gestion de Stock', color: 'purple', items: stockItems, defaultOpen: isStockZone }
+            : null,
+        adminItems.length > 0
+            ? { id: 'admin', label: 'Administration', color: 'gray', items: adminItems, defaultOpen: isAdminZone }
+            : null,
+    ].filter(Boolean);
 
     return (
         <div className="min-h-screen bg-gray-100">
             <FlashToast />
             <nav className="bg-white border-b border-gray-100">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
-                        <div className="flex">
-                            <div className="shrink-0 flex items-center">
-                                <Link href="/">
-                                    <ApplicationLogo className="block h-9 w-auto fill-current text-gray-800" />
-                                </Link>
-                            </div>
-
-                            <div className="hidden space-x-6 sm:-my-px sm:ms-10 lg:flex items-center">
-                                {!isSingleDomainDataEntry && (
-                                    <NavLink href={route('dashboard')} active={isHubZone}>
-                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                                        Accueil
-                                    </NavLink>
-                                )}
-
-                                {needsFarmSelection ? (
-                                    <span className="flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                                        <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                        Sélectionnez une ferme pour continuer
-                                    </span>
-                                ) : (
-                                    <>
-                                        {canAccessPointage && (
-                                            <NavLink href={route('pointage.index')} active={isPointageZone}>
-                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                                {t('pointage')}
-                                            </NavLink>
-                                        )}
-
-                                        {canAccessStock && (
-                                            <NavLink href={route('stock.dashboard')} active={isStockZone}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                                </svg>
-                                                Gestion de Stock
-                                            </NavLink>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                        <div className="flex items-center">
+                            <Link href="/" className="shrink-0 flex items-center gap-2.5">
+                                <ApplicationLogo className="block h-8 w-auto fill-current text-gray-800" />
+                                <span className="hidden sm:block font-black text-sm uppercase tracking-tight text-gray-800">Gestion Agricole</span>
+                            </Link>
                         </div>
 
-                        <div className="hidden sm:flex sm:items-center sm:ms-6">
-                            <div className="ms-3 relative">
-                                <Dropdown>
-                                    <Dropdown.Trigger>
-                                        <span className="inline-flex rounded-md">
-                                            <button
-                                                type="button"
-                                                className="inline-flex items-center px-4 py-2 border-2 border-gray-100 text-sm leading-4 font-black rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-blue-200 focus:outline-none transition ease-in-out duration-150 shadow-sm uppercase tracking-tighter"
+                        <div className="hidden sm:flex sm:items-center sm:gap-4">
+                            {needsFarmSelection && (
+                                <span className="flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                                    <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                    Sélectionnez une ferme pour continuer
+                                </span>
+                            )}
+
+                            <Dropdown>
+                                <Dropdown.Trigger>
+                                    <span className="inline-flex rounded-md">
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center px-4 py-2 border-2 border-gray-100 text-sm leading-4 font-black rounded-xl text-gray-700 bg-white hover:bg-gray-50 hover:border-blue-200 focus:outline-none transition ease-in-out duration-150 shadow-sm uppercase tracking-tighter"
+                                        >
+                                            <div className="flex flex-col items-start mr-3 border-r pr-3 border-gray-100 hidden md:flex">
+                                                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">
+                                                    {user.role === 'super_admin' ? (activeFarm?.name || 'Aucune Ferme') : (user.farm?.name || 'Globale')}
+                                                </span>
+                                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter mt-1">{user.enterprise?.name || 'Accès Manager'}</span>
+                                            </div>
+                                            {user.name}
+
+                                            <svg
+                                                className="ms-2 -me-0.5 h-4 w-4 opacity-50"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                viewBox="0 0 20 20"
+                                                fill="currentColor"
                                             >
-                                                <div className="flex flex-col items-start mr-3 border-r pr-3 border-gray-100 hidden md:flex">
-                                                    <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest leading-none">
-                                                        {user.role === 'super_admin' ? (activeFarm?.name || 'Aucune Ferme') : (user.farm?.name || 'Globale')}
-                                                    </span>
-                                                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-tighter mt-1">{user.enterprise?.name || 'Accès Manager'}</span>
-                                                </div>
-                                                {user.name}
+                                                <path
+                                                    fillRule="evenodd"
+                                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                                    clipRule="evenodd"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </span>
+                                </Dropdown.Trigger>
 
-                                                <svg
-                                                    className="ms-2 -me-0.5 h-4 w-4 opacity-50"
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    viewBox="0 0 20 20"
-                                                    fill="currentColor"
-                                                >
-                                                    <path
-                                                        fillRule="evenodd"
-                                                        d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                                                        clipRule="evenodd"
-                                                    />
-                                                </svg>
-                                            </button>
-                                        </span>
-                                    </Dropdown.Trigger>
-
-                                    <Dropdown.Content>
-                                        <div className="px-4 py-2 border-b border-gray-100 mb-1">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('connected')}</p>
-                                            <p className="text-xs font-bold text-blue-600 truncate">{user.email}</p>
-                                        </div>
-                                        <Dropdown.Link href={route('profile.edit')}>{t('profile')}</Dropdown.Link>
-                                        {user.role === 'super_admin' && activeFarm && (
-                                            <Dropdown.Link href={route('farms.deactivate')} method="post" as="button">
-                                                Changer de Ferme
-                                            </Dropdown.Link>
-                                        )}
-                                        <Dropdown.Link href={route('logout')} method="post" as="button" className="text-red-600">
-                                            {t('logout')}
+                                <Dropdown.Content>
+                                    <div className="px-4 py-2 border-b border-gray-100 mb-1">
+                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{t('connected')}</p>
+                                        <p className="text-xs font-bold text-blue-600 truncate">{user.email}</p>
+                                    </div>
+                                    <Dropdown.Link href={route('profile.edit')}>{t('profile')}</Dropdown.Link>
+                                    {user.role === 'super_admin' && activeFarm && (
+                                        <Dropdown.Link href={route('farms.deactivate')} method="post" as="button">
+                                            Changer de Ferme
                                         </Dropdown.Link>
-                                    </Dropdown.Content>
-                                </Dropdown>
-                            </div>
+                                    )}
+                                    <Dropdown.Link href={route('logout')} method="post" as="button" className="text-red-600">
+                                        {t('logout')}
+                                    </Dropdown.Link>
+                                </Dropdown.Content>
+                            </Dropdown>
                         </div>
 
-                        {/* Must hide at the same breakpoint (lg) the desktop nav appears at, not sm — otherwise
-                            there's a dead zone between 640px and 1023px (tablets, landscape phones) where
-                            neither the desktop nav nor this hamburger is visible, leaving no way to navigate. */}
+                        {/* Must hide at the same breakpoint (lg) the desktop sidebar appears at, not sm —
+                            otherwise there's a dead zone between 640px and 1023px (tablets, landscape
+                            phones) where neither the sidebar nor this hamburger is visible. */}
                         <div className="-me-2 flex items-center lg:hidden">
                             <button
                                 onClick={() => setShowingNavigationDropdown((previousState) => !previousState)}
@@ -252,59 +215,42 @@ export default function Authenticated({ user, header, children }) {
                     </div>
                 </div>
 
+                {/* Mobile menu — the same homeItem/sections the desktop sidebar renders, flattened
+                    (no expand/collapse: a hamburger menu is already a deliberate open, so there's
+                    no reason to hide a domain's items behind a second tap). */}
                 <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' lg:hidden bg-white border-t border-gray-100 shadow-2xl'}>
-                    <div className="pt-2 pb-3 space-y-1">
+                    <div className="pt-2 pb-3">
                         {!isSingleDomainDataEntry && (
-                            <ResponsiveNavLink href={route('dashboard')} active={isHubZone} onClick={() => setShowingNavigationDropdown(false)}>
+                            <ResponsiveNavLink href={route(homeItem.href, homeItem.params)} active={isHubZone} onClick={() => setShowingNavigationDropdown(false)}>
                                 <div className="flex items-center">
-                                    <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                                    Accueil
+                                    <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={homeItem.icon} /></svg>
+                                    {homeItem.label}
                                 </div>
                             </ResponsiveNavLink>
                         )}
 
-                        {needsFarmSelection ? (
+                        {needsFarmSelection && (
                             <div className="mx-4 my-2 flex items-center text-xs font-bold text-amber-600 uppercase tracking-wide bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                                 <svg className="w-4 h-4 mr-1.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                 Sélectionnez une ferme pour continuer
                             </div>
-                        ) : (
-                            <>
-                                {canAccessPointage && (
-                                    <ResponsiveNavLink href={route('pointage.index')} active={isPointageZone} onClick={() => setShowingNavigationDropdown(false)}>
-                                        <div className="flex items-center">
-                                            <svg className="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                            Pointage
-                                        </div>
-                                    </ResponsiveNavLink>
-                                )}
-
-                                {canAccessStock && (
-                                    <ResponsiveNavLink href={route('stock.dashboard')} active={isStockZone} onClick={() => setShowingNavigationDropdown(false)}>
-                                        <div className="flex items-center">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />
-                                            </svg>
-                                            Gestion de Stock
-                                        </div>
-                                    </ResponsiveNavLink>
-                                )}
-                            </>
                         )}
 
-                        {/* Contextual sub-items for the active zone */}
-                        <div className="border-t border-gray-100 my-2 pt-2">
-                            {activeSubNav.items.map((item) => (
-                                <ResponsiveNavLink
-                                    key={item.href}
-                                    href={route(item.href, item.params)}
-                                    active={route().current(Array.isArray(item.match) ? item.match[0] : item.match)}
-                                    onClick={() => setShowingNavigationDropdown(false)}
-                                >
-                                    {item.label}
-                                </ResponsiveNavLink>
-                            ))}
-                        </div>
+                        {sections.map((section) => (
+                            <div key={section.id} className="border-t border-gray-100 mt-2 pt-2">
+                                <p className="px-4 pb-1 text-[10px] font-black uppercase tracking-widest text-gray-400">{section.label}</p>
+                                {section.items.map((item) => (
+                                    <ResponsiveNavLink
+                                        key={item.href}
+                                        href={route(item.href, item.params)}
+                                        active={route().current(Array.isArray(item.match) ? item.match[0] : item.match)}
+                                        onClick={() => setShowingNavigationDropdown(false)}
+                                    >
+                                        {item.label}
+                                    </ResponsiveNavLink>
+                                ))}
+                            </div>
+                        ))}
                     </div>
 
                     <div className="pt-4 pb-1 border-t border-gray-200 bg-gray-50/50">
@@ -324,7 +270,7 @@ export default function Authenticated({ user, header, children }) {
             </nav>
 
             <div className="flex">
-                <WorkspaceSubNav items={activeSubNav.items} colorClass={activeSubNav.colorClass} label={activeSubNav.label} />
+                <AppSidebar homeItem={!isSingleDomainDataEntry ? homeItem : null} sections={sections} />
 
                 <div className="flex-1 min-w-0">
                     {header && (
