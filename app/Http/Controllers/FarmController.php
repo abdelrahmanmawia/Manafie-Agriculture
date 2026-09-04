@@ -16,9 +16,14 @@ class FarmController extends Controller
     /**
      * Every farm-structure action here is either a super_admin-only, whole-app-scope action
      * (creating/deleting a farm), or a farm-scoped one that only that farm's own farm_manager
-     * (or a super_admin working within it) may touch — plus a data_entry granted Pointage
-     * access (canAccessPointage()), since blocs/sectors/parcelles/operations are what pointage
-     * records attribute work to. Never a stock-only data_entry, and never another farm's manager.
+     * (or a super_admin) may touch — plus a data_entry granted Pointage access
+     * (canAccessPointage()), since blocs/sectors/parcelles/operations are what pointage records
+     * attribute work to. Never a stock-only data_entry, and never another farm's manager.
+     *
+     * Unlike Pointage/Stock's own pages, every route here already carries the target farm's id
+     * in the URL (route-model-bound $farm) — there's no ambiguity to resolve from session, so a
+     * super_admin isn't required to have that farm "active" first, unlike EnterpriseController's
+     * settings (which only have an enterprise_id/session to go on, no farm id of their own).
      */
     private function assertFarmManagerAccess(Request $request, int $farmId): void
     {
@@ -26,7 +31,6 @@ class FarmController extends Controller
         abort_unless($user->canAccessPointage(), 403);
 
         if ($user->role === 'super_admin') {
-            abort_unless((int) session('active_farm_id') === $farmId, 403);
             return;
         }
 
@@ -260,18 +264,14 @@ class FarmController extends Controller
     {
         abort_unless($request->user()->role === 'super_admin', 403);
 
-        // Several stock-domain foreign keys (manual_stock_entries, fuel_transactions,
-        // vehicles.default_driver_id) have no cascade behavior defined, so deleting a farm with
-        // any stock activity throws a raw QueryException instead of the full cascade the UI
-        // promises. Surface a clear, actionable error instead of a 500 until that's addressed
-        // with a proper migration.
-        try {
-            $farm->delete();
-        } catch (\Illuminate\Database\QueryException $e) {
-            return redirect()->back()->with(
-                'error',
-                'Impossible de supprimer cette ferme : des données liées (mouvements de stock, véhicules, carburant...) l\'en empêchent. Videz d\'abord l\'activité de stock de cette ferme.'
-            );
+        $farmId = $farm->id;
+        $farm->delete();
+
+        // If this was the super_admin's active farm, the session pointer now dangles — the
+        // dashboard route (EnterpriseController::index) does Farm::findOrFail(active_farm_id)
+        // and would 404 on the very next request otherwise.
+        if ((int) session('active_farm_id') === $farmId) {
+            session()->forget('active_farm_id');
         }
 
         return redirect()->route('dashboard')->with('success', 'Ferme et toutes les données associées supprimées.');

@@ -12,7 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('farm_id')->constrained()->onDelete('cascade');
             $table->string('asset_type')->default('vehicle');
-            $table->foreignId('default_driver_id')->nullable()->constrained('employees');
+            $table->foreignId('default_driver_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->string('name');
             $table->string('plate_number')->nullable()->unique();
             $table->string('serial_number')->nullable();

@@ -10,9 +10,7 @@ return new class extends Migration
     {
         Schema::create('operations', function (Blueprint $table) {
             $table->id();
-            // No FK constraint in the live database — operations moved from enterprise-scoped to
-            // farm-scoped, and the replacement farm_id column never registered a real constraint.
-            $table->unsignedBigInteger('farm_id')->nullable();
+            $table->foreignId('farm_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('name');
             $table->string('abbreviation')->nullable();
             // Piece-rate price (e.g. "10 DH per meter" for Fixation Brise Vent). Null means the

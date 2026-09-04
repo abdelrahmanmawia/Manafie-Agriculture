@@ -17,7 +17,7 @@ return new class extends Migration
             $table->decimal('quantity_liters', 10, 2);
             $table->decimal('unit_price_per_liter', 8, 2)->nullable();
             $table->decimal('total_cost', 12, 2)->nullable();
-            $table->foreignId('driver_id')->nullable()->constrained('employees');
+            $table->foreignId('driver_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->foreignId('performed_by')->nullable()->constrained('users');
             $table->date('date');
             $table->decimal('odometer_km', 10, 2)->nullable();

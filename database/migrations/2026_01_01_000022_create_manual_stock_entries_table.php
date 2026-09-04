@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->onDelete('cascade');
             $table->string('entry_type');
             $table->decimal('quantity', 12, 2);
-            $table->foreignId('employee_id')->nullable()->constrained('employees');
+            $table->foreignId('employee_id')->nullable()->constrained('employees')->nullOnDelete();
             $table->foreignId('vehicle_id')->nullable()->constrained('vehicles');
             // A maintenance intervention (VehicleMaintenanceLog) can consume several products
             // (filtre + huile + joint...), so the FK lives here rather than the other way round.

@@ -10,9 +10,7 @@ return new class extends Migration
     {
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
-            // No FK constraint on farm_id in the live database (added later via ALTER, which
-            // never registered a real constraint here) — kept as a plain column to match.
-            $table->unsignedBigInteger('farm_id');
+            $table->foreignId('farm_id')->constrained()->cascadeOnDelete();
             $table->foreignId('enterprise_id')->nullable()->constrained()->cascadeOnDelete();
             $table->string('matricule');
             $table->string('full_name');

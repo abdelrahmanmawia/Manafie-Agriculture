@@ -10,9 +10,10 @@ return new class extends Migration
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id();
-            // No FK constraint on farm_id in the live database (added later via ALTER, which
-            // never registered a real constraint here) — kept as a plain nullable column to match.
-            $table->unsignedBigInteger('farm_id')->nullable();
+            // Cascades so deleting a farm removes the farm_manager/data_entry accounts scoped to
+            // it (an orphaned account pointing at a farm_id that no longer exists could never be
+            // scoped correctly again). super_admin has no farm_id of its own, so it's unaffected.
+            $table->foreignId('farm_id')->nullable()->constrained()->cascadeOnDelete();
             $table->foreignId('enterprise_id')->nullable()->constrained()->nullOnDelete();
             $table->string('name');
             $table->string('email')->unique();
