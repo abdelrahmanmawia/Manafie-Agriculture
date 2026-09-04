@@ -84,10 +84,7 @@ class EnterpriseController extends Controller
 
                 return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                     'farm' => $farm,
-                    'stats' => [
-                        'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
-                        'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
-                    ],
+                    'stats' => $this->farmStats($farm),
                     'isSuperAdmin' => true
                 ]));
             }
@@ -101,17 +98,14 @@ class EnterpriseController extends Controller
             if (!$user->farm_id) {
                 return Inertia::render('Admin/FarmDashboard', [
                     'farm' => null,
-                    'stats' => ['employees_count' => 0, 'open_quinzaines' => 0],
+                    'stats' => ['employees_count' => 0, 'open_quinzaines' => 0, 'new_employees_30d' => 0, 'overdue_quinzaines' => 0],
                     'error' => 'Aucune ferme ne vous est assignée.'
                 ]);
             }
             $farm = \App\Models\Farm::findOrFail($user->farm_id);
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
-                'stats' => [
-                    'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
-                    'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
-                ]
+                'stats' => $this->farmStats($farm),
             ]));
         }
 
@@ -120,10 +114,7 @@ class EnterpriseController extends Controller
             $farm = \App\Models\Farm::findOrFail($user->farm_id);
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
-                'stats' => [
-                    'employees_count' => Employee::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->count(),
-                    'open_quinzaines' => Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))->where('is_closed', false)->count(),
-                ]
+                'stats' => $this->farmStats($farm),
             ]));
         }
 
@@ -133,20 +124,42 @@ class EnterpriseController extends Controller
                 'stats' => [
                     'employees_count' => 0,
                     'open_quinzaines' => 0,
+                    'new_employees_30d' => 0,
+                    'overdue_quinzaines' => 0,
                 ],
                 'error' => 'Aucune division ne vous est assignée.'
             ]);
         }
 
         $enterprise = Enterprise::findOrFail($user->enterprise_id);
-        
+
         return Inertia::render('Admin/Dashboard', [
             'enterprise' => $enterprise,
             'stats' => [
                 'employees_count' => Employee::where('enterprise_id', $enterprise->id)->count(),
                 'open_quinzaines' => Quinzaine::where('enterprise_id', $enterprise->id)->where('is_closed', false)->count(),
+                'new_employees_30d' => Employee::where('enterprise_id', $enterprise->id)->where('created_at', '>=', now()->subDays(30))->count(),
+                'overdue_quinzaines' => Quinzaine::where('enterprise_id', $enterprise->id)->where('is_closed', false)->where('end_date', '<', now()->toDateString())->count(),
             ]
         ]);
+    }
+
+    /**
+     * employees_count/open_quinzaines are the headline numbers; new_employees_30d and
+     * overdue_quinzaines are the real (not fabricated) trend signals StatCard shows next to
+     * them — new hires added to the system in the last 30 days, and open quinzaines whose
+     * end_date has already passed and so need closing.
+     */
+    private function farmStats(Farm $farm): array
+    {
+        $scopeToFarm = fn($q) => $q->where('farm_id', $farm->id);
+
+        return [
+            'employees_count' => Employee::whereHas('enterprise', $scopeToFarm)->count(),
+            'open_quinzaines' => Quinzaine::whereHas('enterprise', $scopeToFarm)->where('is_closed', false)->count(),
+            'new_employees_30d' => Employee::whereHas('enterprise', $scopeToFarm)->where('created_at', '>=', now()->subDays(30))->count(),
+            'overdue_quinzaines' => Quinzaine::whereHas('enterprise', $scopeToFarm)->where('is_closed', false)->where('end_date', '<', now()->toDateString())->count(),
+        ];
     }
 
     /**

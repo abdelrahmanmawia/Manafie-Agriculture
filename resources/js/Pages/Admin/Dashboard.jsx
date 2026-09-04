@@ -45,6 +45,7 @@ export default function Dashboard({ auth, enterprise, stats, error = null }) {
                             value={stats.employees_count}
                             tone="blue"
                             href={route('employees.index')}
+                            trend={stats.new_employees_30d > 0 ? { direction: 'up', label: `+${stats.new_employees_30d} ce mois` } : { direction: 'flat', label: 'Aucun nouveau' }}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />}
                         />
                         <StatCard
@@ -52,6 +53,7 @@ export default function Dashboard({ auth, enterprise, stats, error = null }) {
                             value={stats.open_quinzaines}
                             tone="green"
                             href={route('settings.index')}
+                            trend={stats.overdue_quinzaines > 0 ? { direction: 'down', label: `${stats.overdue_quinzaines} à clôturer` } : { direction: 'calm', label: 'À jour' }}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                         />
                     </div>

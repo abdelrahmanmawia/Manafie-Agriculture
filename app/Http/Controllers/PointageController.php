@@ -123,12 +123,20 @@ class PointageController extends Controller
             $enterprises = collect();
         }
 
+        $enterpriseIds = $enterprises->pluck('id');
+
         return Inertia::render('Pointage/Index', [
             'enterprises' => $enterprises,
             'farm' => $farmId ? Farm::find($farmId, ['id', 'name']) : null,
             'totals' => [
                 'employees' => $enterprises->sum('employees_count'),
                 'open_quinzaines' => $enterprises->sum('open_quinzaines_count'),
+                // Real (not fabricated) trend signals — new hires added to the system in the
+                // last 30 days, and open quinzaines whose end_date has already passed.
+                'new_employees_30d' => \App\Models\Employee::whereIn('enterprise_id', $enterpriseIds)
+                    ->where('created_at', '>=', now()->subDays(30))->count(),
+                'overdue_quinzaines' => \App\Models\Quinzaine::whereIn('enterprise_id', $enterpriseIds)
+                    ->where('is_closed', false)->where('end_date', '<', now()->toDateString())->count(),
             ],
         ]);
     }
