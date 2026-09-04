@@ -117,9 +117,9 @@ export default function Authenticated({ user, header, children }) {
     ].filter(Boolean);
 
     return (
-        <div className="min-h-screen bg-gray-100">
+        <div className="min-h-screen bg-primary-50">
             <FlashToast />
-            <nav className="bg-white border-b border-gray-100">
+            <nav className="bg-primary-50 border-b border-primary-100">
                 <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">
@@ -218,7 +218,7 @@ export default function Authenticated({ user, header, children }) {
                 {/* Mobile menu — the same homeItem/sections the desktop sidebar renders, flattened
                     (no expand/collapse: a hamburger menu is already a deliberate open, so there's
                     no reason to hide a domain's items behind a second tap). */}
-                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' lg:hidden bg-white border-t border-gray-100 shadow-2xl'}>
+                <div className={(showingNavigationDropdown ? 'block' : 'hidden') + ' lg:hidden bg-primary-50 border-t border-primary-100 shadow-2xl'}>
                     <div className="pt-2 pb-3">
                         {!isSingleDomainDataEntry && (
                             <ResponsiveNavLink href={route(homeItem.href, homeItem.params)} active={isHubZone} onClick={() => setShowingNavigationDropdown(false)}>
@@ -274,7 +274,7 @@ export default function Authenticated({ user, header, children }) {
 
                 <div className="flex-1 min-w-0">
                     {header && (
-                        <header className="bg-white shadow">
+                        <header className="border-b border-primary-100">
                             <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">{header}</div>
                         </header>
                     )}

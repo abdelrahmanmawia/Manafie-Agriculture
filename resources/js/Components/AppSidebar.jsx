@@ -10,10 +10,13 @@ import { Link } from '@inertiajs/react';
 // different hue on purpose — two green sections would be indistinguishable at a glance — teal
 // was picked over the old purple for a calmer, more "storage/inventory" feel that still
 // contrasts cleanly against green.
+// headerBg is one step darker (100, not 50) than the sidebar's own bg-primary-50 shell below —
+// otherwise an open Pointage section's highlight would be the same color as the shell itself and
+// disappear.
 const COLORS = {
-    green: { text: 'text-primary-600', headerBg: 'bg-primary-50', activeBg: 'bg-primary-600', dot: 'bg-primary-600' },
-    teal: { text: 'text-teal-600', headerBg: 'bg-teal-50', activeBg: 'bg-teal-600', dot: 'bg-teal-600' },
-    gray: { text: 'text-gray-400', headerBg: 'bg-gray-50', activeBg: 'bg-gray-700', dot: 'bg-gray-400' },
+    green: { text: 'text-primary-600', headerBg: 'bg-primary-100', activeBg: 'bg-primary-600', dot: 'bg-primary-600', hoverBg: 'hover:bg-primary-100/70' },
+    teal: { text: 'text-teal-600', headerBg: 'bg-teal-100', activeBg: 'bg-teal-600', dot: 'bg-teal-600', hoverBg: 'hover:bg-teal-100/70' },
+    gray: { text: 'text-gray-400', headerBg: 'bg-gray-100', activeBg: 'bg-gray-700', dot: 'bg-gray-400', hoverBg: 'hover:bg-gray-200/70' },
 };
 
 function isItemActive(item) {
@@ -54,13 +57,13 @@ export default function AppSidebar({ homeItem, sections }) {
     };
 
     return (
-        <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-white border-r border-gray-100 min-h-[calc(100vh-4rem)]">
+        <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-primary-50 border-r border-primary-100 min-h-[calc(100vh-4rem)]">
             <div className="p-3.5 sticky top-0 flex flex-col gap-4">
                 {homeItem && (
                     <Link
                         href={route(homeItem.href, homeItem.params)}
                         className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                            isItemActive(homeItem) ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            isItemActive(homeItem) ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:bg-white/70 hover:text-gray-900'
                         }`}
                     >
                         <svg className="w-4 h-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -78,7 +81,7 @@ export default function AppSidebar({ homeItem, sections }) {
                             <button
                                 type="button"
                                 onClick={() => toggle(section.id)}
-                                className={`flex items-center justify-between px-2.5 py-2 rounded-lg transition-colors ${isOpen ? palette.headerBg : 'hover:bg-gray-50'}`}
+                                className={`flex items-center justify-between px-2.5 py-2 rounded-lg transition-colors ${isOpen ? palette.headerBg : palette.hoverBg}`}
                             >
                                 <span className="flex items-center gap-2">
                                     <span className={`w-1.5 h-1.5 rounded-full ${palette.dot}`} />
@@ -101,7 +104,7 @@ export default function AppSidebar({ homeItem, sections }) {
                                                 key={item.href}
                                                 href={route(item.href, item.params)}
                                                 className={`group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
-                                                    active ? `${palette.activeBg} text-white shadow-sm` : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                                    active ? `${palette.activeBg} text-white shadow-sm` : `text-gray-600 ${palette.hoverBg} hover:text-gray-900`
                                                 }`}
                                             >
                                                 {item.icon && <NavIcon item={item} active={active} activeTextClass={palette.text} />}
