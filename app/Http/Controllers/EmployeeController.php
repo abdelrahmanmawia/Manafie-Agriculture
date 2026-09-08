@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Services\PayrollService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -224,6 +225,91 @@ class EmployeeController extends Controller
 
         $employee->update(['is_active' => !$employee->is_active]);
         return redirect()->back();
+    }
+
+    /**
+     * Seasonal-worker CDD (fixed-term agricultural contract), pre-filled from the employee's
+     * own record — same access boundary as update() (assertEmployeeInScope), since this exposes
+     * the employee's CIN/address/CNSS number, not just farm-structure data. The employer party
+     * (AGRI-INTERIM Sarl, its RC/CNSS numbers) is fixed text baked into the template — it's the
+     * one legal entity behind every one of these contracts, not something that varies by farm
+     * or enterprise.
+     */
+    public function generateContract(Request $request, Employee $employee)
+    {
+        $this->assertEmployeeInScope($request, $employee);
+
+        // Not $request->validate(): an empty `?start_date=` (e.g. the frontend's date picker
+        // cleared) is a non-null string, which the `date` rule rejects — validate() would then
+        // redirect back with errors on this plain <a> GET link, which looks indistinguishable
+        // from the page just reloading with nothing happening. Parse defensively instead so a
+        // bad value quietly falls back to hire_date rather than silently failing the download.
+        $startDateInput = trim((string) $request->query('start_date'));
+        try {
+            $startDate = $startDateInput !== '' ? Carbon::parse($startDateInput) : null;
+        } catch (\Exception $e) {
+            $startDate = null;
+        }
+        $startDate ??= $employee->hire_date ?? now();
+
+        $html = view('exports.contract', [
+            'employee' => $employee,
+            'startDate' => Carbon::parse($startDate),
+        ])->render();
+
+        // dompdf (this app's usual PDF engine, see PayrollService/payslip exports) has no real
+        // Arabic bidi/shaping support: it can be coaxed into rendering RTL text so it LOOKS
+        // right on screen, but the underlying PDF text-showing operators still come out in
+        // reversed/mirrored character order, so copy-pasting or searching the Arabic text is
+        // permanently broken. mPDF has a proper OpenType Arabic shaping + bidi engine, producing
+        // both correct visual rendering AND correct logical-order text — used here instead,
+        // scoped to just this contract feature (payslips keep using dompdf).
+        $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+        $fontDirs = $defaultConfig['fontDir'];
+        $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+        $fontData = $defaultFontConfig['fontdata'];
+
+        $mpdf = new \Mpdf\Mpdf([
+            // Not 'mode' => 'ar': mPDF treats a recognized language code passed as `mode` as an
+            // instruction to pick ITS OWN bundled Unicode font for that language (xbriyaz for
+            // Arabic), silently overriding `default_font` below — so every Arabic run got drawn
+            // with xbriyaz instead of Tajawal, and (for reasons not fully chased down) that
+            // built-in font's shaping came out as disconnected isolated letters on the actual
+            // rendered page, even though its ToUnicode text layer still looked correct. RTL
+            // direction is already fully handled by `directionality` below without needing `mode`.
+            'format' => 'A4',
+            'margin_left' => 18,
+            'margin_right' => 18,
+            'margin_top' => 15,
+            'margin_bottom' => 15,
+            'fontDir' => array_merge($fontDirs, [resource_path('fonts')]),
+            'fontdata' => $fontData + [
+                // useOTL enables OpenType Layout processing (Arabic contextual glyph shaping —
+                // choosing the initial/medial/final/isolated form of each letter — plus kashida).
+                // mPDF's own bundled fonts all set this; a custom font registered without it
+                // still gets correct logical text in the file (ToUnicode/copy-paste), but mPDF
+                // draws every letter in isolated form on the page itself, so words look visually
+                // disconnected even though the underlying text is right.
+                'tajawal' => [
+                    'R' => 'Tajawal-Regular.ttf',
+                    'B' => 'Tajawal-Bold.ttf',
+                    'useOTL' => 0xFF,
+                ],
+            ],
+            'default_font' => 'tajawal',
+            'directionality' => 'rtl',
+        ]);
+        $mpdf->WriteHTML($html);
+
+        // An employee with no hire_date defaults start_date to "today" every time, so the exact
+        // same URL (?start_date=2026-09-08) gets hit repeatedly the same day — without this, the
+        // browser can silently serve back a cached PDF from before the very template change
+        // meant to fix it, making a real fix look like it "didn't work".
+        return response($mpdf->Output('Contrat_' . $employee->matricule . '.pdf', \Mpdf\Output\Destination::STRING_RETURN), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="Contrat_' . $employee->matricule . '.pdf"',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
     }
 
     public function destroy(Request $request, Employee $employee)

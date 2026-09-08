@@ -110,6 +110,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
     Route::post('/employees/{employee}/toggle-active', [EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
     Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
+    Route::get('/employees/{employee}/contract', [EmployeeController::class, 'generateContract'])->name('employees.contract');
 
     // Division/Quinzaine/Bloc/Operation management — same domain as Employees above.
     Route::get('/settings', [EnterpriseController::class, 'settings'])->name('settings.index');
