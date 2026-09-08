@@ -21,6 +21,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // day cell pastes it directly instead of opening the edit modal (see pasteToCell below).
     const [clipboard, setClipboard] = useState(null);
     const [pasting, setPasting] = useState(false);
+    // Excel-style fill-handle: mousedown on a day cell while holding a clipboard starts a drag;
+    // dragAnchor is where it started, dragRange is the currently-highlighted set of days (both
+    // recomputed on every cell the pointer enters, clamped to the SAME employee's row — this is
+    // a horizontal-only range, not a rectangular multi-employee one). A plain click (no movement
+    // across cells) never sets dragRange past length 1, so it falls through to the existing
+    // single-cell onClick/pasteToCell path untouched.
+    const [dragAnchor, setDragAnchor] = useState(null);
+    const [dragRange, setDragRange] = useState(null);
     const gridScrollRef = useRef(null);
     const scrollGridBy = (amount) => gridScrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
 
@@ -206,6 +214,60 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         });
     };
 
+    // Inclusive day range between two dates, ordered by their position in `days` (not string/date
+    // comparison) so it works regardless of which end the drag started from.
+    const dateRangeBetween = (dateA, dateB) => {
+        const idxA = days.indexOf(dateA);
+        const idxB = days.indexOf(dateB);
+        if (idxA === -1 || idxB === -1) return [dateA];
+        const [start, end] = idxA <= idxB ? [idxA, idxB] : [idxB, idxA];
+        return days.slice(start, end + 1);
+    };
+
+    const startDrag = (employeeId, date) => {
+        if (!clipboard || quinzaine.is_closed || pasting) return;
+        setDragAnchor({ employeeId, date });
+        setDragRange({ employeeId, dates: [date] });
+    };
+
+    const extendDrag = (employeeId, date) => {
+        if (!dragAnchor || dragAnchor.employeeId !== employeeId) return;
+        setDragRange({ employeeId, dates: dateRangeBetween(dragAnchor.date, date) });
+    };
+
+    // Fires on mouseup anywhere on the grid. A plain click (mousedown+mouseup on the same cell,
+    // no drag) leaves dragRange at length 1 — that case is left alone here so the cell's own
+    // onClick (pasteToCell) handles it exactly as before, avoiding a double paste.
+    const finishDrag = () => {
+        if (!dragAnchor) return;
+        const range = dragRange;
+        setDragAnchor(null);
+        setDragRange(null);
+        if (!range || range.dates.length <= 1) return;
+        if (!clipboard || quinzaine.is_closed || pasting) return;
+
+        const { employeeId, dates } = range;
+        const hasExisting = dates.some(d => existingRecords[employeeId]?.[d]?.[0]?.operation_id);
+        const message = clipboard.isEmpty
+            ? `Voulez-vous effacer les données de ces ${dates.length} jours ?`
+            : `Coller "${clipboard.label}" sur ces ${dates.length} jours${hasExisting ? ' (des données existantes seront remplacées)' : ''} ?`;
+        if (!confirm(message)) return;
+
+        setPasting(true);
+        router.post(route('pointage.cell.bulk'), {
+            employee_id: employeeId,
+            quinzaine_id: quinzaine.id,
+            dates,
+            operation_id: clipboard.isEmpty ? null : clipboard.operationId,
+            bloc_id: clipboard.isEmpty ? null : clipboard.blocId,
+            hours: clipboard.isEmpty ? 0 : (clipboard.hours || 0),
+        }, {
+            preserveScroll: true,
+            onSuccess: fetchSummary,
+            onFinish: () => setPasting(false),
+        });
+    };
+
     const handleQuickSave = (employeeId, isPresent) => {
         if (quinzaine.is_closed) return;
 
@@ -275,6 +337,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     useEffect(() => {
         fetchSummary();
     }, []);
+
+    // Global, not just on the table, so releasing the mouse outside the grid (a fast drag,
+    // scrolling mid-drag, etc.) still ends the drag instead of leaving it stuck armed.
+    useEffect(() => {
+        window.addEventListener('mouseup', finishDrag);
+        return () => window.removeEventListener('mouseup', finishDrag);
+    });
 
     // 📱 MOBILE VIEW (Field Mode)
     if (isMobile) {
@@ -475,7 +544,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         {clipboard && (
                             <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                                <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller</span>
+                                <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller, ou glissez sur plusieurs jours de la même ligne</span>
                                 <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-primary-800 hover:bg-primary-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
                             </div>
                         )}
@@ -554,11 +623,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                     const record = employeeRecords[day]?.[0];
                                                     const recordOp = record ? operations.find(o => o.id === record.operation_id) : null;
                                                     const canCopy = (!record && !clipboard) || (record && record.operation_id && !recordOp?.unit_rate);
+                                                    const isDragHighlighted = dragRange && dragRange.employeeId === emp.id && dragRange.dates.includes(day);
                                                     return (
                                                         <td
                                                             key={day}
                                                             onClick={() => clipboard ? pasteToCell(emp.id, day) : openForm(emp.id, day)}
-                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-primary-400' : ''}`}
+                                                            onMouseDown={() => startDrag(emp.id, day)}
+                                                            onMouseEnter={() => extendDrag(emp.id, day)}
+                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell select-none ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-primary-400' : ''} ${isDragHighlighted ? 'ring-2 ring-inset ring-primary-600 bg-primary-200' : ''}`}
                                                         >
                                                             {record ? (
                                                                 <div className="font-black leading-tight">
