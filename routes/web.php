@@ -24,6 +24,10 @@ use App\Http\Controllers\StockController; // Import StockController
 use App\Http\Controllers\StockExitTypeController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\EquipmentTypeController;
+use App\Http\Controllers\TransportLocationController;
+use App\Http\Controllers\TransportCompanyController;
+use App\Http\Controllers\TransportVehicleController;
+use App\Http\Controllers\TransportController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -106,11 +110,33 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // A stock-only data_entry (magasinier) must never reach these, hence the domain gate rather
     // than relying solely on the controller's own role check.
     Route::get('/employees', [EmployeeController::class, 'index'])->name('employees.index');
+    Route::get('/employees/{employee}', [EmployeeController::class, 'show'])->name('employees.show');
     Route::post('/employees', [EmployeeController::class, 'store'])->name('employees.store');
     Route::put('/employees/{employee}', [EmployeeController::class, 'update'])->name('employees.update');
     Route::post('/employees/{employee}/toggle-active', [EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
     Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
     Route::get('/employees/{employee}/contract', [EmployeeController::class, 'generateContract'])->name('employees.contract');
+
+    // Transport — employee-adjacent master data (residence pricing, companies, vehicles) and
+    // its per-quinzaine cost summary. Nested under the Pointage domain rather than a separate
+    // access.domain gate, since it's tightly coupled to Employee records, not a distinct area.
+    Route::get('/transport/locations', [TransportLocationController::class, 'index'])->name('transport.locations.index');
+    Route::post('/transport/locations', [TransportLocationController::class, 'store'])->name('transport.locations.store');
+    Route::put('/transport/locations/{transportLocation}', [TransportLocationController::class, 'update'])->name('transport.locations.update');
+    Route::delete('/transport/locations/{transportLocation}', [TransportLocationController::class, 'destroy'])->name('transport.locations.destroy');
+    Route::put('/transport/employees/{employee}/residence', [TransportLocationController::class, 'assignEmployeeResidence'])->name('transport.employees.residence');
+    Route::get('/transport/companies', [TransportCompanyController::class, 'index'])->name('transport.companies.index');
+    Route::post('/transport/companies', [TransportCompanyController::class, 'store'])->name('transport.companies.store');
+    Route::put('/transport/companies/{transportCompany}', [TransportCompanyController::class, 'update'])->name('transport.companies.update');
+    Route::delete('/transport/companies/{transportCompany}', [TransportCompanyController::class, 'destroy'])->name('transport.companies.destroy');
+    Route::get('/transport/vehicles', [TransportVehicleController::class, 'index'])->name('transport.vehicles.index');
+    Route::post('/transport/vehicles', [TransportVehicleController::class, 'store'])->name('transport.vehicles.store');
+    Route::put('/transport/vehicles/{transportVehicle}', [TransportVehicleController::class, 'update'])->name('transport.vehicles.update');
+    Route::delete('/transport/vehicles/{transportVehicle}', [TransportVehicleController::class, 'destroy'])->name('transport.vehicles.destroy');
+    Route::put('/transport/vehicles/{transportVehicle}/employees', [TransportVehicleController::class, 'syncEmployees'])->name('transport.vehicles.employees');
+    Route::get('/transport/summary', [TransportController::class, 'summary'])->name('transport.summary.index');
+    Route::get('/transport/grid/{quinzaine}', [TransportController::class, 'grid'])->name('transport.grid');
+    Route::post('/transport/attendance/toggle', [TransportController::class, 'toggleAttendance'])->name('transport.attendance.toggle');
 
     // Division/Quinzaine/Bloc/Operation management — same domain as Employees above.
     Route::get('/settings', [EnterpriseController::class, 'settings'])->name('settings.index');

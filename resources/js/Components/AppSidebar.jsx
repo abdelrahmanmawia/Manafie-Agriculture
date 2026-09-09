@@ -46,7 +46,16 @@ function NavIcon({ item, active, activeTextClass }) {
 // by default. Sections are independent (not an accordion): opening Stock while Pointage is
 // already open is fine, so a multi-domain user can see both at once.
 export default function AppSidebar({ homeItem, sections }) {
-    const [openIds, setOpenIds] = useState(() => new Set(sections.filter((s) => s.defaultOpen).map((s) => s.id)));
+    const [openIds, setOpenIds] = useState(() => {
+        const ids = sections.filter((s) => s.defaultOpen).map((s) => s.id);
+        // A nested sub-group (item.children — e.g. "Gestion Transport" bundling several links
+        // under Pointage) gets its own open/closed state in the same Set, namespaced by the
+        // parent section's id so two sections could each have a same-named group with no clash.
+        sections.forEach((s) => s.items?.forEach((item) => {
+            if (item.children && item.defaultOpen) ids.push(`${s.id}:${item.id}`);
+        }));
+        return new Set(ids);
+    });
 
     const toggle = (id) => {
         setOpenIds((prev) => {
@@ -98,6 +107,53 @@ export default function AppSidebar({ homeItem, sections }) {
                             {isOpen && (
                                 <nav className="flex flex-col gap-0.5 pl-1 pt-0.5 pb-1">
                                     {section.items.map((item) => {
+                                        if (item.children) {
+                                            const groupId = `${section.id}:${item.id}`;
+                                            const groupOpen = openIds.has(groupId);
+                                            const groupActive = item.children.some(isItemActive);
+                                            return (
+                                                <div key={groupId} className="flex flex-col">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggle(groupId)}
+                                                        className={`group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-colors ${
+                                                            groupActive && !groupOpen ? `${palette.activeBg} text-white shadow-sm` : `text-gray-600 ${palette.hoverBg} hover:text-gray-900`
+                                                        }`}
+                                                    >
+                                                        <span className="flex items-center gap-3">
+                                                            {item.icon && <NavIcon item={item} active={groupActive && !groupOpen} activeTextClass={palette.text} />}
+                                                            {item.label}
+                                                        </span>
+                                                        <svg
+                                                            className={`w-3 h-3 shrink-0 transition-transform ${groupActive && !groupOpen ? 'text-white' : 'text-gray-400'} ${groupOpen ? 'rotate-180' : ''}`}
+                                                            fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"
+                                                        >
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+                                                    {groupOpen && (
+                                                        <nav className="flex flex-col gap-0.5 pl-4 pt-0.5 pb-1">
+                                                            {item.children.map((child) => {
+                                                                const active = isItemActive(child);
+                                                                return (
+                                                                    <Link
+                                                                        key={child.href}
+                                                                        href={route(child.href, child.params)}
+                                                                        className={`group flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-semibold transition-colors ${
+                                                                            active ? `${palette.activeBg} text-white shadow-sm` : `text-gray-500 ${palette.hoverBg} hover:text-gray-900`
+                                                                        }`}
+                                                                    >
+                                                                        {child.icon && <NavIcon item={child} active={active} activeTextClass={palette.text} />}
+                                                                        {child.label}
+                                                                    </Link>
+                                                                );
+                                                            })}
+                                                        </nav>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
                                         const active = isItemActive(item);
                                         return (
                                             <Link

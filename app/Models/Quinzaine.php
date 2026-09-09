@@ -31,4 +31,9 @@ class Quinzaine extends Model
     {
         return $this->hasOne(QuinzaineSummary::class);
     }
+
+    public function transportSnapshots()
+    {
+        return $this->hasMany(TransportSnapshot::class);
+    }
 }

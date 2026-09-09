@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\PointageRecord;
+use App\Models\Quinzaine;
+use App\Models\TransportLocation;
 use App\Services\PayrollService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -72,6 +75,20 @@ class EmployeeController extends Controller
         }
     }
 
+    /**
+     * Divisions the current user is allowed to assign an employee to — same rule the
+     * EmployeeFormModal's "Assigner à une Division" select needs whether it's opened from the
+     * list (index()) or the detail page (show()).
+     */
+    private function assignableEnterprisesFor($user)
+    {
+        return $user->role === 'super_admin'
+            ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
+            : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
+                ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
+                : []);
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -108,17 +125,16 @@ class EmployeeController extends Controller
             });
         }
 
-        $enterprises = $user->role === 'super_admin'
-            ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
-            : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
-                ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
-                : []);
+        $enterprises = $this->assignableEnterprisesFor($user);
+
+        $farmId = $this->scopedFarmId($request);
 
         return Inertia::render('Admin/Employees', [
             'employees' => $query->get(),
             'enterprises' => $enterprises,
             'selectedEnterpriseId' => $enterpriseId,
-            'searchQuery' => $searchQuery
+            'searchQuery' => $searchQuery,
+            'transportLocations' => TransportLocation::where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'price_per_person']),
         ]);
     }
 
@@ -149,7 +165,8 @@ class EmployeeController extends Controller
             'bank_name' => 'nullable|string|max:100',
             'rib' => 'nullable|string|max:100',
             'base_rate' => 'required|numeric|min:0',
-            'enterprise_id' => 'required|exists:enterprises,id'
+            'enterprise_id' => 'required|exists:enterprises,id',
+            'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],
         ]);
 
         Employee::create(array_merge($validated, [
@@ -184,6 +201,7 @@ class EmployeeController extends Controller
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',
+            'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $employee->farm_id)],
             // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
             // "true"/"false" once a photo file forces the request into multipart/FormData —
             // Laravel's `boolean` rule strictly rejects those strings (only true/false/0/1/'0'/'1'),
@@ -225,6 +243,60 @@ class EmployeeController extends Controller
 
         $employee->update(['is_active' => !$employee->is_active]);
         return redirect()->back();
+    }
+
+    /**
+     * Full profile + payroll stats for one employee — the Employees list table only shows the
+     * essentials (matricule, name, CIN, phone, daily net, status); everything else (address,
+     * bank/RIB, dates, transport, and how much they've actually earned) lives here instead.
+     */
+    public function show(Request $request, Employee $employee)
+    {
+        $this->assertEmployeeInScope($request, $employee);
+
+        $employee->load(['enterprise', 'residenceLocation', 'transportVehicle.transportCompany']);
+
+        $totalDays = PointageRecord::where('employee_id', $employee->id)->count();
+        $totalNet = (float) PointageRecord::where('employee_id', $employee->id)->sum('net');
+
+        // The employee's own currently-open pay period (if any) — same "days worked / net so
+        // far" shape as the recent-quinzaines list below, surfaced separately since it's the
+        // one a manager checks most often.
+        $openQuinzaine = Quinzaine::where('enterprise_id', $employee->enterprise_id)
+            ->where('is_closed', false)
+            ->orderByDesc('start_date')
+            ->first();
+        $currentPeriod = $openQuinzaine ? [
+            'label' => $openQuinzaine->label,
+            'days' => PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $openQuinzaine->id)->count(),
+            'net' => (float) PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $openQuinzaine->id)->sum('net'),
+        ] : null;
+
+        // Last few quinzaines this employee actually has records in — not every quinzaine of
+        // the enterprise, since most won't involve them if they joined partway through.
+        $recentQuinzaines = Quinzaine::where('enterprise_id', $employee->enterprise_id)
+            ->whereHas('pointageRecords', fn ($q) => $q->where('employee_id', $employee->id))
+            ->withCount(['pointageRecords as days' => fn ($q) => $q->where('employee_id', $employee->id)])
+            ->withSum(['pointageRecords as net' => fn ($q) => $q->where('employee_id', $employee->id)], 'net')
+            ->orderByDesc('start_date')
+            ->take(6)
+            ->get(['id', 'label', 'start_date', 'end_date', 'is_closed']);
+
+        $farmId = $this->scopedFarmId($request);
+
+        return Inertia::render('Admin/Employees/Show', [
+            'employee' => $employee,
+            'stats' => [
+                'total_days' => $totalDays,
+                'total_net' => $totalNet,
+                'current_period' => $currentPeriod,
+            ],
+            'recentQuinzaines' => $recentQuinzaines,
+            // For the Modifier/Générer Contrat/Supprimer actions on this page — same shared
+            // EmployeeFormModal the list page uses, so it needs the same lookups.
+            'enterprises' => $this->assignableEnterprisesFor($request->user()),
+            'transportLocations' => TransportLocation::where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'price_per_person']),
+        ]);
     }
 
     /**
@@ -317,6 +389,10 @@ class EmployeeController extends Controller
         $this->assertEmployeeManagerAccess($request, $employee->farm_id);
 
         $employee->delete();
-        return redirect()->back();
+        // Not redirect()->back(): when deletion is triggered from the employee's own Show page
+        // (see EmployeeFormModal usage there), "back" would just redirect to that same
+        // now-404'd URL. The list is the one place always safe to land on regardless of which
+        // page the delete came from.
+        return redirect()->route('employees.index');
     }
 }

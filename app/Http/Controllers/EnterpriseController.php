@@ -12,16 +12,19 @@ use App\Models\Enterprise;
 use App\Models\Farm;
 use App\Models\User;
 use App\Services\PayrollService;
+use App\Services\TransportService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class EnterpriseController extends Controller
 {
     protected $payrollService;
+    protected $transportService;
 
-    public function __construct(PayrollService $payrollService)
+    public function __construct(PayrollService $payrollService, TransportService $transportService)
     {
         $this->payrollService = $payrollService;
+        $this->transportService = $transportService;
     }
 
     /**
@@ -334,6 +337,7 @@ class EnterpriseController extends Controller
 
         // Generate Snapshot for performance
         $this->payrollService->generateSnapshot($quinzaine);
+        $this->transportService->generateSnapshot($quinzaine);
 
         return redirect()->back()->with('success', 'Quinzaine closed successfully.');
     }

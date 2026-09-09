@@ -40,10 +40,18 @@ export default function Authenticated({ user, header, children }) {
         route().current('badges.*') ||
         // Employees is Pointage-domain master data (see EmployeeController) — gated the same
         // way behind access.domain:pointage, so it groups visually under Pointage, not Accueil.
-        route().current('employees.*')
+        route().current('employees.*') ||
+        // Transport (Emplacements/Sociétés/Véhicules/Résumé) is nested under Pointage too —
+        // without this, navigating to any transport.* page falls through to isHubZone, and the
+        // Pointage section (which visually still contains and highlights the clicked item)
+        // renders collapsed on load instead of staying open.
+        route().current('transport.*')
     );
     const isAdminZone = !isStockZone && !isPointageZone && (route().current('farms.settings') || route().current('users.*'));
     const isHubZone = !isStockZone && !isPointageZone && !isAdminZone;
+    // Whether the "Gestion Transport" sub-group (nested under Pointage) should default-open —
+    // separate from isPointageZone above, which only decides the outer Pointage section itself.
+    const isTransportZone = route().current('transport.*');
 
     const ICONS = {
         home: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6',
@@ -76,6 +84,17 @@ export default function Authenticated({ user, header, children }) {
         ...(needsFarmSelection
             ? []
             : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
+        ...(needsFarmSelection
+            ? []
+            : [{
+                id: 'transport', label: 'Gestion Transport', icon: ICONS.truck, defaultOpen: isTransportZone,
+                children: [
+                    { label: 'Résumé & Grille', href: 'transport.summary.index', match: ['transport.summary.*', 'transport.grid'], icon: ICONS.chart },
+                    { label: 'Emplacements', href: 'transport.locations.index', match: 'transport.locations.*', icon: ICONS.fuel },
+                    { label: 'Sociétés', href: 'transport.companies.index', match: 'transport.companies.*', icon: ICONS.shield },
+                    { label: 'Véhicules', href: 'transport.vehicles.index', match: 'transport.vehicles.*', icon: ICONS.truck },
+                ],
+            }]),
         { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
         { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
         { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
@@ -239,7 +258,11 @@ export default function Authenticated({ user, header, children }) {
                         {sections.map((section) => (
                             <div key={section.id} className="border-t border-gray-100 mt-2 pt-2">
                                 <p className="px-4 pb-1 text-[10px] font-black uppercase tracking-widest text-gray-400">{section.label}</p>
-                                {section.items.map((item) => (
+                                {/* This simple mobile menu has no nested-group support (unlike
+                                    AppSidebar's desktop tree) — a grouped item (item.children,
+                                    e.g. "Gestion Transport") is flattened back into its plain
+                                    links here instead. */}
+                                {section.items.flatMap((item) => item.children || [item]).map((item) => (
                                     <ResponsiveNavLink
                                         key={item.href}
                                         href={route(item.href, item.params)}

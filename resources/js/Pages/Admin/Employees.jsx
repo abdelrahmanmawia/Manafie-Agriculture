@@ -1,111 +1,21 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { formatNumber } from '@/Helpers/formatNumber';
-import Modal from '@/Components/Modal';
-import SecondaryButton from '@/Components/SecondaryButton';
-import PrimaryButton from '@/Components/PrimaryButton';
-import DangerButton from '@/Components/DangerButton';
 import { t } from '@/Helpers/i18n';
+import EmployeeFormModal from '@/Pages/Admin/Employees/EmployeeFormModal';
+import DeleteEmployeeModal from '@/Pages/Admin/Employees/DeleteEmployeeModal';
+import ContractModal from '@/Pages/Admin/Employees/ContractModal';
 
-export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery }) {
+export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery, transportLocations }) {
     const [isAddingEmployee, setIsAddingEmployee] = useState(false);
-    const [isEditingEmployee, setIsEditingEmployee] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
     const [confirmingEmployeeDeletion, setConfirmingEmployeeDeletion] = useState(null);
     const [contractEmployee, setContractEmployee] = useState(null);
-    const [contractDate, setContractDate] = useState('');
-    const { delete: destroy, processing: deleteProcessing } = useForm();
-
-    const { data, setData, post, transform, processing, reset, errors } = useForm({
-        matricule: '',
-        full_name: '',
-        cin: '',
-        cnss_number: '',
-        dob: '',
-        hire_date: '',
-        phone: '',
-        address: '',
-        bank_name: '',
-        rib: '',
-        base_rate: '',
-        complement: 0,
-        enterprise_id: selectedEnterpriseId || (enterprises?.[0]?.id || ''),
-        is_active: true,
-        photo: null,
-    });
-
-    const submit = (e) => {
-        e.preventDefault();
-        if (editingEmployee) {
-            // PHP only auto-parses multipart/form-data bodies into $_POST/$_FILES for a genuine
-            // POST request, never for PUT — a real PUT with a file attached arrives at Laravel
-            // completely empty. Route it as POST with a spoofed _method field instead (Inertia's
-            // documented workaround for file uploads on put()/patch()); Laravel's method-override
-            // middleware still treats it as PUT for routing/authorization.
-            transform((data) => ({ ...data, _method: 'put' }));
-            post(route('employees.update', editingEmployee.id), {
-                onSuccess: () => {
-                    reset();
-                    setIsEditingEmployee(false);
-                    setEditingEmployee(null);
-                },
-            });
-        } else {
-            transform((data) => data);
-            post(route('employees.store'), {
-                onSuccess: () => {
-                    reset();
-                    setIsAddingEmployee(false);
-                },
-            });
-        }
-    };
-
-    const handleEdit = (employee) => {
-        setEditingEmployee(employee);
-        setData({
-            matricule: employee.matricule,
-            full_name: employee.full_name,
-            cin: employee.cin || '',
-            cnss_number: employee.cnss_number || '',
-            dob: employee.dob || '',
-            hire_date: employee.hire_date || '',
-            phone: employee.phone || '',
-            address: employee.address || '',
-            bank_name: employee.bank_name || '',
-            rib: employee.rib || '',
-            base_rate: employee.base_rate,
-            complement: employee.complement || 0,
-            enterprise_id: employee.enterprise_id,
-            is_active: employee.is_active,
-            photo: null,
-        });
-
-        setIsEditingEmployee(true);
-    };
 
     const handleToggleActive = (employee) => {
         router.post(route('employees.toggle-active', employee.id));
-    };
-
-    const openContractModal = (employee) => {
-        setContractEmployee(employee);
-        setContractDate(employee.hire_date || new Date().toISOString().slice(0, 10));
-    };
-    const closeContractModal = () => setContractEmployee(null);
-
-    const confirmEmployeeDeletion = (employee) => setConfirmingEmployeeDeletion(employee);
-    const closeDeleteModal = () => setConfirmingEmployeeDeletion(null);
-    const deleteEmployee = (e) => {
-        e.preventDefault();
-        destroy(route('employees.destroy', confirmingEmployeeDeletion.id), {
-            preserveScroll: true,
-            onSuccess: closeDeleteModal,
-            onError: closeDeleteModal,
-            onFinish: closeDeleteModal,
-        });
     };
 
     const handleFilterChange = (e) => {
@@ -188,7 +98,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             </div>
                         </div>
 
-                        {/* MOBILE CARD VIEW — the 17-column table below is unusable on a phone even with
+                        {/* MOBILE CARD VIEW — the wide table below is unusable on a phone even with
                             horizontal scroll, so screens below md get a stacked card per employee
                             showing the essentials instead, with the full table reserved for md+. */}
                         <div className="md:hidden space-y-3">
@@ -200,7 +110,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 return (
                                     <div key={emp.id} className={`p-4 rounded-2xl border border-gray-100 ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
                                         <div className="mb-2">
-                                            <div className="font-bold text-gray-800">{emp.full_name}</div>
+                                            <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
                                             <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}</div>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 my-3 text-center">
@@ -236,7 +146,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 <div className="flex items-center justify-end gap-4">
                                                     <button
                                                         type="button"
-                                                        onClick={() => openContractModal(emp)}
+                                                        onClick={() => setContractEmployee(emp)}
                                                         title="Générer Contrat"
                                                         className="text-gray-400 hover:text-primary-600 transition-colors"
                                                     >
@@ -246,7 +156,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleEdit(emp)}
+                                                        onClick={() => setEditingEmployee(emp)}
                                                         title="Modifier"
                                                         className="text-gray-400 hover:text-gray-700 transition-colors"
                                                     >
@@ -256,7 +166,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                     </button>
                                                     <button
                                                         type="button"
-                                                        onClick={() => confirmEmployeeDeletion(emp)}
+                                                        onClick={() => setConfirmingEmployeeDeletion(emp)}
                                                         title="Supprimer"
                                                         className="text-gray-400 hover:text-red-600 transition-colors"
                                                     >
@@ -284,15 +194,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     <th className="px-4 py-3">{t('full_name')}</th>
                                     {auth.user.role === 'super_admin' && <th className="px-4 py-3 text-primary-600">{t('fermes')}</th>}
                                     <th className="px-4 py-3">{t('cin')}</th>
-                                    <th className="px-4 py-3">{t('cnss')}</th>
                                     <th className="px-4 py-3">{t('phone')}</th>
-                                    <th className="px-4 py-3">{t('address')}</th>
-                                    <th className="px-4 py-3">{t('bank')}</th>
-                                    <th className="px-4 py-3">{t('rib')}</th>
-                                    <th className="px-4 py-3">{t('dob')}</th>
-                                    <th className="px-4 py-3">{t('hire_date')}</th>
-                                    <th className="px-4 py-3 text-right">{t('daily_rate_brut')}</th>
-                                    <th className="px-4 py-3 text-right">{t('complement')}</th>
                                     <th className="px-4 py-3 text-right text-green-600">{t('daily_net')}</th>
                                     <th className="px-4 py-3 text-center">{t('status')}</th>
                                     <th className="px-4 py-3 text-center">{t('actions')}</th>
@@ -308,21 +210,13 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                         <tr key={emp.id} className={`hover:bg-gray-50 transition-colors ${!emp.is_active ? 'opacity-50 bg-gray-100' : ''}`}>
                                             <td className="px-4 py-3 font-medium text-gray-900">{emp.matricule}</td>
                                             <td className="px-4 py-3">
-                                                <div className="font-bold text-gray-800">{emp.full_name}</div>
+                                                <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
                                             </td>
                                             {auth.user.role === 'super_admin' && (
                                                 <td className="px-4 py-3 font-bold text-primary-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
                                             )}
                                             <td className="px-4 py-3">{emp.cin || '-'}</td>
-                                            <td className="px-4 py-3">{emp.cnss_number || '-'}</td>
                                             <td className="px-4 py-3">{emp.phone || '-'}</td>
-                                            <td className="px-4 py-3 text-xs text-gray-600 max-w-[150px] truncate" title={emp.address}>{emp.address || '-'}</td>
-                                            <td className="px-4 py-3">{emp.bank_name || '-'}</td>
-                                            <td className="px-4 py-3 text-xs font-mono">{emp.rib || '-'}</td>
-                                            <td className="px-4 py-3">{emp.dob || '-'}</td>
-                                            <td className="px-4 py-3">{emp.hire_date || '-'}</td>
-                                            <td className="px-4 py-3 text-right font-medium text-gray-400">{formatNumber(emp.base_rate)} DH</td>
-                                            <td className="px-4 py-3 text-right font-medium text-gray-400">{formatNumber(emp.complement || 0)} DH</td>
                                             <td className="px-4 py-3 text-right font-black text-green-700 bg-green-50/30">
                                                 {formatNumber(salNetJ)} <small className="text-[10px]">DH</small>
                                             </td>
@@ -338,11 +232,22 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 </label>
                                             </td>
                                             <td className="px-4 py-3 text-center">
+                                                <div className="flex items-center justify-center gap-3">
+                                                    <a
+                                                        href={route('employees.show', emp.id)}
+                                                        title="Voir la fiche"
+                                                        className="text-gray-400 hover:text-primary-600 transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                    </a>
                                                 {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
-                                                    <div className="flex items-center justify-center gap-3">
+                                                    <>
                                                         <button
                                                             type="button"
-                                                            onClick={() => openContractModal(emp)}
+                                                            onClick={() => setContractEmployee(emp)}
                                                             title="Générer Contrat"
                                                             className="text-gray-400 hover:text-primary-600 transition-colors"
                                                         >
@@ -352,7 +257,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => handleEdit(emp)}
+                                                            onClick={() => setEditingEmployee(emp)}
                                                             title="Modifier"
                                                             className="text-gray-400 hover:text-gray-700 transition-colors"
                                                         >
@@ -362,7 +267,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => confirmEmployeeDeletion(emp)}
+                                                            onClick={() => setConfirmingEmployeeDeletion(emp)}
                                                             title="Supprimer"
                                                             className="text-gray-400 hover:text-red-600 transition-colors"
                                                         >
@@ -370,15 +275,16 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                             </svg>
                                                         </button>
-                                                    </div>
+                                                    </>
                                                 )}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
                                 })}
                                 {employees.length === 0 && (
                                     <tr>
-                                        <td colSpan={auth.user.role === 'super_admin' ? 17 : 16} className="px-4 py-12 text-center text-gray-400 italic">
+                                        <td colSpan={auth.user.role === 'super_admin' ? 8 : 7} className="px-4 py-12 text-center text-gray-400 italic">
                                             {t('no_employee_found')}
                                         </td>
                                     </tr>
@@ -391,221 +297,24 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                 </div>
             </div>
 
-            {/* ADD/EDIT EMPLOYEE MODAL */}
-            <Modal show={isAddingEmployee || isEditingEmployee} onClose={() => { setIsAddingEmployee(false); setIsEditingEmployee(false); setEditingEmployee(null); reset(); }} maxWidth="4xl">
-                <div className="p-8">
-                    <h3 className="text-2xl font-black mb-6 text-gray-900 border-b pb-4 tracking-tighter">
-                        {isEditingEmployee ? 'Modifier Employé' : t('register_new_employee')}
-                    </h3>
-                    <form onSubmit={submit} className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Identity */}
-                            <div>
-                                <label htmlFor="emp_matricule" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('matricule_label')}</label>
-                                <input id="emp_matricule" type="text" className="w-full rounded-lg border-gray-200" value={data.matricule} onChange={e => setData('matricule', e.target.value)} />
-                                {errors.matricule && <div className="text-red-500 text-xs mt-1">{errors.matricule}</div>}
-                            </div>
-                            <div>
-                                <label htmlFor="emp_full_name" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('full_name_label')}</label>
-                                <input id="emp_full_name" type="text" className="w-full rounded-lg border-gray-200" value={data.full_name} onChange={e => setData('full_name', e.target.value)} />
-                                {errors.full_name && <div className="text-red-500 text-xs mt-1">{errors.full_name}</div>}
-                            </div>
-                            <div>
-                                <label htmlFor="emp_cin" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cin')}</label>
-                                <input id="emp_cin" type="text" className="w-full rounded-lg border-gray-200" value={data.cin} onChange={e => setData('cin', e.target.value)} />
-                            </div>
+            <EmployeeFormModal
+                show={isAddingEmployee || editingEmployee !== null}
+                onClose={() => { setIsAddingEmployee(false); setEditingEmployee(null); }}
+                employee={editingEmployee}
+                enterprises={enterprises}
+                transportLocations={transportLocations}
+                defaultEnterpriseId={selectedEnterpriseId}
+            />
 
-                            {/* Dates & CNSS */}
-                            <div>
-                                <label htmlFor="emp_cnss" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('cnss_number_label')}</label>
-                                <input id="emp_cnss" type="text" className="w-full rounded-lg border-gray-200" value={data.cnss_number} onChange={e => setData('cnss_number', e.target.value)} />
-                            </div>
-                            <div>
-                                <label htmlFor="emp_dob" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('dob_label')}</label>
-                                <input id="emp_dob" type="date" className="w-full rounded-lg border-gray-200" value={data.dob} onChange={e => setData('dob', e.target.value)} />
-                            </div>
-                            <div>
-                                <label htmlFor="emp_hire_date" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('hire_date_label')}</label>
-                                <input id="emp_hire_date" type="date" className="w-full rounded-lg border-gray-200" value={data.hire_date} onChange={e => setData('hire_date', e.target.value)} />
-                            </div>
+            <DeleteEmployeeModal
+                employee={confirmingEmployeeDeletion}
+                onClose={() => setConfirmingEmployeeDeletion(null)}
+            />
 
-                            {/* Contact */}
-                            <div>
-                                <label htmlFor="emp_phone" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('phone_label')}</label>
-                                <input id="emp_phone" type="text" className="w-full rounded-lg border-gray-200" value={data.phone} onChange={e => setData('phone', e.target.value)} />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label htmlFor="emp_address" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('address')}</label>
-                                <input id="emp_address" type="text" className="w-full rounded-lg border-gray-200" value={data.address} onChange={e => setData('address', e.target.value)} />
-                            </div>
-
-                            {/* Bank */}
-                            <div>
-                                <label htmlFor="emp_bank_name" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('bank')}</label>
-                                <input id="emp_bank_name" type="text" className="w-full rounded-lg border-gray-200" value={data.bank_name} onChange={e => setData('bank_name', e.target.value)} />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label htmlFor="emp_rib" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('rib')}</label>
-                                <input id="emp_rib" type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
-                            </div>
-
-                            {/* Enterprise Assignment — shown whenever there's more than one division to pick
-                                from; EmployeeController::index() only ever populates `enterprises` for
-                                super_admin/farm_manager and a farm-scoped (no fixed enterprise_id) data_entry. */}
-                            {enterprises.length > 0 && (
-                                <div>
-                                    <label htmlFor="emp_enterprise_id" className="block text-xs font-black uppercase text-primary-600 mb-1">{t('assign_to_ferme')}</label>
-                                    <select
-                                        id="emp_enterprise_id"
-                                        className="w-full rounded-lg border-primary-200 bg-primary-50"
-                                        value={data.enterprise_id}
-                                        onChange={e => setData('enterprise_id', e.target.value)}
-                                    >
-                                        <option value="">Sélectionner une division</option>
-                                        {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
-                                    </select>
-                                    {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
-                                </div>
-                            )}
-
-                            {/* Payroll Profile */}
-                            <div>
-                                <label id="emp_contract_type_label" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('contract_type_auto')}</label>
-                                <div aria-labelledby="emp_contract_type_label" className="bg-gray-100 p-2.5 rounded-lg text-gray-500 font-black uppercase text-[10px]">
-                                    {selectedEnterpriseId ? (enterprises.find(e => e.id == selectedEnterpriseId)?.contract_type.replace('_', ' ')) : t('managed_by_ferme')}
-                                </div>
-                            </div>
-                            <div>
-                                <label htmlFor="emp_base_rate" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('daily_rate_dh')}</label>
-                                <input id="emp_base_rate" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-primary-700" value={data.base_rate} onChange={e => setData('base_rate', e.target.value)} />
-                                {errors.base_rate && <div className="text-red-500 text-xs mt-1">{errors.base_rate}</div>}
-                            </div>
-                            <div>
-                                <label htmlFor="emp_complement" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('complement_prime')}</label>
-                                <input id="emp_complement" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-green-700" value={data.complement} onChange={e => setData('complement', e.target.value)} />
-                                {errors.complement && <div className="text-red-500 text-xs mt-1">{errors.complement}</div>}
-                            </div>
-
-                            {/* Status (Edit Only) */}
-                            {isEditingEmployee && (
-                                <div>
-                                    <label htmlFor="emp_is_active" className="block text-xs font-black uppercase text-gray-400 mb-1">Statut</label>
-                                    <select
-                                        id="emp_is_active"
-                                        className="w-full rounded-lg border-gray-200"
-                                        value={data.is_active ? 'true' : 'false'}
-                                        onChange={e => setData('is_active', e.target.value === 'true')}
-                                    >
-                                        <option value="true">Actif</option>
-                                        <option value="false">Inactif</option>
-                                    </select>
-                                </div>
-                            )}
-
-                            {/* Badge photo (Edit Only) — optional, printed on the pointage badge alongside the QR code */}
-                            {isEditingEmployee && (
-                                <div className="md:col-span-3 flex items-center gap-4 border-t pt-4 mt-2">
-                                    {editingEmployee?.photo_path && (
-                                        <img
-                                            src={`/storage/${editingEmployee.photo_path}`}
-                                            alt=""
-                                            className="w-14 h-14 rounded-lg object-cover border border-gray-200"
-                                        />
-                                    )}
-                                    <div className="flex-1">
-                                        <label htmlFor="emp_photo" className="block text-xs font-black uppercase text-gray-400 mb-1">Photo du Badge (optionnel)</label>
-                                        <input
-                                            id="emp_photo"
-                                            type="file"
-                                            accept="image/*"
-                                            className="w-full text-xs"
-                                            onChange={e => setData('photo', e.target.files[0] || null)}
-                                        />
-                                        {errors.photo && <div className="text-red-500 text-xs mt-1">{errors.photo}</div>}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
-                            <SecondaryButton onClick={() => { setIsAddingEmployee(false); setIsEditingEmployee(false); setEditingEmployee(null); reset(); }}>{t('cancel')}</SecondaryButton>
-                            <PrimaryButton disabled={processing}>{isEditingEmployee ? 'Mettre à jour' : t('save_employee')}</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </Modal>
-
-            {/* DELETE EMPLOYEE MODAL */}
-            <Modal show={confirmingEmployeeDeletion !== null} onClose={closeDeleteModal}>
-                <form onSubmit={deleteEmployee} className="p-8">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
-                            <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                        </div>
-                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-                            Supprimer l'employé
-                        </h2>
-                    </div>
-                    <p className="text-gray-600 mb-6">
-                        Êtes-vous sûr de vouloir supprimer définitivement <strong>{confirmingEmployeeDeletion?.full_name}</strong> ? Cette action est irréversible.
-                    </p>
-                    <div className="flex justify-end gap-3">
-                        <SecondaryButton type="button" onClick={closeDeleteModal}>Annuler</SecondaryButton>
-                        <DangerButton className="rounded-xl" disabled={deleteProcessing}>
-                            {deleteProcessing ? 'Suppression...' : "Supprimer l'Employé"}
-                        </DangerButton>
-                    </div>
-                </form>
-            </Modal>
-
-            {/* GENERATE CONTRACT MODAL */}
-            <Modal show={contractEmployee !== null} onClose={closeContractModal}>
-                <div className="p-8">
-                    <div className="flex items-center gap-4 mb-4">
-                        <div className="h-12 w-12 bg-primary-100 rounded-full flex items-center justify-center">
-                            <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Générer un Contrat</h2>
-                            <p className="text-sm text-gray-500">{contractEmployee?.full_name}</p>
-                        </div>
-                    </div>
-
-                    {(!contractEmployee?.cin || !contractEmployee?.address || !contractEmployee?.cnss_number) && (
-                        <p className="text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">
-                            CIN, adresse ou n° CNSS manquant(s) sur cette fiche — le contrat sera généré avec des blancs à compléter à la main.
-                        </p>
-                    )}
-
-                    <label htmlFor="contract_date" className="block text-[10px] font-black uppercase text-gray-400 tracking-widest mb-1.5">
-                        Date de début du contrat
-                    </label>
-                    <input
-                        id="contract_date"
-                        type="date"
-                        value={contractDate}
-                        onChange={(e) => setContractDate(e.target.value)}
-                        className="block w-full rounded-xl border-gray-200 text-sm focus:border-primary-500 focus:ring-primary-500"
-                    />
-                    <p className="text-xs text-gray-400 mt-1.5">Pré-remplie avec la date d'embauche — modifiable pour un renouvellement saisonnier.</p>
-
-                    <div className="flex justify-end gap-3 mt-6">
-                        <SecondaryButton type="button" onClick={closeContractModal}>Annuler</SecondaryButton>
-                        <a
-                            href={contractEmployee ? route('employees.contract', { employee: contractEmployee.id, start_date: contractDate }) : '#'}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-6 py-2.5 bg-primary-600 border border-transparent rounded-full font-black text-xs text-white uppercase tracking-widest shadow-sm hover:bg-primary-700 transition"
-                        >
-                            Télécharger le Contrat
-                        </a>
-                    </div>
-                </div>
-            </Modal>
+            <ContractModal
+                employee={contractEmployee}
+                onClose={() => setContractEmployee(null)}
+            />
         </AuthenticatedLayout>
     );
 }
