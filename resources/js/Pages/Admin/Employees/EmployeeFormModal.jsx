@@ -8,7 +8,8 @@ import { t } from '@/Helpers/i18n';
 const emptyForm = {
     matricule: '', full_name: '', cin: '', cnss_number: '', dob: '', hire_date: '', phone: '',
     address: '', bank_name: '', rib: '', base_rate: '', complement: 0, enterprise_id: '',
-    residence_location_id: '', is_active: true, photo: null,
+    residence_location_id: '', is_active: true, photo: null, cin_photo: null,
+    remove_photo: false, remove_cin_photo: false,
 };
 
 // Shared create/edit form — used by both Admin/Employees.jsx (the list) and
@@ -39,6 +40,9 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                 residence_location_id: employee.residence_location_id || '',
                 is_active: employee.is_active,
                 photo: null,
+                cin_photo: null,
+                remove_photo: false,
+                remove_cin_photo: false,
             });
         } else {
             reset();
@@ -210,23 +214,88 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                         {/* Badge photo (Edit Only) — optional, printed on the pointage badge alongside the QR code */}
                         {isEditing && (
                             <div className="md:col-span-3 flex items-center gap-4 border-t pt-4 mt-2">
-                                {employee?.photo_path && (
-                                    <img
-                                        src={`/storage/${employee.photo_path}`}
-                                        alt=""
-                                        className="w-14 h-14 rounded-lg object-cover border border-gray-200"
-                                    />
+                                {employee?.photo_path && !data.remove_photo && (
+                                    <div className="relative shrink-0">
+                                        <img
+                                            src={`/storage/${employee.photo_path}`}
+                                            alt=""
+                                            className="w-14 h-14 rounded-lg object-cover border border-gray-200"
+                                        />
+                                        <button
+                                            type="button"
+                                            title="Supprimer la photo"
+                                            onClick={() => setData('remove_photo', true)}
+                                            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-black leading-none flex items-center justify-center shadow hover:bg-red-600"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
                                 )}
                                 <div className="flex-1">
                                     <label htmlFor="emp_photo" className="block text-xs font-black uppercase text-gray-400 mb-1">Photo du Badge (optionnel)</label>
-                                    <input
-                                        id="emp_photo"
-                                        type="file"
-                                        accept="image/*"
-                                        className="w-full text-xs"
-                                        onChange={e => setData('photo', e.target.files[0] || null)}
-                                    />
-                                    {errors.photo && <div className="text-red-500 text-xs mt-1">{errors.photo}</div>}
+                                    {employee?.photo_path && data.remove_photo ? (
+                                        <p className="text-xs font-bold text-red-600">
+                                            Photo supprimée à l'enregistrement.{' '}
+                                            <button type="button" className="underline hover:no-underline" onClick={() => setData('remove_photo', false)}>Annuler</button>
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <input
+                                                id="emp_photo"
+                                                type="file"
+                                                accept="image/*"
+                                                className="w-full text-xs"
+                                                onChange={e => setData('photo', e.target.files[0] || null)}
+                                            />
+                                            {errors.photo && <div className="text-red-500 text-xs mt-1">{errors.photo}</div>}
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* CIN card photo (Edit Only) — scan/photo of the national ID card itself, kept
+                            on file for the employee's paperwork; separate from the badge photo above. */}
+                        {isEditing && (
+                            <div className="md:col-span-3 flex items-center gap-4 border-t pt-4 mt-2">
+                                {employee?.cin_photo_path && !data.remove_cin_photo && (
+                                    <div className="relative shrink-0">
+                                        <a href={`/storage/${employee.cin_photo_path}`} target="_blank" rel="noopener noreferrer">
+                                            <img
+                                                src={`/storage/${employee.cin_photo_path}`}
+                                                alt=""
+                                                className="w-20 h-14 rounded-lg object-cover border border-gray-200"
+                                            />
+                                        </a>
+                                        <button
+                                            type="button"
+                                            title="Supprimer la photo"
+                                            onClick={() => setData('remove_cin_photo', true)}
+                                            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-black leading-none flex items-center justify-center shadow hover:bg-red-600"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                    <label htmlFor="emp_cin_photo" className="block text-xs font-black uppercase text-gray-400 mb-1">Photo de la Carte Nationale (optionnel)</label>
+                                    {employee?.cin_photo_path && data.remove_cin_photo ? (
+                                        <p className="text-xs font-bold text-red-600">
+                                            Photo supprimée à l'enregistrement.{' '}
+                                            <button type="button" className="underline hover:no-underline" onClick={() => setData('remove_cin_photo', false)}>Annuler</button>
+                                        </p>
+                                    ) : (
+                                        <>
+                                            <input
+                                                id="emp_cin_photo"
+                                                type="file"
+                                                accept="image/*"
+                                                className="w-full text-xs"
+                                                onChange={e => setData('cin_photo', e.target.files[0] || null)}
+                                            />
+                                            {errors.cin_photo && <div className="text-red-500 text-xs mt-1">{errors.cin_photo}</div>}
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         )}

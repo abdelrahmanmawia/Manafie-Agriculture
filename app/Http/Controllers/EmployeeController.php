@@ -209,6 +209,12 @@ class EmployeeController extends Controller
             // the raw validated value (casting the STRING "false" with PHP's (bool) is true).
             'is_active' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
             'photo' => 'nullable|image|max:5120',
+            'cin_photo' => 'nullable|image|max:5120',
+            // Same string-vs-boolean multipart coercion as `is_active` — the "remove this photo"
+            // buttons in EmployeeFormModal set these to flag deletion of an existing photo when
+            // no replacement file is chosen.
+            'remove_photo' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
+            'remove_cin_photo' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
         ]);
 
         if (array_key_exists('is_active', $validated)) {
@@ -222,8 +228,22 @@ class EmployeeController extends Controller
                 Storage::disk('public')->delete($employee->photo_path);
             }
             $validated['photo_path'] = $request->file('photo')->store('badges', 'public');
+        } elseif ($request->boolean('remove_photo') && $employee->photo_path) {
+            Storage::disk('public')->delete($employee->photo_path);
+            $validated['photo_path'] = null;
         }
-        unset($validated['photo']);
+        unset($validated['photo'], $validated['remove_photo']);
+
+        if ($request->hasFile('cin_photo')) {
+            if ($employee->cin_photo_path) {
+                Storage::disk('public')->delete($employee->cin_photo_path);
+            }
+            $validated['cin_photo_path'] = $request->file('cin_photo')->store('cin-cards', 'public');
+        } elseif ($request->boolean('remove_cin_photo') && $employee->cin_photo_path) {
+            Storage::disk('public')->delete($employee->cin_photo_path);
+            $validated['cin_photo_path'] = null;
+        }
+        unset($validated['cin_photo'], $validated['remove_cin_photo']);
 
         $employee->update($validated);
 

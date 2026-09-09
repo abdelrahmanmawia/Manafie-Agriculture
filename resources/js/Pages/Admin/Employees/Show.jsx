@@ -141,6 +141,18 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                             <InfoRow label="Date de Naissance" value={employee.dob} />
                             <InfoRow label="Téléphone" value={employee.phone} />
                             <InfoRow label="Adresse (CIN)" value={employee.address} />
+                            {employee.cin_photo_path && (
+                                <div className="flex items-center justify-between gap-4 py-2">
+                                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Photo Carte Nationale</span>
+                                    <a href={`/storage/${employee.cin_photo_path}`} target="_blank" rel="noopener noreferrer">
+                                        <img
+                                            src={`/storage/${employee.cin_photo_path}`}
+                                            alt="Carte Nationale"
+                                            className="w-24 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
+                                        />
+                                    </a>
+                                </div>
+                            )}
                         </div>
 
                         {/* EMPLOI */}
