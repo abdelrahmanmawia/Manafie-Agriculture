@@ -110,6 +110,48 @@ class StockBusinessLogicTest extends TestCase
         ]);
     }
 
+    // --- Sortie note ---
+
+    /**
+     * The stock movement's own `notes` used to be hardcoded to "Manual entry: {entry_type}",
+     * silently discarding whatever the user typed in the sortie's Notes field — it was saved on
+     * manual_stock_entries.notes but never surfaced anywhere the movement itself is displayed
+     * (Inventory/Show.jsx, Movements/Index.jsx, the Stock exports). Mirrors how stockIn() already
+     * stored the real note (StockMovementController::stockIn()).
+     */
+    public function test_sortie_note_is_saved_on_the_stock_movement_itself(): void
+    {
+        $this->receive(50, 10);
+
+        $this->sortie(10, ['notes' => 'Épandu sur bloc A, secteur 3'])->assertRedirect();
+
+        $this->assertDatabaseHas('stock_movements', [
+            'product_id' => $this->product->id,
+            'movement_type' => 'out',
+            'notes' => 'Épandu sur bloc A, secteur 3',
+        ]);
+    }
+
+    public function test_updating_a_sortie_note_updates_the_stock_movement_too(): void
+    {
+        $this->receive(50, 10);
+        $this->sortie(10, ['notes' => 'Original note']);
+
+        $entry = \App\Models\ManualStockEntry::where('product_id', $this->product->id)->firstOrFail();
+
+        $this->actingAs($this->farmManager)
+            ->put(route('stock.manual-entries.update', $entry), [
+                'notes' => 'Updated note',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('stock_movements', [
+            'reference_type' => 'manual_entry',
+            'reference_id' => $entry->id,
+            'notes' => 'Updated note',
+        ]);
+    }
+
     // --- Negative-stock guard ---
 
     public function test_sortie_exceeding_available_stock_is_rejected(): void

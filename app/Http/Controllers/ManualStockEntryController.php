@@ -200,7 +200,14 @@ class ManualStockEntryController extends Controller
                 'reference_id' => $entry->id,
                 'performed_by' => $request->user()->id,
                 'date' => $validated['date'],
-                'notes' => "Manual entry: {$validated['entry_type']}",
+                // Was hardcoded to "Manual entry: {$validated['entry_type']}" — silently
+                // discarding whatever the user actually typed in the sortie's own Notes field
+                // (it was still saved on ManualStockEntry.notes, but never surfaced anywhere the
+                // movement itself is shown: Inventory/Show.jsx, Movements/Index.jsx, or the Stock
+                // exports). The entry_type is already properly labeled on the dedicated Sorties
+                // de Stock page (ManualStockEntries/Show.jsx) — no need to duplicate it here.
+                // Mirrors StockMovementController::stockIn()'s own notes handling.
+                'notes' => $validated['notes'] ?? null,
             ]);
 
             // Update inventory
@@ -345,7 +352,9 @@ class ManualStockEntryController extends Controller
                     'unit_cost' => $unitCost,
                     'total_cost' => $unitCost * $manualStockEntry->quantity,
                     'date' => $manualStockEntry->date,
-                    'notes' => "Manual entry: {$manualStockEntry->entry_type}",
+                    // Same fix as store() — reflect the entry's own (just-updated) note instead
+                    // of the auto "Manual entry: {type}" placeholder.
+                    'notes' => $manualStockEntry->notes,
                 ]);
             }
 
