@@ -197,7 +197,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Stock Management - Inventory
     Route::get('/stock/inventory', [StockInventoryController::class, 'index'])->name('stock.inventory.index');
+    Route::get('/stock/inventory/export/excel', [StockInventoryController::class, 'exportExcel'])->name('stock.inventory.export-excel');
+    Route::get('/stock/inventory/export/pdf', [StockInventoryController::class, 'exportPdf'])->name('stock.inventory.export-pdf');
     Route::get('/stock/inventory/{inventory}', [StockInventoryController::class, 'show'])->name('stock.inventory.show');
+    Route::get('/stock/inventory/{inventory}/export/excel', [StockInventoryController::class, 'exportMovementsExcel'])->name('stock.inventory.export-movements-excel');
+    Route::get('/stock/inventory/{inventory}/export/pdf', [StockInventoryController::class, 'exportMovementsPdf'])->name('stock.inventory.export-movements-pdf');
     Route::post('/stock/inventory/count', [StockInventoryController::class, 'count'])->name('stock.inventory.count');
 
     // Stock Management - Movements

@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\StockInventoryExport;
+use App\Exports\StockMovementsExport;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
+use App\Models\ProductCategory;
 use App\Models\StockInventory;
 use App\Models\Product;
 use App\Services\StockAlertService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Inertia\Inertia; // Import Inertia
+use Maatwebsite\Excel\Facades\Excel;
 
 class StockInventoryController extends Controller
 {
@@ -48,13 +54,18 @@ class StockInventoryController extends Controller
         $inventory = $query->get();
 
         return Inertia::render('Stock/Inventory/Index', [
-            'stockInventory' => $inventory,        ]);
+            'stockInventory' => $inventory,
+            'categories' => ProductCategory::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+                ->orderBy('name')
+                ->get(['id', 'name']),
+        ]);
     }
 
-    public function show(Request $request, StockInventory $inventory)
+    /**
+     * Shared by show() and the two per-product movement exports — same eager-loads either way.
+     */
+    private function loadMovementRelations(StockInventory $inventory): StockInventory
     {
-        $this->assertProductInScope($request, $inventory->product);
-
         $inventory->load([
             'product',
             'product.category',
@@ -67,9 +78,98 @@ class StockInventoryController extends Controller
             },
         ]);
 
+        return $inventory;
+    }
+
+    public function show(Request $request, StockInventory $inventory)
+    {
+        $this->assertProductInScope($request, $inventory->product);
+
+        $this->loadMovementRelations($inventory);
+
         return Inertia::render('Stock/Inventory/Show', [
             'stockInventory' => $inventory,
         ]);
+    }
+
+    private function farmInventory(Request $request)
+    {
+        $farmId = $this->scopedFarmId($request);
+
+        return StockInventory::with('product.category')
+            ->when($farmId, fn ($query) => $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId)))
+            ->when($request->filled('category_id'), fn ($query) => $query->whereHas('product', fn ($q) => $q->where('category_id', $request->category_id)))
+            ->get();
+    }
+
+    /**
+     * Resolves the optional `?category_id=` export filter — validated against the current farm
+     * the same way every other route param here is (assertProductInScope's sibling), so a
+     * category from another farm can't be probed for its name via the exported PDF title.
+     */
+    private function exportCategoryFor(Request $request): ?ProductCategory
+    {
+        if (! $request->filled('category_id')) {
+            return null;
+        }
+
+        $farmId = $this->scopedFarmId($request);
+        $category = ProductCategory::find($request->category_id);
+        abort_unless($category && $farmId && $category->farm_id === $farmId, 403);
+
+        return $category;
+    }
+
+    public function exportExcel(Request $request)
+    {
+        $category = $this->exportCategoryFor($request);
+        $filename = ($category ? Str::slug($category->name) : 'Inventaire') . '_' . now()->format('Y-m-d') . '.xlsx';
+
+        return Excel::download(
+            new StockInventoryExport($this->farmInventory($request), $category?->name),
+            $filename
+        );
+    }
+
+    public function exportPdf(Request $request)
+    {
+        $category = $this->exportCategoryFor($request);
+
+        $pdf = Pdf::loadView('exports.stock_inventory', [
+            'stockInventory' => $this->farmInventory($request),
+            'categoryName' => $category?->name,
+            'generatedAt' => now(),
+        ])->setPaper('a4', 'portrait');
+
+        $filename = ($category ? Str::slug($category->name) : 'Inventaire') . '_' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    public function exportMovementsExcel(Request $request, StockInventory $inventory)
+    {
+        $this->assertProductInScope($request, $inventory->product);
+        $this->loadMovementRelations($inventory);
+
+        $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.xlsx';
+
+        return Excel::download(new StockMovementsExport($inventory), $filename);
+    }
+
+    public function exportMovementsPdf(Request $request, StockInventory $inventory)
+    {
+        $this->assertProductInScope($request, $inventory->product);
+        $this->loadMovementRelations($inventory);
+
+        $pdf = Pdf::loadView('exports.stock_movements', [
+            'inventory' => $inventory,
+            'movements' => $inventory->product->stockMovements,
+            'generatedAt' => now(),
+        ])->setPaper('a4', 'landscape');
+
+        $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.pdf';
+
+        return $pdf->download($filename);
     }
 
     // The magasinier's physical stock count: what's actually on the shelf vs. what the system

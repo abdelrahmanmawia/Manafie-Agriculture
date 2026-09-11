@@ -20,8 +20,9 @@ function getStockStatus(currentStock, minStock) {
     return { status: 'Bon', color: 'bg-green-500', textColor: 'text-green-600' };
 }
 
-export default function Index({ auth, stockInventory }) {
+export default function Index({ auth, stockInventory, categories }) {
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('');
     const [countingItem, setCountingItem] = useState(null);
     const countForm = useForm({ product_id: '', counted_quantity: '' });
 
@@ -47,9 +48,16 @@ export default function Index({ auth, stockInventory }) {
         });
     };
 
-    const filtered = stockInventory.filter((item) =>
-        item.product.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filtered = stockInventory.filter((item) => {
+        const matchesSearch = item.product.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = !selectedCategory || String(item.product.category_id) === String(selectedCategory);
+        return matchesSearch && matchesCategory;
+    });
+
+    // Export links carry whatever category is currently filtered — filter to "Engrais" and
+    // click Excel/PDF, and only that category prints, titled with its own name.
+    const exportHref = (routeName) =>
+        route(routeName) + (selectedCategory ? `?category_id=${selectedCategory}` : '');
 
     const lowStockCount = stockInventory.filter((item) => {
         const qty = parseFloat(item.quantity_on_hand);
@@ -71,15 +79,35 @@ export default function Index({ auth, stockInventory }) {
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Stocks</h2>
                         <p className="text-sm text-gray-500 mt-1">Niveaux d'inventaire actuels par produit</p>
                     </div>
-                    <Link
-                        href={route('stock.movements.index') + '?action=receive'}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Nouvelle Réception
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <a
+                            href={exportHref('stock.inventory.export-excel')}
+                            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 text-xs"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H8a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Excel{selectedCategory ? ` (${categories.find((c) => String(c.id) === selectedCategory)?.name ?? ''})` : ''}
+                        </a>
+                        <a
+                            href={exportHref('stock.inventory.export-pdf')}
+                            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 text-xs"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H8a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            PDF{selectedCategory ? ` (${categories.find((c) => String(c.id) === selectedCategory)?.name ?? ''})` : ''}
+                        </a>
+                        <Link
+                            href={route('stock.movements.index') + '?action=receive'}
+                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Nouvelle Réception
+                        </Link>
+                    </div>
                 </div>
             }
         >
@@ -103,20 +131,37 @@ export default function Index({ auth, stockInventory }) {
                         </div>
                     </div>
 
-                    {/* Search */}
+                    {/* Search & Category Filter */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
-                        <div className="relative max-w-md">
-                            <input
-                                type="text"
-                                placeholder="Rechercher un produit..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                            />
-                            <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Rechercher un produit..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                    />
+                                    <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Catégorie</label>
+                                <select
+                                    value={selectedCategory}
+                                    onChange={(e) => setSelectedCategory(e.target.value)}
+                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                >
+                                    <option value="">Toutes les catégories</option>
+                                    {categories.map((cat) => (
+                                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
 

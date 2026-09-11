@@ -77,7 +77,19 @@ export default function Show({ auth, stockInventory }) {
                             <p className="text-sm text-gray-500 mt-1">{stockInventory.product.name}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <a
+                            href={route('stock.inventory.export-movements-excel', stockInventory.id)}
+                            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all text-xs"
+                        >
+                            Excel
+                        </a>
+                        <a
+                            href={route('stock.inventory.export-movements-pdf', stockInventory.id)}
+                            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all text-xs"
+                        >
+                            PDF
+                        </a>
                         <button
                             onClick={openCount}
                             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
