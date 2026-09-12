@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Exports\StockInventoryExport;
 use App\Exports\StockMovementsExport;
+use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\ProductCategory;
@@ -89,6 +90,9 @@ class StockInventoryController extends Controller
 
         return Inertia::render('Stock/Inventory/Show', [
             'stockInventory' => $inventory,
+            // A sortie with no note falls back to showing its own type (Consommation/Perte/...)
+            // instead of a blank cell — same list that fills the "Type de Sortie" dropdown.
+            'exitTypes' => $this->exitTypesFor($this->scopedFarmId($request)),
         ]);
     }
 
@@ -123,10 +127,11 @@ class StockInventoryController extends Controller
     public function exportExcel(Request $request)
     {
         $category = $this->exportCategoryFor($request);
+        $farm = Farm::find($this->scopedFarmId($request));
         $filename = ($category ? Str::slug($category->name) : 'Inventaire') . '_' . now()->format('Y-m-d') . '.xlsx';
 
         return Excel::download(
-            new StockInventoryExport($this->farmInventory($request), $category?->name),
+            new StockInventoryExport($this->farmInventory($request), $category?->name, $farm),
             $filename
         );
     }
@@ -138,6 +143,7 @@ class StockInventoryController extends Controller
         $pdf = Pdf::loadView('exports.stock_inventory', [
             'stockInventory' => $this->farmInventory($request),
             'categoryName' => $category?->name,
+            'farm' => Farm::find($this->scopedFarmId($request)),
             'generatedAt' => now(),
         ])->setPaper('a4', 'portrait');
 
@@ -151,9 +157,10 @@ class StockInventoryController extends Controller
         $this->assertProductInScope($request, $inventory->product);
         $this->loadMovementRelations($inventory);
 
+        $exitTypesByKey = $this->exitTypesFor($inventory->product->farm_id)->pluck('label', 'key')->toArray();
         $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.xlsx';
 
-        return Excel::download(new StockMovementsExport($inventory), $filename);
+        return Excel::download(new StockMovementsExport($inventory, $exitTypesByKey), $filename);
     }
 
     public function exportMovementsPdf(Request $request, StockInventory $inventory)
@@ -167,6 +174,9 @@ class StockInventoryController extends Controller
             'movements' => $inventory->product->stockMovements
                 ->sortBy([['date', 'asc'], ['id', 'asc']])
                 ->values(),
+            // A sortie with no note falls back to showing its own type (Consommation/Perte/...)
+            // instead of a blank Observations cell — same labels the "Type de Sortie" dropdown uses.
+            'exitTypesByKey' => $this->exitTypesFor($inventory->product->farm_id)->pluck('label', 'key')->toArray(),
             'generatedAt' => now(),
         ])->setPaper('a4', 'portrait');
 
@@ -177,10 +187,8 @@ class StockInventoryController extends Controller
 
     // The magasinier's physical stock count: what's actually on the shelf vs. what the system
     // thinks is there. Superseded the older adjust() (kept no reason a count doesn't already
-    // capture via the previous/counted note below) and no longer keys the inventory row by
-    // batch_number — every other write path (stockIn, and this one) treats StockInventory as one
-    // row per product, so scoping by batch here too would silently create a second, disconnected
-    // row instead of updating the one the rest of the app already reads.
+    // capture via the previous/counted note below) — every write path treats StockInventory as
+    // one row per product.
     public function count(Request $request)
     {
         if (! $request->user()->canAccessStock()) {

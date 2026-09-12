@@ -17,7 +17,6 @@ class StockInventory extends Model
         'quantity_reserved',
         'last_restock_date',
         'last_count_date',
-        'batch_number',
         'expiry_date',
         'average_cost',
     ];

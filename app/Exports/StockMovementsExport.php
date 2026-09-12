@@ -11,10 +11,12 @@ use Maatwebsite\Excel\Concerns\WithTitle;
 class StockMovementsExport implements FromView, ShouldAutoSize, WithTitle
 {
     protected StockInventory $inventory;
+    protected array $exitTypesByKey;
 
-    public function __construct(StockInventory $inventory)
+    public function __construct(StockInventory $inventory, array $exitTypesByKey = [])
     {
         $this->inventory = $inventory;
+        $this->exitTypesByKey = $exitTypesByKey;
     }
 
     public function view(): View
@@ -28,6 +30,9 @@ class StockMovementsExport implements FromView, ShouldAutoSize, WithTitle
             'movements' => $this->inventory->product->stockMovements
                 ->sortBy([['date', 'asc'], ['id', 'asc']])
                 ->values(),
+            // A sortie with no note falls back to showing its own type (Consommation/Perte/...)
+            // instead of a blank Observations cell — same labels the "Type de Sortie" dropdown uses.
+            'exitTypesByKey' => $this->exitTypesByKey,
             'generatedAt' => now(),
         ]);
     }

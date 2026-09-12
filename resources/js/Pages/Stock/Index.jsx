@@ -38,7 +38,6 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
         product_id: '',
         quantity: '',
         unit_cost: '',
-        batch_number: '',
         supplier_id: '',
         numero_bl: '',
         date: new Date().toISOString().slice(0, 10),
@@ -152,7 +151,6 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
                 product_id: product.id,
                 quantity: '',
                 unit_cost: '',
-                batch_number: '',
                 supplier_id: '',
                 numero_bl: '',
                 date: new Date().toISOString().slice(0, 10),
@@ -698,19 +696,6 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
                                                 required
                                             />
                                             <InputError message={receiveForm.errors.date} className="mt-2" />
-                                        </div>
-
-                                        <div>
-                                            <InputLabel htmlFor="movement_batch_number" value="N° de Lot" />
-                                            <TextInput
-                                                id="movement_batch_number"
-                                                type="text"
-                                                className="mt-1 block w-full"
-                                                value={receiveForm.data.batch_number}
-                                                onChange={(e) => receiveForm.setData('batch_number', e.target.value)}
-                                                placeholder="Optionnel"
-                                            />
-                                            <InputError message={receiveForm.errors.batch_number} className="mt-2" />
                                         </div>
 
                                         <div>

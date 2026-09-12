@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Models\Farm;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromView;
@@ -12,11 +13,13 @@ class StockInventoryExport implements FromView, ShouldAutoSize, WithTitle
 {
     protected Collection $stockInventory;
     protected ?string $categoryName;
+    protected ?Farm $farm;
 
-    public function __construct(Collection $stockInventory, ?string $categoryName = null)
+    public function __construct(Collection $stockInventory, ?string $categoryName = null, ?Farm $farm = null)
     {
         $this->stockInventory = $stockInventory;
         $this->categoryName = $categoryName;
+        $this->farm = $farm;
     }
 
     public function view(): View
@@ -24,6 +27,7 @@ class StockInventoryExport implements FromView, ShouldAutoSize, WithTitle
         return view('exports.stock_inventory', [
             'stockInventory' => $this->stockInventory,
             'categoryName' => $this->categoryName,
+            'farm' => $this->farm,
             'generatedAt' => now(),
         ]);
     }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Stock;
 
 use App\Models\Farm;
+use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\StockInventory;
@@ -143,6 +144,42 @@ class StockExportTest extends TestCase
         $this->assertStringContainsString('BL-42', $allText);
         // The increasing adjustment (+30) must never render as a negative/subtracted value.
         $this->assertStringNotContainsString('-30', $allText);
+    }
+
+    public function test_sortie_with_no_note_shows_its_exit_type_instead_of_a_blank_or_auto_message(): void
+    {
+        $entryNoNote = ManualStockEntry::create([
+            'farm_id' => $this->farmA->id, 'product_id' => $this->productA->id, 'entry_type' => 'loss',
+            'quantity' => 10, 'date' => '2026-01-02', 'entered_by' => $this->managerA->id,
+        ]);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'movement_type' => 'out', 'quantity' => 10,
+            'reference_type' => 'manual_entry', 'reference_id' => $entryNoNote->id, 'date' => '2026-01-02',
+        ]);
+
+        $entryWithNote = ManualStockEntry::create([
+            'farm_id' => $this->farmA->id, 'product_id' => $this->productA->id, 'entry_type' => 'consumption',
+            'quantity' => 5, 'date' => '2026-01-03', 'entered_by' => $this->managerA->id, 'notes' => 'Épandu bloc A',
+        ]);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'movement_type' => 'out', 'quantity' => 5,
+            'reference_type' => 'manual_entry', 'reference_id' => $entryWithNote->id, 'date' => '2026-01-03',
+            'notes' => 'Épandu bloc A',
+        ]);
+
+        $response = $this->actingAs($this->managerA)
+            ->get(route('stock.inventory.export-movements-excel', $this->inventoryA))
+            ->assertOk();
+
+        $sheet = $this->loadWorkbook($response)->getActiveSheet();
+        $allText = collect($sheet->toArray())->flatten()->filter()->implode(' | ');
+
+        // No note -> falls back to the exit type's real label (from the dropdown), not blank
+        // and not the old "Manual entry: loss" auto text.
+        $this->assertStringContainsString('Perte', $allText);
+        $this->assertStringNotContainsString('Manual entry', $allText);
+        // A real note always wins over the type fallback.
+        $this->assertStringContainsString('Épandu bloc A', $allText);
     }
 
     public function test_product_movements_pdf_export_downloads_successfully(): void

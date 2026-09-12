@@ -10,14 +10,22 @@ import InputError from '@/Components/InputError';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, stockMovements, products, suppliers }) {
+// A sortie left with no note shows its own type (Consommation/Perte/...) instead of a blank
+// cell — same label the "Type de Sortie" dropdown uses for that key.
+function observationsOf(movement, exitTypes) {
+    if (movement.notes?.trim()) return movement.notes;
+    const entryType = movement.reference?.entry_type;
+    if (!entryType) return 'N/A';
+    return exitTypes.find((t) => t.key === entryType)?.label || entryType;
+}
+
+export default function Index({ auth, stockMovements, products, suppliers, exitTypes = [] }) {
     const [isReceiving, setIsReceiving] = useState(false);
 
     const { data, setData, post, processing, reset, errors } = useForm({
         product_id: products.length > 0 ? products[0].id : '',
         quantity: '',
         unit_cost: '',
-        batch_number: '',
         supplier_id: '',
         numero_bl: '',
         date: new Date().toISOString().slice(0, 10),
@@ -116,7 +124,7 @@ export default function Index({ auth, stockMovements, products, suppliers }) {
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                         {[movement.reference?.bloc?.name, movement.reference?.sector?.name, movement.reference?.parcelle?.name].filter(Boolean).join(' / ') || movement.reference?.vehicle?.name || 'N/A'}
                                                     </td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.notes || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{observationsOf(movement, exitTypes)}</td>
                                                 </tr>
                                             );
                                         })}
@@ -213,19 +221,6 @@ export default function Index({ auth, stockMovements, products, suppliers }) {
                                             required
                                         />
                                         <InputError message={errors.date} className="mt-2" />
-                                    </div>
-
-                                    <div>
-                                        <InputLabel htmlFor="batch_number" value="N° de Lot" />
-                                        <TextInput
-                                            id="batch_number"
-                                            type="text"
-                                            className="mt-1 block w-full"
-                                            value={data.batch_number}
-                                            onChange={(e) => setData('batch_number', e.target.value)}
-                                            placeholder="Optionnel"
-                                        />
-                                        <InputError message={errors.batch_number} className="mt-2" />
                                     </div>
 
                                     <div>

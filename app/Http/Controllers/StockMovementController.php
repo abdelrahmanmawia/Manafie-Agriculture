@@ -66,6 +66,9 @@ class StockMovementController extends Controller
             'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->orderBy('name')
                 ->get(['id', 'name', 'is_active']),
+            // A sortie with no note falls back to showing its own type (Consommation/Perte/...)
+            // instead of a blank Observations cell — same list that fills the dropdown below.
+            'exitTypes' => $this->exitTypesFor($farmId),
         ]);
     }
 
@@ -77,7 +80,6 @@ class StockMovementController extends Controller
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|numeric|min:0.01',
             'unit_cost' => 'nullable|numeric|min:0',
-            'batch_number' => 'nullable|string|max:255',
             'supplier_id' => ['nullable', Rule::exists('suppliers', 'id')->where('farm_id', $farmId)],
             'numero_bl' => 'nullable|string|max:255',
             'date' => 'required|date',
@@ -104,7 +106,7 @@ class StockMovementController extends Controller
                 'notes' => $validated['notes'] ?? null,
             ]);
 
-            // Update inventory: quantity + weighted-average cost + latest batch info
+            // Update inventory: quantity + weighted-average cost
             $inventory = StockInventory::firstOrCreate(
                 ['product_id' => $product->id],
                 [
@@ -121,11 +123,6 @@ class StockMovementController extends Controller
                 : $unitCost;
             $inventory->quantity_on_hand = $newQuantity;
             $inventory->last_restock_date = $validated['date'];
-
-            if (! empty($validated['batch_number'])) {
-                $inventory->batch_number = $validated['batch_number'];
-            }
-
             $inventory->save();
 
             StockAlertService::syncLowStock($product);

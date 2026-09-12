@@ -16,7 +16,16 @@ function destinationOf(movement) {
     return ref.bloc?.name || ref.sector?.name || ref.parcelle?.name || ref.vehicle?.name || 'N/A';
 }
 
-export default function Show({ auth, stockInventory }) {
+// A sortie left with no note shows its own type (Consommation/Perte/...) instead of a blank
+// cell — same label the "Type de Sortie" dropdown uses for that key.
+function observationsOf(movement, exitTypes) {
+    if (movement.notes?.trim()) return movement.notes;
+    const entryType = movement.reference?.entry_type;
+    if (!entryType) return 'N/A';
+    return exitTypes.find((t) => t.key === entryType)?.label || entryType;
+}
+
+export default function Show({ auth, stockInventory, exitTypes = [] }) {
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -120,9 +129,6 @@ export default function Show({ auth, stockInventory }) {
                                         <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-primary-100 text-primary-800">
                                             {stockInventory.product.category?.name ?? 'Sans catégorie'}
                                         </span>
-                                        {stockInventory.batch_number && (
-                                            <span className="text-sm text-gray-500">Lot: {stockInventory.batch_number}</span>
-                                        )}
                                     </div>
                                 </div>
                                 <div className={`px-4 py-2 rounded-lg ${stockStatus.bgColor}`}>
@@ -159,11 +165,7 @@ export default function Show({ auth, stockInventory }) {
                                 <span className="text-gray-500">Coût Unitaire Moyen</span>
                                 <span className="font-medium text-gray-900">{stockInventory.average_cost ? formatMAD(stockInventory.average_cost) : 'N/A'}</span>
                             </div>
-                            <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                <span className="text-gray-500">Numéro de Lot</span>
-                                <span className="font-medium text-gray-900">{stockInventory.batch_number || 'N/A'}</span>
-                            </div>
-                            <div className="flex justify-between items-center py-2 md:border-b-0 border-b border-gray-50">
+                            <div className="flex justify-between items-center py-2 border-b border-gray-50 md:border-b-0">
                                 <span className="text-gray-500">Dernier Réapprovisionnement</span>
                                 <span className="font-medium text-gray-900">{formatDate(stockInventory.last_restock_date)}</span>
                             </div>
@@ -213,7 +215,7 @@ export default function Show({ auth, stockInventory }) {
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{destinationOf(movement)}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.performed_by?.name || 'N/A'}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.notes || 'N/A'}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{observationsOf(movement, exitTypes)}</td>
                                                 </tr>
                                             );
                                         })}
