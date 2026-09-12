@@ -171,6 +171,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Stock Management - Suppliers (a simple named list picked when logging an Entrée — no
     // purchase-order workflow, that was deliberately removed from this app already)
+    Route::get('/stock/suppliers', [SupplierController::class, 'index'])->name('stock.suppliers.index');
+    Route::get('/stock/suppliers/{supplier}', [SupplierController::class, 'show'])->name('stock.suppliers.show');
     Route::post('/stock/suppliers', [SupplierController::class, 'store'])->name('stock.suppliers.store');
     Route::put('/stock/suppliers/{supplier}', [SupplierController::class, 'update'])->name('stock.suppliers.update');
     Route::delete('/stock/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('stock.suppliers.destroy');

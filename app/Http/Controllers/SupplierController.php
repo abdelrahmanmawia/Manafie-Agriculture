@@ -6,6 +6,7 @@ use App\Models\StockMovement;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Inertia\Inertia;
 
 class SupplierController extends Controller
 {
@@ -16,6 +17,34 @@ class SupplierController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
         abort_unless($farmId && $supplier->farm_id === $farmId, 403);
+    }
+
+    public function index(Request $request)
+    {
+        $farmId = $this->scopedFarmId($request);
+
+        return Inertia::render('Stock/Suppliers/Index', [
+            'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_active']),
+        ]);
+    }
+
+    public function show(Request $request, Supplier $supplier)
+    {
+        $this->assertSupplierInScope($request, $supplier);
+
+        $supplier->load(['stockMovements' => fn ($q) => $q->orderByDesc('date')->with('product')]);
+
+        return Inertia::render('Stock/Suppliers/Show', [
+            'supplier' => $supplier,
+            'stats' => [
+                'total_deliveries' => $supplier->stockMovements->count(),
+                'total_value' => (float) $supplier->stockMovements->sum('total_cost'),
+                'distinct_products' => $supplier->stockMovements->pluck('product_id')->unique()->count(),
+                'last_delivery_date' => $supplier->stockMovements->max('date'),
+            ],
+        ]);
     }
 
     public function store(Request $request)

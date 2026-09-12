@@ -70,6 +70,7 @@ export default function Authenticated({ user, header, children }) {
         fuel: ['M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z', 'M15 11a3 3 0 11-6 0 3 3 0 016 0z'],
         pencil: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z',
         truck: 'M3 13l1.5-5A2 2 0 016.4 6.5h5.2a2 2 0 011.9 1.5l1 4M3 13v4a1 1 0 001 1h1m14-5v4a1 1 0 01-1 1h-1m-12 0a2 2 0 104 0m-4 0a2 2 0 114 0m8 0a2 2 0 104 0m-4 0a2 2 0 114 0M3 13h15',
+        cart: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
     };
 
     const farmSettingsItem = (user.farm_id || activeFarm)
@@ -104,6 +105,7 @@ export default function Authenticated({ user, header, children }) {
     const stockItems = [
         { label: 'Tableau de Bord', href: 'stock.dashboard', match: 'stock.dashboard', icon: ICONS.grid },
         { label: 'Produits', href: 'stock.products.index', match: 'stock.products.*', icon: ICONS.box },
+        { label: 'Fournisseurs', href: 'stock.suppliers.index', match: 'stock.suppliers.*', icon: ICONS.cart },
         { label: 'Inventaire', href: 'stock.inventory.index', match: 'stock.inventory.*', icon: ICONS.inventory },
         { label: 'Mouvements', href: 'stock.movements.index', match: 'stock.movements.*', icon: ICONS.swap },
         { label: 'Alertes', href: 'stock.alerts.index', match: 'stock.alerts.*', icon: ICONS.alert },

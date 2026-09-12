@@ -38,6 +38,65 @@ class SupplierTest extends TestCase
         ]);
     }
 
+    public function test_index_lists_only_this_farms_suppliers(): void
+    {
+        Supplier::create(['farm_id' => $this->farmA->id, 'name' => 'GDIRAGRI sarl']);
+        Supplier::create(['farm_id' => $this->farmB->id, 'name' => 'Other Farm Supplier']);
+
+        $response = $this->actingAs($this->managerA)->get(route('stock.suppliers.index'));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Stock/Suppliers/Index')
+            ->has('suppliers', 1)
+            ->where('suppliers.0.name', 'GDIRAGRI sarl')
+        );
+    }
+
+    public function test_show_returns_stats_and_delivery_history_for_this_supplier_only(): void
+    {
+        $supplier = Supplier::create(['farm_id' => $this->farmA->id, 'name' => 'GDIRAGRI sarl']);
+        $otherSupplier = Supplier::create(['farm_id' => $this->farmA->id, 'name' => 'Other Supplier']);
+        $otherProduct = Product::create([
+            'farm_id' => $this->farmA->id, 'name' => 'Semences Test', 'unit_type' => 'kg',
+            'min_stock_level' => 10, 'unit_cost' => 5, 'is_active' => true,
+        ]);
+
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'supplier_id' => $supplier->id, 'numero_bl' => 'BL-1',
+            'movement_type' => 'in', 'quantity' => 100, 'unit_cost' => 20, 'total_cost' => 2000, 'date' => '2026-01-01',
+        ]);
+        StockMovement::create([
+            'product_id' => $otherProduct->id, 'supplier_id' => $supplier->id, 'numero_bl' => 'BL-2',
+            'movement_type' => 'in', 'quantity' => 50, 'unit_cost' => 5, 'total_cost' => 250, 'date' => '2026-02-01',
+        ]);
+        // Belongs to a different supplier — must not leak into $supplier's stats/history.
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'supplier_id' => $otherSupplier->id,
+            'movement_type' => 'in', 'quantity' => 999, 'unit_cost' => 1, 'total_cost' => 999, 'date' => '2026-03-01',
+        ]);
+
+        $response = $this->actingAs($this->managerA)->get(route('stock.suppliers.show', $supplier));
+
+        $response->assertOk();
+        $response->assertInertia(fn ($page) => $page
+            ->component('Stock/Suppliers/Show')
+            ->where('stats.total_deliveries', 2)
+            ->where('stats.total_value', 2250)
+            ->where('stats.distinct_products', 2)
+            ->has('supplier.stock_movements', 2)
+        );
+    }
+
+    public function test_farm_manager_cannot_view_another_farms_supplier(): void
+    {
+        $supplier = Supplier::create(['farm_id' => $this->farmB->id, 'name' => 'Other Farm Supplier']);
+
+        $this->actingAs($this->managerA)
+            ->get(route('stock.suppliers.show', $supplier))
+            ->assertForbidden();
+    }
+
     public function test_farm_manager_can_create_a_supplier(): void
     {
         $this->actingAs($this->managerA)
