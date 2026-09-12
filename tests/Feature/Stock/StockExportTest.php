@@ -106,6 +106,45 @@ class StockExportTest extends TestCase
             ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     }
 
+    public function test_movements_export_running_balance_handles_signed_adjustments_correctly(): void
+    {
+        // 'in'/'out' always store a positive magnitude, but 'adjustment' (from a stock count)
+        // stores a SIGNED delta — treating every non-'in' row as a subtraction used to silently
+        // subtract a count INCREASE instead of adding it. Covers both an increasing and a
+        // decreasing adjustment on top of the 500 'in' already seeded in setUp().
+        $supplier = \App\Models\Supplier::create(['farm_id' => $this->farmA->id, 'name' => 'GDIRAGRI sarl']);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'movement_type' => 'out', 'quantity' => 50,
+            'unit_cost' => 5, 'total_cost' => 250, 'date' => '2026-01-02',
+        ]);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'movement_type' => 'adjustment', 'quantity' => 30, // increase
+            'date' => '2026-01-03',
+        ]);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'movement_type' => 'adjustment', 'quantity' => -10, // decrease
+            'date' => '2026-01-04',
+        ]);
+        StockMovement::create([
+            'product_id' => $this->productA->id, 'supplier_id' => $supplier->id, 'numero_bl' => 'BL-42',
+            'movement_type' => 'in', 'quantity' => 20, 'date' => '2026-01-05',
+        ]);
+        // Running balance should read: 500, 450, 480, 470, 490 — never drop the +30 to a -30.
+
+        $response = $this->actingAs($this->managerA)
+            ->get(route('stock.inventory.export-movements-excel', $this->inventoryA))
+            ->assertOk();
+
+        $sheet = $this->loadWorkbook($response)->getActiveSheet();
+        $allText = collect($sheet->toArray())->flatten()->filter()->implode(' | ');
+
+        $this->assertStringContainsString('490', $allText); // final running balance
+        $this->assertStringContainsString('GDIRAGRI sarl', $allText);
+        $this->assertStringContainsString('BL-42', $allText);
+        // The increasing adjustment (+30) must never render as a negative/subtracted value.
+        $this->assertStringNotContainsString('-30', $allText);
+    }
+
     public function test_product_movements_pdf_export_downloads_successfully(): void
     {
         $response = $this->actingAs($this->managerA)

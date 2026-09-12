@@ -11,6 +11,8 @@ class StockMovement extends Model
 
     protected $fillable = [
         'product_id',
+        'supplier_id',
+        'numero_bl',
         'movement_type',
         'quantity',
         'unit_cost',
@@ -41,6 +43,11 @@ class StockMovement extends Model
     public function performedBy()
     {
         return $this->belongsTo(User::class, 'performed_by');
+    }
+
+    public function supplier()
+    {
+        return $this->belongsTo(Supplier::class);
     }
 
     // The source document behind this movement (ManualStockEntry or FuelTransaction),

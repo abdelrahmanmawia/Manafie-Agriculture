@@ -163,9 +163,12 @@ class StockInventoryController extends Controller
 
         $pdf = Pdf::loadView('exports.stock_movements', [
             'inventory' => $inventory,
-            'movements' => $inventory->product->stockMovements,
+            'farm' => $inventory->product->farm,
+            'movements' => $inventory->product->stockMovements
+                ->sortBy([['date', 'asc'], ['id', 'asc']])
+                ->values(),
             'generatedAt' => now(),
-        ])->setPaper('a4', 'landscape');
+        ])->setPaper('a4', 'portrait');
 
         $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.pdf';
 

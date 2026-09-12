@@ -21,7 +21,13 @@ class StockMovementsExport implements FromView, ShouldAutoSize, WithTitle
     {
         return view('exports.stock_movements', [
             'inventory' => $this->inventory,
-            'movements' => $this->inventory->product->stockMovements,
+            'farm' => $this->inventory->product->farm,
+            // Oldest-first so the "Stock" column can accumulate a running balance top-to-bottom,
+            // matching the paper ledger — the on-screen Inventory/Show.jsx table (untouched)
+            // keeps its own newest-first order for that different use case.
+            'movements' => $this->inventory->product->stockMovements
+                ->sortBy([['date', 'asc'], ['id', 'asc']])
+                ->values(),
             'generatedAt' => now(),
         ]);
     }

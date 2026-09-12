@@ -24,6 +24,7 @@ use App\Http\Controllers\StockController; // Import StockController
 use App\Http\Controllers\StockExitTypeController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\EquipmentTypeController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TransportLocationController;
 use App\Http\Controllers\TransportCompanyController;
 use App\Http\Controllers\TransportVehicleController;
@@ -167,6 +168,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/categories/{category}', [ProductController::class, 'updateCategory'])->name('stock.categories.update');
     Route::delete('/stock/categories/{category}', [ProductController::class, 'destroyCategory'])->name('stock.categories.destroy');
     Route::post('/stock/products/{product}/toggle-active', [ProductController::class, 'toggleActive'])->name('stock.products.toggle-active');
+
+    // Stock Management - Suppliers (a simple named list picked when logging an Entrée — no
+    // purchase-order workflow, that was deliberately removed from this app already)
+    Route::post('/stock/suppliers', [SupplierController::class, 'store'])->name('stock.suppliers.store');
+    Route::put('/stock/suppliers/{supplier}', [SupplierController::class, 'update'])->name('stock.suppliers.update');
+    Route::delete('/stock/suppliers/{supplier}', [SupplierController::class, 'destroy'])->name('stock.suppliers.destroy');
 
     // Stock Management - Vehicles
     Route::get('/stock/vehicles', [VehicleController::class, 'index'])->name('stock.vehicles.index');

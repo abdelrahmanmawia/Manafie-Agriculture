@@ -11,8 +11,9 @@ import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
+import ManageSuppliersModal from '@/Components/ManageSuppliersModal';
 
-export default function Index({ auth, products, categories, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
+export default function Index({ auth, products, categories, suppliers, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
     const [editingProduct, setEditingProduct] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -20,6 +21,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
     const [imagePreview, setImagePreview] = useState(null);
     const [movementModal, setMovementModal] = useState(null); // { product, type: 'in' | 'out' }
     const [isManagingCategories, setIsManagingCategories] = useState(false);
+    const [isManagingSuppliers, setIsManagingSuppliers] = useState(false);
 
     const { data, setData, post, transform, processing, reset, errors, clearErrors } = useForm({
         name: '',
@@ -37,6 +39,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
         quantity: '',
         unit_cost: '',
         batch_number: '',
+        supplier_id: '',
+        numero_bl: '',
         date: new Date().toISOString().slice(0, 10),
         notes: '',
     });
@@ -149,6 +153,8 @@ export default function Index({ auth, products, categories, unitTypes, employees
                 quantity: '',
                 unit_cost: '',
                 batch_number: '',
+                supplier_id: '',
+                numero_bl: '',
                 date: new Date().toISOString().slice(0, 10),
                 notes: '',
             });
@@ -238,6 +244,15 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                                 </svg>
                                 Catégories
+                            </button>
+                            <button
+                                onClick={() => setIsManagingSuppliers(true)}
+                                className="bg-white hover:bg-gray-50 text-gray-700 px-5 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm border border-gray-200 transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                                </svg>
+                                Fournisseurs
                             </button>
                             <button
                                 onClick={openCreate}
@@ -698,6 +713,35 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                             <InputError message={receiveForm.errors.batch_number} className="mt-2" />
                                         </div>
 
+                                        <div>
+                                            <InputLabel htmlFor="movement_supplier_id" value="Fournisseur" />
+                                            <select
+                                                id="movement_supplier_id"
+                                                className="mt-1 block w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-lg shadow-sm"
+                                                value={receiveForm.data.supplier_id}
+                                                onChange={(e) => receiveForm.setData('supplier_id', e.target.value)}
+                                            >
+                                                <option value="">-- Aucun --</option>
+                                                {suppliers.filter((s) => s.is_active || String(s.id) === String(receiveForm.data.supplier_id)).map((s) => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                            <InputError message={receiveForm.errors.supplier_id} className="mt-2" />
+                                        </div>
+
+                                        <div>
+                                            <InputLabel htmlFor="movement_numero_bl" value="N° B.L" />
+                                            <TextInput
+                                                id="movement_numero_bl"
+                                                type="text"
+                                                className="mt-1 block w-full"
+                                                value={receiveForm.data.numero_bl}
+                                                onChange={(e) => receiveForm.setData('numero_bl', e.target.value)}
+                                                placeholder="Optionnel"
+                                            />
+                                            <InputError message={receiveForm.errors.numero_bl} className="mt-2" />
+                                        </div>
+
                                         <div className="md:col-span-2">
                                             <InputLabel htmlFor="movement_notes" value="Notes" />
                                             <textarea
@@ -706,7 +750,7 @@ export default function Index({ auth, products, categories, unitTypes, employees
                                                 className="mt-1 block w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-lg shadow-sm"
                                                 value={receiveForm.data.notes}
                                                 onChange={(e) => receiveForm.setData('notes', e.target.value)}
-                                                placeholder="Ex: Livraison fournisseur X, bon n°..."
+                                                placeholder="Optionnel"
                                             />
                                             <InputError message={receiveForm.errors.notes} className="mt-2" />
                                         </div>
@@ -947,6 +991,12 @@ export default function Index({ auth, products, categories, unitTypes, employees
                 show={isManagingCategories}
                 onClose={() => setIsManagingCategories(false)}
                 categories={categories}
+            />
+
+            <ManageSuppliersModal
+                show={isManagingSuppliers}
+                onClose={() => setIsManagingSuppliers(false)}
+                suppliers={suppliers}
             />
         </AuthenticatedLayout>
     );

@@ -12,6 +12,7 @@ use App\Models\Parcelle;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Sector;
+use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
@@ -72,6 +73,9 @@ class ProductController extends Controller
         return Inertia::render('Stock/Index', [
             'products' => $products,
             'categories' => $this->categoriesFor($farmId),
+            'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+                ->orderBy('name')
+                ->get(['id', 'name', 'is_active']),
             'unitTypes' => $unitTypes,
             'employees' => Employee::where('is_active', true)
                 ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))

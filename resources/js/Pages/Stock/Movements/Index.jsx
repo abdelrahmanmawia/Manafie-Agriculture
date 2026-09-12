@@ -10,7 +10,7 @@ import InputError from '@/Components/InputError';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, stockMovements, products }) {
+export default function Index({ auth, stockMovements, products, suppliers }) {
     const [isReceiving, setIsReceiving] = useState(false);
 
     const { data, setData, post, processing, reset, errors } = useForm({
@@ -18,6 +18,8 @@ export default function Index({ auth, stockMovements, products }) {
         quantity: '',
         unit_cost: '',
         batch_number: '',
+        supplier_id: '',
+        numero_bl: '',
         date: new Date().toISOString().slice(0, 10),
         notes: '',
     });
@@ -226,6 +228,35 @@ export default function Index({ auth, stockMovements, products }) {
                                         <InputError message={errors.batch_number} className="mt-2" />
                                     </div>
 
+                                    <div>
+                                        <InputLabel htmlFor="supplier_id" value="Fournisseur" />
+                                        <select
+                                            id="supplier_id"
+                                            className="mt-1 block w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-lg shadow-sm"
+                                            value={data.supplier_id}
+                                            onChange={(e) => setData('supplier_id', e.target.value)}
+                                        >
+                                            <option value="">-- Aucun --</option>
+                                            {suppliers.filter((s) => s.is_active || String(s.id) === String(data.supplier_id)).map((s) => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </select>
+                                        <InputError message={errors.supplier_id} className="mt-2" />
+                                    </div>
+
+                                    <div>
+                                        <InputLabel htmlFor="numero_bl" value="N° B.L" />
+                                        <TextInput
+                                            id="numero_bl"
+                                            type="text"
+                                            className="mt-1 block w-full"
+                                            value={data.numero_bl}
+                                            onChange={(e) => setData('numero_bl', e.target.value)}
+                                            placeholder="Optionnel"
+                                        />
+                                        <InputError message={errors.numero_bl} className="mt-2" />
+                                    </div>
+
                                     <div className="md:col-span-2">
                                         <InputLabel htmlFor="notes" value="Notes" />
                                         <textarea
@@ -234,7 +265,7 @@ export default function Index({ auth, stockMovements, products }) {
                                             className="mt-1 block w-full border-gray-300 focus:border-green-500 focus:ring-green-500 rounded-lg shadow-sm"
                                             value={data.notes}
                                             onChange={(e) => setData('notes', e.target.value)}
-                                            placeholder="Ex: Livraison fournisseur X, bon n°..."
+                                            placeholder="Optionnel"
                                         />
                                         <InputError message={errors.notes} className="mt-2" />
                                     </div>
