@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\DB;
  * Real Produits + Matériel data for Persealand, transcribed from the farm's own
  * "inventaire de magasin.xlsx" and "INVENTAIRE DES ENGINS 2026.xlsx" spreadsheets —
  * every row hardcoded below rather than read from the spreadsheets at seed time.
- * Replaces StockSeeder's random demo data for this farm.
+ * (The random demo StockSeeder that preceded this was deleted.)
  *
  * Vehicles are always one row per physical unit — a "Quad x3" line in the source becomes
  * 3 separate rows here, never a single row with quantity=3, since each is individually

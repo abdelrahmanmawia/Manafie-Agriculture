@@ -1,11 +1,46 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { formatNumber } from '@/Helpers/formatNumber';
 import { t } from '@/Helpers/i18n';
 import EmployeeFormModal from '@/Pages/Admin/Employees/EmployeeFormModal';
 import DeleteEmployeeModal from '@/Pages/Admin/Employees/DeleteEmployeeModal';
 import ContractModal from '@/Pages/Admin/Employees/ContractModal';
+
+const FILTERS = [
+    { key: 'cin', label: 'CIN', has: e => !!e.cin, yes: 'Avec', no: 'Sans' },
+    { key: 'rib', label: 'RIB', has: e => !!e.rib, yes: 'Avec', no: 'Sans' },
+    { key: 'phone', label: 'Téléphone', has: e => !!e.phone, yes: 'Avec', no: 'Sans' },
+    { key: 'cnss', label: 'CNSS', has: e => !!e.cnss_number, yes: 'Avec', no: 'Sans' },
+    { key: 'cinPhoto', label: 'Photo CIN', has: e => !!e.cin_photo_path, yes: 'Avec', no: 'Sans' },
+    { key: 'active', label: 'Statut', has: e => !!e.is_active, yes: 'Actifs', no: 'Inactifs' },
+];
+const emptyFilters = { cin: 'all', rib: 'all', phone: 'all', cnss: 'all', cinPhoto: 'all', active: 'all' };
+
+// Three-way toggle: everyone / only those who have the field / only those who don't.
+// Each option shows how many employees it would leave, so the counts double as a quick audit.
+function TriFilter({ def, value, onChange, counts }) {
+    const opts = [['all', 'Tous', counts.all], ['yes', def.yes, counts.yes], ['no', def.no, counts.no]];
+    return (
+        <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">{def.label}</div>
+            <div className="inline-flex rounded-xl bg-gray-100 p-0.5 text-xs font-bold">
+                {opts.map(([k, label, n]) => (
+                    <button
+                        key={k}
+                        type="button"
+                        onClick={() => onChange(k)}
+                        className={`px-3 py-1.5 rounded-[10px] transition-all ${value === k
+                            ? (k === 'no' ? 'bg-red-500 text-white shadow-sm' : k === 'yes' ? 'bg-green-600 text-white shadow-sm' : 'bg-white text-gray-800 shadow-sm')
+                            : 'text-gray-500 hover:text-gray-800'}`}
+                    >
+                        {label} <span className={`ml-0.5 font-medium ${value === k ? 'opacity-80' : 'text-gray-400'}`}>{n}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+}
 
 export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery, transportLocations }) {
     const [isAddingEmployee, setIsAddingEmployee] = useState(false);
@@ -13,6 +48,37 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
     const [confirmingEmployeeDeletion, setConfirmingEmployeeDeletion] = useState(null);
     const [contractEmployee, setContractEmployee] = useState(null);
+
+    const [filters, setFilters] = useState(emptyFilters);
+    const [incompleteOnly, setIncompleteOnly] = useState(false);
+    const [sortBy, setSortBy] = useState('name');
+    const [showFilters, setShowFilters] = useState(false);
+
+    // An employee's file is "incomplete" when the essentials for paying them are missing.
+    const isIncomplete = (e) => !e.cin || !e.rib || !e.phone;
+
+    const passes = (e, skipKey = null) => FILTERS.every(f => {
+        if (f.key === skipKey || filters[f.key] === 'all') return true;
+        return f.has(e) === (filters[f.key] === 'yes');
+    }) && (!incompleteOnly || isIncomplete(e));
+
+    // Count per option against the *other* active filters, so a click never lands on a dead end.
+    const countsFor = (def) => {
+        const base = employees.filter(e => passes(e, def.key));
+        return { all: base.length, yes: base.filter(def.has).length, no: base.filter(e => !def.has(e)).length };
+    };
+
+    const filtered = useMemo(() => {
+        const list = employees.filter(e => passes(e));
+        const collator = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
+        return list.sort((a, b) => sortBy === 'matricule'
+            ? collator.compare(a.matricule, b.matricule)
+            : collator.compare(a.full_name, b.full_name));
+    }, [employees, filters, incompleteOnly, sortBy]);
+
+    const activeFilterCount = FILTERS.filter(f => filters[f.key] !== 'all').length + (incompleteOnly ? 1 : 0);
+    const resetFilters = () => { setFilters(emptyFilters); setIncompleteOnly(false); };
+    const incompleteCount = employees.filter(isIncomplete).length;
 
     const handleToggleActive = (employee) => {
         router.post(route('employees.toggle-active', employee.id));
@@ -64,7 +130,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">
                                     {t('employees_list_title')} {selectedEnterpriseId && `- ${enterprises.find(e => e.id == selectedEnterpriseId)?.name}`}
                                 </h3>
-                                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{employees.length} {t('salaries_recorded')}</p>
+                                <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">{filtered.length}{filtered.length !== employees.length && ` / ${employees.length}`} {t('salaries_recorded')}</p>
                             </div>
                             <div className="flex gap-3 items-center flex-wrap">
                                 {enterprises && enterprises.length > 0 && (
@@ -98,11 +164,51 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                             </div>
                         </div>
 
+                        {/* FILTERS */}
+                        <div className="mb-6 rounded-2xl border border-gray-100 bg-gray-50/60 p-4">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 mr-1">Raccourcis</span>
+                                <button type="button" onClick={() => setFilters(f => ({ ...f, rib: f.rib === 'no' ? 'all' : 'no' }))}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${filters.rib === 'no' ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                                    Sans RIB
+                                </button>
+                                <button type="button" onClick={() => setFilters(f => ({ ...f, cin: f.cin === 'no' ? 'all' : 'no' }))}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${filters.cin === 'no' ? 'bg-red-500 border-red-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}>
+                                    Sans CIN
+                                </button>
+                                <button type="button" onClick={() => setIncompleteOnly(v => !v)}
+                                    className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${incompleteOnly ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-gray-200 text-gray-600 hover:border-amber-300'}`}>
+                                    Dossier incomplet <span className="opacity-70">({incompleteCount})</span>
+                                </button>
+                                <div className="ml-auto flex items-center gap-2">
+                                    <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="rounded-xl border-gray-200 bg-white text-xs font-bold py-1.5 pl-3 pr-8">
+                                        <option value="name">Tri : Nom A → Z</option>
+                                        <option value="matricule">Tri : Matricule</option>
+                                    </select>
+                                    <button type="button" onClick={() => setShowFilters(v => !v)}
+                                        className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-gray-200 text-gray-700 hover:border-primary-400">
+                                        Plus de filtres{activeFilterCount > 0 && <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-primary-600 text-white text-[10px] px-1">{activeFilterCount}</span>}
+                                    </button>
+                                    {activeFilterCount > 0 && (
+                                        <button type="button" onClick={resetFilters} className="text-xs font-bold text-gray-500 hover:text-red-600 underline underline-offset-2">Réinitialiser</button>
+                                    )}
+                                </div>
+                            </div>
+                            {showFilters && (
+                                <div className="mt-4 pt-4 border-t border-gray-200 flex flex-wrap gap-x-6 gap-y-4">
+                                    {FILTERS.map(def => (
+                                        <TriFilter key={def.key} def={def} value={filters[def.key]} counts={countsFor(def)}
+                                            onChange={v => setFilters(f => ({ ...f, [def.key]: v }))} />
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
                         {/* MOBILE CARD VIEW — the wide table below is unusable on a phone even with
                             horizontal scroll, so screens below md get a stacked card per employee
                             showing the essentials instead, with the full table reserved for md+. */}
                         <div className="md:hidden space-y-3">
-                            {employees.map(emp => {
+                            {filtered.map(emp => {
                                 const salNetJ = emp.enterprise?.contract_type === 'avec_contrat'
                                     ? (parseFloat(emp.base_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
                                     : parseFloat(emp.base_rate);
@@ -128,7 +234,8 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             </div>
                                         </div>
                                         <div className="text-xs text-gray-500 space-y-0.5 mb-3">
-                                            {emp.cin && <div>{t('cin')}: {emp.cin}</div>}
+                                            <div>{t('cin')}: {emp.cin || <span className="text-amber-600 font-bold">manquant</span>}</div>
+                                            <div>RIB: {emp.rib ? <span className="font-mono">••••{emp.rib.slice(-6)}</span> : <span className="text-red-600 font-bold">manquant</span>}</div>
                                             {emp.phone && <div>{t('phone')}: {emp.phone}</div>}
                                             {emp.hire_date && <div>{t('hire_date')}: {emp.hire_date}</div>}
                                         </div>
@@ -180,7 +287,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     </div>
                                 );
                             })}
-                            {employees.length === 0 && (
+                            {filtered.length === 0 && (
                                 <div className="py-12 text-center text-gray-400 italic">{t('no_employee_found')}</div>
                             )}
                         </div>
@@ -194,6 +301,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     <th className="px-4 py-3">{t('full_name')}</th>
                                     {auth.user.role === 'super_admin' && <th className="px-4 py-3 text-primary-600">{t('fermes')}</th>}
                                     <th className="px-4 py-3">{t('cin')}</th>
+                                    <th className="px-4 py-3">RIB</th>
                                     <th className="px-4 py-3">{t('phone')}</th>
                                     <th className="px-4 py-3 text-right text-green-600">{t('daily_net')}</th>
                                     <th className="px-4 py-3 text-center">{t('status')}</th>
@@ -201,7 +309,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
-                                {employees.map(emp => {
+                                {filtered.map(emp => {
                                     const salNetJ = emp.enterprise?.contract_type === 'avec_contrat'
                                         ? (parseFloat(emp.base_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
                                         : parseFloat(emp.base_rate);
@@ -215,7 +323,12 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             {auth.user.role === 'super_admin' && (
                                                 <td className="px-4 py-3 font-bold text-primary-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
                                             )}
-                                            <td className="px-4 py-3">{emp.cin || '-'}</td>
+                                            <td className="px-4 py-3">{emp.cin || <span className="inline-block rounded-full bg-amber-50 text-amber-700 text-[10px] font-black uppercase px-2 py-0.5">Sans CIN</span>}</td>
+                                            <td className="px-4 py-3">
+                                                {emp.rib
+                                                    ? <span className="font-mono text-xs text-gray-600" title={emp.rib}>••••{emp.rib.slice(-6)}</span>
+                                                    : <span className="inline-block rounded-full bg-red-50 text-red-600 text-[10px] font-black uppercase px-2 py-0.5">Manquant</span>}
+                                            </td>
                                             <td className="px-4 py-3">{emp.phone || '-'}</td>
                                             <td className="px-4 py-3 text-right font-black text-green-700 bg-green-50/30">
                                                 {formatNumber(salNetJ)} <small className="text-[10px]">DH</small>
@@ -282,9 +395,9 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                         </tr>
                                     );
                                 })}
-                                {employees.length === 0 && (
+                                {filtered.length === 0 && (
                                     <tr>
-                                        <td colSpan={auth.user.role === 'super_admin' ? 8 : 7} className="px-4 py-12 text-center text-gray-400 italic">
+                                        <td colSpan={auth.user.role === 'super_admin' ? 9 : 8} className="px-4 py-12 text-center text-gray-400 italic">
                                             {t('no_employee_found')}
                                         </td>
                                     </tr>

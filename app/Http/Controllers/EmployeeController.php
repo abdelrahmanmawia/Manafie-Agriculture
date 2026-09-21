@@ -9,6 +9,7 @@ use App\Models\TransportLocation;
 use App\Services\PayrollService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -146,11 +147,8 @@ class EmployeeController extends Controller
         $farmId = \App\Models\Enterprise::findOrFail($request->enterprise_id)->farm_id;
 
         $validated = $request->validate([
-            // matricule is only unique within a farm — the same real person keeps ONE Employee
-            // row as they move between the farm's divisions over time.
-            'matricule' => ['required', 'string', Rule::unique('employees')->where(
-                fn ($query) => $query->where('farm_id', $farmId)
-            )],
+            // matricule is not an input: it is generated below (sequential per farm) so nobody
+            // can duplicate or change it by hand.
             // CIN is the real dedup identity (matches the DB's unique(farm_id, cin)) — validated
             // here too so a collision surfaces as a normal form error, not a raw DB exception.
             'cin' => ['nullable', 'string', 'max:50', Rule::unique('employees')->where(
@@ -169,12 +167,24 @@ class EmployeeController extends Controller
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],
         ]);
 
-        Employee::create(array_merge($validated, [
-            'farm_id' => $farmId,
-            'is_active' => true
-        ]));
+        DB::transaction(function () use ($validated, $farmId) {
+            Employee::create(array_merge($validated, [
+                'farm_id' => $farmId,
+                'matricule' => $this->nextMatricule($farmId),
+                'is_active' => true,
+            ]));
+        });
 
         return redirect()->back();
+    }
+
+    /** Next sequential matricule for a farm: one more than the highest numeric one, zero-padded. */
+    private function nextMatricule(int $farmId): string
+    {
+        $max = Employee::where('farm_id', $farmId)->lockForUpdate()->pluck('matricule')
+            ->filter(fn ($m) => ctype_digit((string) $m))->map(fn ($m) => (int) $m)->max() ?? 0;
+
+        return str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
     }
 
     public function update(Request $request, Employee $employee)
@@ -182,11 +192,9 @@ class EmployeeController extends Controller
         $this->assertEmployeeInScope($request, $employee);
 
         $validated = $request->validate([
-            // Employee's farm_id is fixed (set once at creation) — matricule/CIN uniqueness is
-            // scoped to it, not to whichever enterprise they're being reassigned to.
-            'matricule' => ['required', 'string', Rule::unique('employees')->where(
-                fn ($query) => $query->where('farm_id', $employee->farm_id)
-            )->ignore($employee->id)],
+            // Employee's farm_id is fixed (set once at creation) — CIN uniqueness is scoped to it,
+            // not to whichever enterprise they're being reassigned to. The matricule is never
+            // editable (auto-assigned at creation), so it isn't validated or read here.
             'full_name' => 'required|string|max:255',
             'cin' => ['nullable', 'string', 'max:50', Rule::unique('employees')->where(
                 fn ($query) => $query->where('farm_id', $employee->farm_id)

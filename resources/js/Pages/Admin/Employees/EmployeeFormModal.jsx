@@ -92,8 +92,8 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                         {/* Identity */}
                         <div>
                             <label htmlFor="emp_matricule" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('matricule_label')}</label>
-                            <input id="emp_matricule" type="text" className="w-full rounded-lg border-gray-200" value={data.matricule} onChange={e => setData('matricule', e.target.value)} />
-                            {errors.matricule && <div className="text-red-500 text-xs mt-1">{errors.matricule}</div>}
+                            <input id="emp_matricule" type="text" readOnly disabled className="w-full rounded-lg border-gray-200 bg-gray-50 text-gray-500"
+                                value={isEditing ? data.matricule : ''} placeholder="Automatique" />
                         </div>
                         <div>
                             <label htmlFor="emp_full_name" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('full_name_label')}</label>

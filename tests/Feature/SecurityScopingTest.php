@@ -329,7 +329,7 @@ class SecurityScopingTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('employees', ['matricule' => 'NEW-1']);
+        $this->assertDatabaseHas('employees', ['full_name' => 'New Employee', 'matricule' => '001']);
     }
 
     public function test_data_entry_without_pointage_access_cannot_create_an_employee(): void

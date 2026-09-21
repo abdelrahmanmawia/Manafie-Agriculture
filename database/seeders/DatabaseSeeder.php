@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
             // quinzaines and 99 employees a 2026-08-31 cleanup deliberately removed) are both
             // superseded by CurrentDataSeeder's snapshot of the real, current data. Left in
             // the repo unused in case a non-Persealand dev environment ever needs a from-
-            // scratch structural seed again — see StockSeeder for the same convention.
+            // scratch structural seed again.
 
         ]);
     }
