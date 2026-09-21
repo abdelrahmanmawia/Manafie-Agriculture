@@ -140,7 +140,7 @@ export default function Authenticated({ user, header, children }) {
     return (
         <div className="min-h-screen bg-primary-50">
             <FlashToast />
-            <nav className="bg-primary-50 border-b border-primary-100">
+            <nav className="sticky top-0 z-30 bg-primary-50 border-b border-primary-100">
                 <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-16">
                         <div className="flex items-center">

@@ -67,7 +67,7 @@ export default function AppSidebar({ homeItem, sections }) {
 
     return (
         <aside className="hidden lg:flex lg:flex-col w-64 shrink-0 bg-primary-50 border-r border-primary-100 min-h-[calc(100vh-4rem)]">
-            <div className="p-3.5 sticky top-0 flex flex-col gap-4">
+            <div className="p-3.5 sticky top-16 flex flex-col gap-4">
                 {homeItem && (
                     <Link
                         href={route(homeItem.href, homeItem.params)}
