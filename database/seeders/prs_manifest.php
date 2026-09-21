@@ -189,4 +189,34 @@ return [
         'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 8, 'period' => '2',
         'parser' => fn () => new FixedOperationParser('Transport'), 'is_closed' => false,
     ],
+
+    // --- 2QZ Septembre 2026 (same workbook layout as 2QZ Aout) ---
+    // Every sheet goes to the single PERSEALAND division: from September the whole workforce is
+    // kept in one division (the employees were re-imported that way), so A.I / IRR rows land in
+    // the same quinzaine as P.L instead of the two other divisions. No J.F. dates this period.
+    [
+        'file' => '2EME Qz septembre 2026 P.L - avec RIB.xlsm', 'sheet' => 'A.I',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 9, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'memory_limit' => '1024M',
+    ],
+    [
+        'file' => '2EME Qz septembre 2026 P.L - avec RIB.xlsm', 'sheet' => 'P.L',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 9, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'memory_limit' => '1024M',
+    ],
+    [
+        'file' => '2EME Qz septembre 2026 P.L - avec RIB.xlsm', 'sheet' => 'IRR',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 9, 'period' => '2',
+        'parser' => fn () => new HeaderMappedPointageParser(trustBareJfAsCount: true), 'is_closed' => false, 'memory_limit' => '1024M',
+    ],
+    [
+        'file' => '2EME Qz septembre 2026 P.L - avec RIB.xlsm', 'sheet' => 'UNITE',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 9, 'period' => '2',
+        'parser' => HeaderMappedPointageParser::class, 'is_closed' => false, 'memory_limit' => '1024M',
+    ],
+    [
+        'file' => '2EME Qz septembre 2026 P.L - avec RIB.xlsm', 'sheet' => 'F.B.V',
+        'enterprise' => 'PERSEALAND', 'year' => 2026, 'month' => 9, 'period' => '2',
+        'parser' => StackedOperationParser::class, 'is_closed' => false, 'memory_limit' => '1024M',
+    ],
 ];

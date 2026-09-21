@@ -199,7 +199,7 @@ class PrsRealDataSeeder extends Seeder
      * best available identity when CIN is missing, at the cost of not merging that specific
      * person's rows across enterprises (matches the migration's own nullable-CIN tradeoff).
      */
-    private function resolveEmployee(array $entry, int $farmId, int $enterpriseId, array $data, string $endDate): Employee
+    protected function resolveEmployee(array $entry, int $farmId, int $enterpriseId, array $data, string $endDate): Employee
     {
         $cin = trim((string) ($data['cin'] ?? ''));
         $identity = $cin !== ''
