@@ -25,3 +25,7 @@ yarn-error.log
 /.fleet
 /.idea
 /.vscode
+
+# Generated files
+.phpunit.result.cache
+/storage/fonts/*.afm.json
