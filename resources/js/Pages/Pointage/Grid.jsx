@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', transportId = null, transports = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
     const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {} });
     const [isMobile, setIsMobile] = useState(false);
@@ -36,6 +36,23 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // desktop table's own JOURS column, factored out so both views and the filter agree.
     const dayCountFor = (empId) => Object.keys(existingRecords[empId] || {}).length;
 
+    // Each row is pointed against ITS OWN division's quinzaine for these dates (in transport mode
+    // the riders can belong to several divisions). Null = that division has no quinzaine for
+    // the period yet, so the row is read-only.
+    const empById = (id) => employees.find(e => e.id === id);
+    const qidFor = (id) => empById(id)?.quinzaine_id ?? null;
+    const closedFor = (id) => { const e = empById(id); return e ? !!e.quinzaine_closed : !!quinzaine.is_closed; };
+    const entFor = (emp) => emp.enterprise ?? quinzaine.enterprise;
+
+    // Division mode narrows the list client-side; transport mode reloads from the server so it
+    // can bring in riders from other divisions.
+    const [transportFilter, setTransportFilter] = useState('all');
+    const openMode = (m, t) => router.get(
+        route('pointage.grid', quinzaine.id),
+        m === 'transport' ? { mode: 'transport', ...(t ? { transport: t } : {}) } : {},
+        { preserveScroll: true },
+    );
+
     const filteredEmployees = employees.filter(emp => {
         const term = searchTerm.trim().toLowerCase();
         const matchesSearch = !term
@@ -45,8 +62,50 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const matchesDayFilter = dayFilter === 'all'
             || (dayFilter === 'zero' && days === 0)
             || (dayFilter === 'worked' && days > 0);
-        return matchesSearch && matchesDayFilter;
+        const matchesTransport = mode === 'transport' || transportFilter === 'all'
+            || (transportFilter === 'none' ? !emp.transport_vehicle_id : String(emp.transport_vehicle_id) === transportFilter);
+        return matchesSearch && matchesDayFilter && matchesTransport;
     });
+
+
+    // Pointage mode switch: by division (the quinzaine's own people) or by transport (a van's
+    // riders, whatever their division). In division mode the select just filters the list.
+    const modeBar = (
+        <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl bg-gray-100 p-0.5 text-xs font-black uppercase tracking-wide">
+                <button type="button" onClick={() => mode !== 'division' && openMode('division')}
+                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'division' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                    Par division
+                </button>
+                <button type="button" onClick={() => mode !== 'transport' && openMode('transport', transportId || (transports[0]?.id ?? null))}
+                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'transport' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                    Par transport
+                </button>
+            </div>
+            {mode === 'transport' ? (
+                <select value={transportId || ''} onChange={(e) => openMode('transport', e.target.value)}
+                    className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
+                    <option value="">-- Choisir un transport --</option>
+                    {transports.map(t => <option key={t.id} value={t.id}>{t.code} ({t.employees_count})</option>)}
+                </select>
+            ) : (
+                <select value={transportFilter} onChange={(e) => setTransportFilter(e.target.value)}
+                    className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
+                    <option value="all">Tous les transports</option>
+                    <option value="none">Sans transport</option>
+                    {transports.map(t => <option key={t.id} value={String(t.id)}>{t.code} ({t.employees_count})</option>)}
+                </select>
+            )}
+        </div>
+    );
+    const noQuinzaineNote = mode === 'transport' && employees.some(e => !e.quinzaine_id) && (
+        <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">
+            ⚠ {employees.filter(e => !e.quinzaine_id).length} ouvrier(s) : leur division n'a pas de quinzaine pour ces dates, ligne en lecture seule.
+        </p>
+    );
+    const transportEmptyNote = mode === 'transport' && !transportId && (
+        <p className="text-center text-xs font-bold text-gray-400 uppercase py-6">Choisissez un transport pour afficher ses ouvriers.</p>
+    );
 
     const filteredOperations = operations.filter(op => {
         const term = operationSearchTerm.trim().toLowerCase();
@@ -89,7 +148,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const isPieceRate = !!selectedOperation?.unit_rate;
 
     const openForm = (employeeId, date) => {
-        if (quinzaine.is_closed) return; // Prevent editing if closed
+        if (closedFor(employeeId)) return; // Prevent editing if closed
 
         const record = existingRecords[employeeId]?.[date]?.[0];
         setSelectedCell({ employeeId, date });
@@ -97,7 +156,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setShowOperationDropdown(false);
         setData({
             employee_id: employeeId,
-            quinzaine_id: quinzaine.id,
+            quinzaine_id: qidFor(employeeId),
             operation_id: record?.operation_id || '',
             bloc_id: record?.bloc_id || '',
             date: date,
@@ -138,7 +197,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
     // is held; see the day-cell onClick below. Replaces existing data if present.
     const pasteToCell = (employeeId, date) => {
-        if (!clipboard || quinzaine.is_closed || pasting) return;
+        if (!clipboard || closedFor(employeeId) || pasting) return;
         const existingRecord = existingRecords[employeeId]?.[date]?.[0];
 
         // If replacing existing data, confirm first
@@ -151,7 +210,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setPasting(true);
         router.post(route('pointage.cell'), {
             employee_id: employeeId,
-            quinzaine_id: quinzaine.id,
+            quinzaine_id: qidFor(employeeId),
             date,
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
@@ -167,7 +226,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // "Coller sur les jours restants" — fills every day this employee has NO record for yet
     // with the clipboard's Operation+Bloc, in one request. If clipboard is empty, clears all days.
     const pasteRemainingDays = (employeeId) => {
-        if (!clipboard || quinzaine.is_closed || pasting) return;
+        if (!clipboard || closedFor(employeeId) || pasting) return;
 
         if (clipboard.isEmpty) {
             // Clear all days for this employee
@@ -179,7 +238,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             setPasting(true);
             router.post(route('pointage.cell.bulk'), {
                 employee_id: employeeId,
-                quinzaine_id: quinzaine.id,
+                quinzaine_id: qidFor(employeeId),
                 dates: allDays,
                 operation_id: null,
                 bloc_id: null,
@@ -202,7 +261,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setPasting(true);
         router.post(route('pointage.cell.bulk'), {
             employee_id: employeeId,
-            quinzaine_id: quinzaine.id,
+            quinzaine_id: qidFor(employeeId),
             operation_id: clipboard.operationId,
             bloc_id: clipboard.blocId,
             hours: clipboard.hours || 0,
@@ -225,7 +284,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
 
     const startDrag = (employeeId, date) => {
-        if (!clipboard || quinzaine.is_closed || pasting) return;
+        if (!clipboard || closedFor(employeeId) || pasting) return;
         setDragAnchor({ employeeId, date });
         setDragRange({ employeeId, dates: [date] });
     };
@@ -244,9 +303,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setDragAnchor(null);
         setDragRange(null);
         if (!range || range.dates.length <= 1) return;
-        if (!clipboard || quinzaine.is_closed || pasting) return;
-
         const { employeeId, dates } = range;
+        if (!clipboard || closedFor(employeeId) || pasting) return;
         const hasExisting = dates.some(d => existingRecords[employeeId]?.[d]?.[0]?.operation_id);
         const message = clipboard.isEmpty
             ? `Voulez-vous effacer les données de ces ${dates.length} jours ?`
@@ -256,7 +314,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setPasting(true);
         router.post(route('pointage.cell.bulk'), {
             employee_id: employeeId,
-            quinzaine_id: quinzaine.id,
+            quinzaine_id: qidFor(employeeId),
             dates,
             operation_id: clipboard.isEmpty ? null : clipboard.operationId,
             bloc_id: clipboard.isEmpty ? null : clipboard.blocId,
@@ -269,12 +327,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
 
     const handleQuickSave = (employeeId, isPresent) => {
-        if (quinzaine.is_closed) return;
+        if (closedFor(employeeId)) return;
 
         if (!isPresent) {
             router.post(route('pointage.cell'), {
                 employee_id: employeeId,
-                quinzaine_id: quinzaine.id,
+                quinzaine_id: qidFor(employeeId),
                 date: currentDate,
                 operation_id: '',
                 bloc_id: '',
@@ -295,7 +353,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
         router.post(route('pointage.cell'), {
             employee_id: employeeId,
-            quinzaine_id: quinzaine.id,
+            quinzaine_id: qidFor(employeeId),
             date: currentDate,
             operation_id: operationId,
             bloc_id: blocId,
@@ -408,6 +466,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         </div>
 
                         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-4 sticky top-[92px] z-20 space-y-2">
+                            {modeBar}
+                            {noQuinzaineNote}
                             <input
                                 type="text"
                                 value={searchTerm}
@@ -441,7 +501,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         </div>
                                         <button
                                             onClick={() => handleQuickSave(emp.id, !isPresent)}
-                                            disabled={quinzaine.is_closed || (!isPresent && (!globalOperation || !globalBloc))}
+                                            disabled={!!emp.quinzaine_closed || (!isPresent && (!globalOperation || !globalBloc))}
                                             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={isPresent ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} /></svg>
@@ -518,6 +578,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         <div className="p-6 bg-gray-50 border-b flex flex-wrap justify-between items-center gap-4">
                             <h3 className="text-xl font-black text-primary-900 uppercase tracking-tighter">1. Pointage du Personnel (Journalier)</h3>
                             <div className="flex flex-wrap items-center gap-3">
+                                {modeBar}
                                 <input
                                     type="text"
                                     value={searchTerm}
@@ -541,6 +602,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 </div>
                             </div>
                         </div>
+                        {(noQuinzaineNote || transportEmptyNote) && <div className="px-6 pt-3">{noQuinzaineNote}{transportEmptyNote}</div>}
                         {clipboard && (
                             <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -594,9 +656,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         const totalJours = Object.keys(employeeRecords).length;
                                         const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0);
                                         const totalHs = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.hours || 0), 0);
-                                        const salNetJ = quinzaine.enterprise.contract_type === 'avec_contrat'
-                                            ? (parseFloat(quinzaine.enterprise.default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
-                                            : parseFloat(quinzaine.enterprise.default_brut_rate);
+                                        const salNetJ = entFor(emp).contract_type === 'avec_contrat'
+                                            ? (parseFloat(entFor(emp).default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
+                                            : parseFloat(entFor(emp).default_brut_rate);
 
                                         return (
                                             <tr key={emp.id} className="hover:bg-primary-50 transition-colors group">

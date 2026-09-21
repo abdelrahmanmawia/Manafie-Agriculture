@@ -201,7 +201,41 @@ class PointageController extends Controller
         $this->assertQuinzaineInScope($user, $quinzaine);
 
         $enterpriseId = $quinzaine->enterprise_id;
-        $employees = Employee::where('enterprise_id', $enterpriseId)->where('is_active', true)->get();
+        $farmId = $quinzaine->enterprise->farm_id;
+
+        // Two ways to pick who appears in the grid:
+        //  - division (default): the quinzaine's own enterprise, as always;
+        //  - transport: everyone riding one transport vehicle, whatever their division. Each
+        //    person is pointed against THEIR OWN division's quinzaine for the same dates, so
+        //    payroll/closing stay per division (see the per-employee quinzaine_id below).
+        $mode = $request->query('mode') === 'transport' ? 'transport' : 'division';
+        $transportId = $request->query('transport');
+        $transports = \App\Models\TransportVehicle::where('farm_id', $farmId)->where('is_active', true)
+            ->withCount(['employees' => fn ($q) => $q->where('is_active', true)])
+            ->orderBy('code')->get(['id', 'code']);
+
+        if ($mode === 'transport') {
+            // No (or an unknown) transport chosen yet → an empty grid that asks the user to pick one.
+            $validTransport = $transportId && $transports->contains('id', (int) $transportId);
+            $employees = Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)
+                ->where('transport_vehicle_id', $validTransport ? $transportId : 0)
+                // An enterprise-scoped user never sees other divisions' people, same as elsewhere.
+                ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
+                ->orderBy('full_name')->get();
+            $sameDates = Quinzaine::whereIn('enterprise_id', $employees->pluck('enterprise_id')->unique())
+                ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
+                ->get()->keyBy('enterprise_id');
+        } else {
+            $mode = 'division';
+            $employees = Employee::where('enterprise_id', $enterpriseId)->where('is_active', true)->get();
+            $sameDates = collect([$enterpriseId => $quinzaine]);
+        }
+        $employees->each(function ($e) use ($sameDates) {
+            $q = $sameDates->get($e->enterprise_id);
+            $e->setAttribute('quinzaine_id', $q?->id);
+            $e->setAttribute('quinzaine_closed', $q ? (bool) $q->is_closed : true);
+        });
+        $quinzaineIds = $sameDates->pluck('id')->all();
         $operations = Operation::where('farm_id', $quinzaine->enterprise->farm_id)->get();
         $blocs = Bloc::where('farm_id', $quinzaine->enterprise->farm_id)->get();
 
@@ -213,7 +247,8 @@ class PointageController extends Controller
         }
 
         // Fetch existing records for this quinzaine, filtering to only those within the date range
-        $records = PointageRecord::where('quinzaine_id', $quinzaineId)
+        $records = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
+            ->whereIn('employee_id', $employees->pluck('id'))
             ->whereDate('date', '>=', $quinzaine->start_date)
             ->whereDate('date', '<=', $quinzaine->end_date)
             ->get()
@@ -227,7 +262,10 @@ class PointageController extends Controller
             'operations' => $operations,
             'blocs' => $blocs,
             'days' => $days,
-            'existingRecords' => $records
+            'existingRecords' => $records,
+            'mode' => $mode,
+            'transportId' => $mode === 'transport' && $transportId ? (int) $transportId : null,
+            'transports' => $transports,
         ]);
     }
 
