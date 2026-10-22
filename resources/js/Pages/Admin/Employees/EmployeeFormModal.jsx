@@ -217,7 +217,7 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                                 {employee?.photo_path && !data.remove_photo && (
                                     <div className="relative shrink-0">
                                         <img
-                                            src={`/storage/${employee.photo_path}`}
+                                            src={route('employees.photo', { employee: employee.id, kind: 'photo', v: employee.photo_path })}
                                             alt=""
                                             className="w-14 h-14 rounded-lg object-cover border border-gray-200"
                                         />
@@ -260,9 +260,9 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                             <div className="md:col-span-3 flex items-center gap-4 border-t pt-4 mt-2">
                                 {employee?.cin_photo_path && !data.remove_cin_photo && (
                                     <div className="relative shrink-0">
-                                        <a href={`/storage/${employee.cin_photo_path}`} target="_blank" rel="noopener noreferrer">
+                                        <a href={route('employees.photo', { employee: employee.id, kind: 'cin', v: employee.cin_photo_path })} target="_blank" rel="noopener noreferrer">
                                             <img
-                                                src={`/storage/${employee.cin_photo_path}`}
+                                                src={route('employees.photo', { employee: employee.id, kind: 'cin', v: employee.cin_photo_path })}
                                                 alt=""
                                                 className="w-20 h-14 rounded-lg object-cover border border-gray-200"
                                             />

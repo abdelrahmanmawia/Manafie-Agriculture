@@ -55,7 +55,7 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-4">
                         {employee.photo_path ? (
-                            <img src={`/storage/${employee.photo_path}`} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
+                            <img src={route('employees.photo', { employee: employee.id, kind: 'photo', v: employee.photo_path })} alt="" className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
                         ) : (
                             <div className="w-14 h-14 rounded-xl bg-gray-100 flex items-center justify-center text-gray-300 font-black text-xl">
                                 {employee.full_name?.charAt(0)}
@@ -144,9 +144,9 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                             {employee.cin_photo_path && (
                                 <div className="flex items-center justify-between gap-4 py-2">
                                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">Photo Carte Nationale</span>
-                                    <a href={`/storage/${employee.cin_photo_path}`} target="_blank" rel="noopener noreferrer">
+                                    <a href={route('employees.photo', { employee: employee.id, kind: 'cin', v: employee.cin_photo_path })} target="_blank" rel="noopener noreferrer">
                                         <img
-                                            src={`/storage/${employee.cin_photo_path}`}
+                                            src={route('employees.photo', { employee: employee.id, kind: 'cin', v: employee.cin_photo_path })}
                                             alt="Carte Nationale"
                                             className="w-24 h-16 rounded-lg object-cover border border-gray-200 hover:opacity-80 transition-opacity"
                                         />

@@ -40,8 +40,8 @@
                 </div>
                 <div class="badge-body">
                     <div class="photo-cell">
-                        @if ($employee->photo_path && file_exists(storage_path('app/public/' . $employee->photo_path)))
-                            <img class="photo" src="{{ storage_path('app/public/' . $employee->photo_path) }}">
+                        @if (isset($photoPaths[$employee->id]))
+                            <img class="photo" src="{{ $photoPaths[$employee->id] }}">
                         @else
                             <div class="photo-placeholder">Photo</div>
                         @endif

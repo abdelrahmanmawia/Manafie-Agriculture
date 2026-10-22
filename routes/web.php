@@ -117,6 +117,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/employees/{employee}/toggle-active', [EmployeeController::class, 'toggleActive'])->name('employees.toggle-active');
     Route::delete('/employees/{employee}', [EmployeeController::class, 'destroy'])->name('employees.destroy');
     Route::get('/employees/{employee}/contract', [EmployeeController::class, 'generateContract'])->name('employees.contract');
+    Route::get('/employees/{employee}/photo/{kind}', [EmployeeController::class, 'photo'])->whereIn('kind', ['photo', 'cin'])->name('employees.photo');
 
     // Transport — employee-adjacent master data (residence pricing, companies, vehicles) and
     // its per-quinzaine cost summary. Nested under the Pointage domain rather than a separate

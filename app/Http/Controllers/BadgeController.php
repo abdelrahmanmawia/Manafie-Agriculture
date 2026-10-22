@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -79,9 +80,20 @@ class BadgeController extends Controller
             $qrDataUris[$employee->id] = $writer->write($qr)->getDataUri();
         }
 
+        // Badge photos are on the private disk (EmployeeController::PHOTO_DISK) — dompdf reads
+        // them by absolute filesystem path, so resolve those here rather than in the view.
+        $photoDisk = Storage::disk(EmployeeController::PHOTO_DISK);
+        $photoPaths = [];
+        foreach ($employees as $employee) {
+            if ($employee->photo_path && $photoDisk->exists($employee->photo_path)) {
+                $photoPaths[$employee->id] = $photoDisk->path($employee->photo_path);
+            }
+        }
+
         $pdf = Pdf::loadView('badges.print', [
             'employees' => $employees,
             'qrDataUris' => $qrDataUris,
+            'photoPaths' => $photoPaths,
         ])->setPaper('a4', 'portrait');
 
         return $pdf->download('Badges_Pointage.pdf');

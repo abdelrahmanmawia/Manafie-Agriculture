@@ -16,6 +16,15 @@ use Inertia\Inertia;
 
 class EmployeeController extends Controller
 {
+    /**
+     * Badge and CIN photos live on the private `local` disk (storage/app), never `public`:
+     * anything on `public` is served by the web server to anyone holding the URL, with no login
+     * — and a CIN scan is a national ID card. They're only reachable through photo() below,
+     * which applies the same scope check as viewing the employee. Migration 000044 moved the
+     * files that were already on `public`.
+     */
+    public const PHOTO_DISK = 'local';
+
     protected $payrollService;
 
     public function __construct(PayrollService $payrollService)
@@ -221,22 +230,22 @@ class EmployeeController extends Controller
 
         if ($request->hasFile('photo')) {
             if ($employee->photo_path) {
-                Storage::disk('public')->delete($employee->photo_path);
+                Storage::disk(self::PHOTO_DISK)->delete($employee->photo_path);
             }
-            $validated['photo_path'] = $request->file('photo')->store('badges', 'public');
+            $validated['photo_path'] = $request->file('photo')->store('badges', self::PHOTO_DISK);
         } elseif ($request->boolean('remove_photo') && $employee->photo_path) {
-            Storage::disk('public')->delete($employee->photo_path);
+            Storage::disk(self::PHOTO_DISK)->delete($employee->photo_path);
             $validated['photo_path'] = null;
         }
         unset($validated['photo'], $validated['remove_photo']);
 
         if ($request->hasFile('cin_photo')) {
             if ($employee->cin_photo_path) {
-                Storage::disk('public')->delete($employee->cin_photo_path);
+                Storage::disk(self::PHOTO_DISK)->delete($employee->cin_photo_path);
             }
-            $validated['cin_photo_path'] = $request->file('cin_photo')->store('cin-cards', 'public');
+            $validated['cin_photo_path'] = $request->file('cin_photo')->store('cin-cards', self::PHOTO_DISK);
         } elseif ($request->boolean('remove_cin_photo') && $employee->cin_photo_path) {
-            Storage::disk('public')->delete($employee->cin_photo_path);
+            Storage::disk(self::PHOTO_DISK)->delete($employee->cin_photo_path);
             $validated['cin_photo_path'] = null;
         }
         unset($validated['cin_photo'], $validated['remove_cin_photo']);
@@ -323,6 +332,26 @@ class EmployeeController extends Controller
      * one legal entity behind every one of these contracts, not something that varies by farm
      * or enterprise.
      */
+    /**
+     * Streams an employee's badge photo (`photo`) or CIN scan (`cin`) from the private disk —
+     * the only way either file is reachable (see PHOTO_DISK). Same access boundary as show():
+     * the employee must be in the requester's farm, and division, if they're locked to one.
+     */
+    public function photo(Request $request, Employee $employee, string $kind)
+    {
+        $this->assertEmployeeInScope($request, $employee);
+
+        $path = $kind === 'cin' ? $employee->cin_photo_path : $employee->photo_path;
+        abort_unless($path && Storage::disk(self::PHOTO_DISK)->exists($path), 404);
+
+        // no-store: an ID card must not linger in a shared browser's cache, and it keeps a just
+        // replaced photo from showing the old one under the same URL.
+        return Storage::disk(self::PHOTO_DISK)->response($path, null, [
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+    }
+
     public function generateContract(Request $request, Employee $employee)
     {
         $this->assertEmployeeInScope($request, $employee);
@@ -416,6 +445,8 @@ class EmployeeController extends Controller
         }
 
         $employee->delete();
+        // Their ID card and badge photo would otherwise stay on disk with nothing pointing at them.
+        Storage::disk(self::PHOTO_DISK)->delete(array_filter([$employee->photo_path, $employee->cin_photo_path]));
         // Not redirect()->back(): when deletion is triggered from the employee's own Show page
         // (see EmployeeFormModal usage there), "back" would just redirect to that same
         // now-404'd URL. The list is the one place always safe to land on regardless of which

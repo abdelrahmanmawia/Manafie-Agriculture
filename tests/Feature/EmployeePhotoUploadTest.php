@@ -28,6 +28,9 @@ class EmployeePhotoUploadTest extends TestCase
 
     private function makeEmployee(): array
     {
+        // Photos live on the private disk (EmployeeController::PHOTO_DISK); `public` is faked too so
+        // tests can assert nothing lands there any more.
+        Storage::fake('local');
         Storage::fake('public');
 
         $farm = Farm::create(['name' => 'Farm A']);
@@ -117,9 +120,9 @@ class EmployeePhotoUploadTest extends TestCase
     public function test_removing_the_badge_photo_deletes_the_file_and_clears_the_path(): void
     {
         [$manager, $employee, $enterprise] = $this->makeEmployee();
-        $path = UploadedFile::fake()->image('badge.jpg')->store('badges', 'public');
+        $path = UploadedFile::fake()->image('badge.jpg')->store('badges', 'local');
         $employee->update(['photo_path' => $path]);
-        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertExists($path);
 
         $this->actingAs($manager)
             ->post(route('employees.update', $employee), array_merge($this->baseFields($employee, $enterprise), [
@@ -131,15 +134,15 @@ class EmployeePhotoUploadTest extends TestCase
 
         $employee->refresh();
         $this->assertNull($employee->photo_path);
-        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
     public function test_removing_the_cin_photo_deletes_the_file_and_clears_the_path(): void
     {
         [$manager, $employee, $enterprise] = $this->makeEmployee();
-        $path = UploadedFile::fake()->image('cin.jpg')->store('cin-cards', 'public');
+        $path = UploadedFile::fake()->image('cin.jpg')->store('cin-cards', 'local');
         $employee->update(['cin_photo_path' => $path]);
-        Storage::disk('public')->assertExists($path);
+        Storage::disk('local')->assertExists($path);
 
         $this->actingAs($manager)
             ->post(route('employees.update', $employee), array_merge($this->baseFields($employee, $enterprise), [
@@ -151,7 +154,7 @@ class EmployeePhotoUploadTest extends TestCase
 
         $employee->refresh();
         $this->assertNull($employee->cin_photo_path);
-        Storage::disk('public')->assertMissing($path);
+        Storage::disk('local')->assertMissing($path);
     }
 
     public function test_removing_the_badge_photo_leaves_the_cin_photo_untouched(): void
@@ -191,5 +194,82 @@ class EmployeePhotoUploadTest extends TestCase
         $employee->refresh();
         $this->assertNotNull($employee->photo_path);
         $this->assertNotEquals('badges/existing.jpg', $employee->photo_path);
+    }
+
+    // --- Photos are private: never on the public disk, only served through employees.photo ---
+
+    public function test_uploaded_photos_are_stored_on_the_private_disk_only(): void
+    {
+        [$manager, $employee, $enterprise] = $this->makeEmployee();
+
+        $this->actingAs($manager)->post('/employees/' . $employee->id, array_merge($this->baseFields($employee, $enterprise), [
+            '_method' => 'PUT',
+            'photo' => UploadedFile::fake()->image('badge.jpg'),
+            'cin_photo' => UploadedFile::fake()->image('cin.jpg'),
+        ]))->assertSessionHasNoErrors();
+
+        $employee->refresh();
+        Storage::disk('local')->assertExists([$employee->photo_path, $employee->cin_photo_path]);
+        Storage::disk('public')->assertMissing([$employee->photo_path, $employee->cin_photo_path]);
+    }
+
+    public function test_photo_route_serves_the_cin_scan_to_the_employees_farm_without_caching(): void
+    {
+        [$manager, $employee] = $this->makeEmployee();
+        $path = UploadedFile::fake()->image('cin.jpg')->store('cin-cards', 'local');
+        $employee->update(['cin_photo_path' => $path]);
+
+        $response = $this->actingAs($manager)->get(route('employees.photo', [$employee, 'cin']));
+
+        $response->assertOk();
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
+    public function test_photo_route_refuses_another_farm_and_guests(): void
+    {
+        [, $employee] = $this->makeEmployee();
+        $path = UploadedFile::fake()->image('cin.jpg')->store('cin-cards', 'local');
+        $employee->update(['cin_photo_path' => $path]);
+        $otherFarm = Farm::create(['name' => 'Farm B']);
+        $otherManager = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $otherFarm->id]);
+
+        $this->actingAs($otherManager)->get(route('employees.photo', [$employee, 'cin']))->assertForbidden();
+
+        auth()->logout();
+        $this->get(route('employees.photo', [$employee, 'cin']))->assertRedirect(route('login'));
+    }
+
+    public function test_photo_route_returns_404_when_there_is_no_photo(): void
+    {
+        [$manager, $employee] = $this->makeEmployee();
+
+        $this->actingAs($manager)->get(route('employees.photo', [$employee, 'photo']))->assertNotFound();
+        $this->actingAs($manager)->get('/employees/' . $employee->id . '/photo/other')->assertNotFound();
+    }
+
+    public function test_badges_print_with_a_photo_from_the_private_disk(): void
+    {
+        [$manager, $employee] = $this->makeEmployee();
+        $path = UploadedFile::fake()->image('badge.jpg', 120, 160)->store('badges', 'local');
+        $employee->update(['photo_path' => $path]);
+
+        $response = $this->actingAs($manager)->get(route('badges.print', ['employee_ids' => $employee->id]));
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+    }
+
+    public function test_migration_moves_existing_photos_off_the_public_disk(): void
+    {
+        [, $employee] = $this->makeEmployee();
+        Storage::disk('public')->put('cin-cards/old.jpg', 'id-card');
+        Storage::disk('public')->put('badges/old.jpg', 'face');
+        $employee->update(['cin_photo_path' => 'cin-cards/old.jpg', 'photo_path' => 'badges/old.jpg']);
+
+        (require database_path('migrations/2026_01_01_000044_move_employee_photos_to_private_disk.php'))->up();
+
+        Storage::disk('public')->assertMissing(['cin-cards/old.jpg', 'badges/old.jpg']);
+        $this->assertSame('id-card', Storage::disk('local')->get('cin-cards/old.jpg'));
+        $this->assertSame('face', Storage::disk('local')->get('badges/old.jpg'));
     }
 }
