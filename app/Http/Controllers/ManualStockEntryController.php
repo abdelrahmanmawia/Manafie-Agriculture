@@ -12,7 +12,6 @@ use App\Models\Sector;
 use App\Models\Parcelle;
 use App\Models\Operation; // Assuming an Operation model exists
 use App\Models\StockMovement;
-use App\Models\StockInventory;
 use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
@@ -152,13 +151,7 @@ class ManualStockEntryController extends Controller
 
             // Cost basis is the CUMP (weighted-average cost built up from every réception),
             // not a price re-entered here — a sortie shouldn't ask what was already paid in.
-            $inventory = StockInventory::firstOrCreate(
-                ['product_id' => $product->id],
-                [
-                    'quantity_on_hand' => 0,
-                    'quantity_reserved' => 0,
-                ]
-            );
+            $inventory = $this->lockedInventoryFor($product->id);
             $unitCost = $inventory->average_cost ?? $product->unit_cost ?? 0;
 
             // A sortie can never take out more than the magasin physically holds.
@@ -307,6 +300,11 @@ class ManualStockEntryController extends Controller
         );
 
         return DB::transaction(function () use ($validated, $manualStockEntry) {
+            // Re-read the entry under lock: its old quantity/product is what gets given back to
+            // stock below, so two overlapping saves of the same entry must not both start from
+            // the same pre-edit values.
+            $manualStockEntry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
+
             $oldProductId = $manualStockEntry->product_id;
             $oldQuantity = $manualStockEntry->quantity;
             $newProductId = $validated['product_id'] ?? $oldProductId;
@@ -317,10 +315,16 @@ class ManualStockEntryController extends Controller
                 abort_unless(Product::findOrFail($newProductId)->farm_id === $manualStockEntry->farm_id, 403);
             }
 
-            $oldInventory = StockInventory::where('product_id', $oldProductId)->first();
-            $newInventory = $productChanged
-                ? StockInventory::firstOrCreate(['product_id' => $newProductId], ['quantity_on_hand' => 0, 'quantity_reserved' => 0])
-                : $oldInventory;
+            // Lock both inventory rows in product_id order so two edits swapping products in
+            // opposite directions can't deadlock each other.
+            $productIds = array_unique([(int) $oldProductId, (int) $newProductId]);
+            sort($productIds);
+            $inventories = [];
+            foreach ($productIds as $productId) {
+                $inventories[$productId] = $this->lockedInventoryFor($productId);
+            }
+            $oldInventory = $inventories[(int) $oldProductId];
+            $newInventory = $inventories[(int) $newProductId];
 
             // A sortie can never take out more than the magasin physically holds. When the
             // product didn't change, the old quantity is being given back before the new one
@@ -397,16 +401,21 @@ class ManualStockEntryController extends Controller
         }
 
         return DB::transaction(function () use ($entry) {
+            // Re-read under lock: a double-clicked delete would otherwise have both requests
+            // pass the find() above and each give the quantity back to stock.
+            $entry = ManualStockEntry::lockForUpdate()->find($entry->id);
+            if (! $entry) {
+                return back();
+            }
+
             // Revert stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
                                     ->where('reference_id', $entry->id)
                                     ->first();
             if ($movement) {
-                $inventory = StockInventory::where('product_id', $entry->product_id)->first();
-                if ($inventory) {
-                    $inventory->quantity_on_hand += $entry->quantity; // Add back to stock
-                    $inventory->save();
-                }
+                $inventory = $this->lockedInventoryFor($entry->product_id);
+                $inventory->quantity_on_hand += $entry->quantity; // Add back to stock
+                $inventory->save();
                 $movement->delete();
             }
 

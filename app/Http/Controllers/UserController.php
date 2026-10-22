@@ -76,8 +76,16 @@ class UserController extends Controller
         if ($user->role === 'super_admin') {
             return redirect()->back()->with('error', 'Cannot delete super admin.');
         }
-        
-        $user->delete();
+
+        // Stock movements/sorties keep a restrict FK to the user who entered or verified them
+        // (they're the audit trail), so a user with stock history can't be deleted — previously
+        // a raw 500.
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with('error', 'Impossible de supprimer cet utilisateur : il a un historique de mouvements de stock.');
+        }
+
         return redirect()->back()->with('success', 'User deleted successfully.');
     }
 }

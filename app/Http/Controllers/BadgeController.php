@@ -22,25 +22,15 @@ class BadgeController extends Controller
         $user = $request->user();
         $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
 
-        $query = Employee::with('enterprise')->where('is_active', true);
-
-        if ($user->role === 'super_admin') {
-            $query->where('farm_id', session('active_farm_id'));
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } elseif ($user->role === 'farm_manager') {
-            $query->where('farm_id', $user->farm_id);
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } elseif ($enterpriseId) {
-            $query->where('enterprise_id', $enterpriseId);
-        } elseif ($user->farm_id) {
-            $query->where('farm_id', $user->farm_id);
-        }
-
-        return $query->orderBy('full_name')->get();
+        // Farm filter first, for every role — see EmployeeController::index for the
+        // ?enterprise_id= cross-farm leak this closes (print() would also have minted
+        // badge_uuids onto the other farm's employees).
+        return Employee::with('enterprise')
+            ->where('is_active', true)
+            ->where('farm_id', $this->scopedFarmId($request))
+            ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
+            ->orderBy('full_name')
+            ->get();
     }
 
     public function index(Request $request)

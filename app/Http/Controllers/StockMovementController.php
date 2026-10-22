@@ -6,7 +6,6 @@ use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\StockMovement;
-use App\Models\StockInventory;
 use App\Models\Supplier;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
@@ -107,13 +106,7 @@ class StockMovementController extends Controller
             ]);
 
             // Update inventory: quantity + weighted-average cost
-            $inventory = StockInventory::firstOrCreate(
-                ['product_id' => $product->id],
-                [
-                    'quantity_on_hand' => 0,
-                    'quantity_reserved' => 0,
-                ]
-            );
+            $inventory = $this->lockedInventoryFor($product->id);
 
             $previousQuantity = (float) $inventory->quantity_on_hand;
             $newQuantity = $previousQuantity + $validated['quantity'];

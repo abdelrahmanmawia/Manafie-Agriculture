@@ -204,13 +204,7 @@ class StockInventoryController extends Controller
             $product = Product::findOrFail($validated['product_id']);
             $this->assertProductInScope($request, $product);
 
-            $inventory = StockInventory::firstOrCreate(
-                ['product_id' => $product->id],
-                [
-                    'quantity_on_hand' => 0,
-                    'quantity_reserved' => 0,
-                ]
-            );
+            $inventory = $this->lockedInventoryFor($product->id);
 
             $oldQuantity = $inventory->quantity_on_hand;
             $inventory->quantity_on_hand = $validated['counted_quantity'];

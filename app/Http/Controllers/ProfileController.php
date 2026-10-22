@@ -51,9 +51,19 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
+        // Logout must come first — it cycles and saves the remember token, which would re-insert
+        // an already-deleted user. A user with stock history is protected by restrict FKs (see
+        // UserController::destroy); that used to leave them signed out on a 500, so log them
+        // back in and explain instead.
         Auth::logout();
 
-        $user->delete();
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            Auth::login($user);
+
+            return Redirect::route('profile.edit')->with('error', 'Impossible de supprimer ce compte : il a un historique de mouvements de stock.');
+        }
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

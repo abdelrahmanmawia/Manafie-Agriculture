@@ -9,6 +9,7 @@ use App\Models\Bloc;
 use App\Models\Sector;
 use App\Models\Parcelle;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class FarmController extends Controller
@@ -170,8 +171,10 @@ class FarmController extends Controller
     {
         $this->assertFarmManagerAccess($request, $farm->id);
 
+        // bloc_id must belong to THIS farm — plain exists:blocs,id let a manager attach a
+        // sector to another farm's bloc just by passing its id under their own farm's URL.
         $request->validate([
-            'bloc_id' => 'required|exists:blocs,id',
+            'bloc_id' => ['required', Rule::exists('blocs', 'id')->where('farm_id', $farm->id)],
             'name' => 'required|string|max:255',
             'description' => 'nullable|string',
             'area_m2' => 'nullable|numeric',
@@ -197,9 +200,10 @@ class FarmController extends Controller
     {
         $this->assertFarmManagerAccess($request, $farm->id);
 
+        // Same farm check as addSector(), plus the sector must sit under the chosen bloc.
         $request->validate([
-            'bloc_id' => 'required|exists:blocs,id',
-            'sector_id' => 'required|exists:sectors,id',
+            'bloc_id' => ['required', Rule::exists('blocs', 'id')->where('farm_id', $farm->id)],
+            'sector_id' => ['required', Rule::exists('sectors', 'id')->where('bloc_id', $request->bloc_id)],
             'name' => 'required|string|max:255',
             'hass_trees' => 'nullable|integer',
             'fuerte_trees' => 'nullable|integer',
@@ -232,32 +236,49 @@ class FarmController extends Controller
     {
         $this->assertFarmManagerAccess($request, $sector->bloc->farm_id);
 
-        $sector->delete();
-        return redirect()->back()->with('success', 'Secteur supprimé.');
+        return $this->deleteUnlessReferenced($sector, 'Secteur supprimé.', 'ce secteur');
     }
 
     public function deleteParcelle(Request $request, Parcelle $parcelle)
     {
         $this->assertFarmManagerAccess($request, $parcelle->bloc->farm_id);
 
-        $parcelle->delete();
-        return redirect()->back()->with('success', 'Parcelle supprimée.');
+        return $this->deleteUnlessReferenced($parcelle, 'Parcelle supprimée.', 'cette parcelle');
     }
 
     public function deleteOperation(Request $request, Operation $operation)
     {
         $this->assertFarmManagerAccess($request, $operation->farm_id);
 
-        $operation->delete();
-        return redirect()->back()->with('success', 'Opération supprimée.');
+        return $this->deleteUnlessReferenced($operation, 'Opération supprimée.', 'cette opération');
     }
 
     public function deleteBloc(Request $request, Bloc $bloc)
     {
         $this->assertFarmManagerAccess($request, $bloc->farm_id);
 
-        $bloc->delete();
-        return redirect()->back()->with('success', 'Bloc supprimé.');
+        return $this->deleteUnlessReferenced($bloc, 'Bloc supprimé.', 'ce bloc');
+    }
+
+    /**
+     * Pointage records, harvests and stock sorties all reference blocs/operations (and sorties
+     * reference sectors/parcelles) with restrict FKs — see migration 000042. Before that,
+     * pointage/harvests cascaded, so deleting an operation or bloc here silently wiped payroll
+     * history; now the DB refuses and this turns that into a message instead of a raw 500. Same
+     * pattern as EnterpriseController::deleteOperation()/deleteBloc().
+     */
+    private function deleteUnlessReferenced($model, string $success, string $label)
+    {
+        try {
+            $model->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                "Impossible de supprimer {$label} : des données liées (pointages, récoltes ou sorties de stock) l'en empêchent."
+            );
+        }
+
+        return redirect()->back()->with('success', $success);
     }
 
     public function destroy(Request $request, Farm $farm)
@@ -265,7 +286,18 @@ class FarmController extends Controller
         abort_unless($request->user()->role === 'super_admin', 403);
 
         $farmId = $farm->id;
-        $farm->delete();
+
+        // A farm with any pointage or stock history can't be deleted: its payroll rows restrict
+        // employee deletes (migration 000042) and its stock movements restrict deleting the
+        // users who performed them. Previously this surfaced as a raw 500.
+        try {
+            $farm->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer cette ferme : elle contient un historique de pointage ou de stock.'
+            );
+        }
 
         // If this was the super_admin's active farm, the session pointer now dangles — the
         // dashboard route (EnterpriseController::index) does Farm::findOrFail(active_farm_id)

@@ -42,6 +42,30 @@ class Controller extends BaseController
     }
 
     /**
+     * A product's StockInventory row, created if missing and locked FOR UPDATE until the
+     * surrounding transaction ends — must be called inside DB::transaction(). Every
+     * stock-mutating action reads quantity_on_hand/average_cost, computes in PHP, then saves;
+     * without the lock two concurrent sorties could both pass the "quantité insuffisante" check
+     * and one decrement (or one réception's cost averaging) would be silently lost.
+     * createOrFirst() relies on the unique(product_id) index (migration 000043) so two requests
+     * racing to create the first row for a product can't both insert one.
+     */
+    protected function lockedInventoryFor(int $productId): \App\Models\StockInventory
+    {
+        $inventory = \App\Models\StockInventory::where('product_id', $productId)->lockForUpdate()->first();
+
+        if (! $inventory) {
+            \App\Models\StockInventory::createOrFirst(
+                ['product_id' => $productId],
+                ['quantity_on_hand' => 0, 'quantity_reserved' => 0]
+            );
+            $inventory = \App\Models\StockInventory::where('product_id', $productId)->lockForUpdate()->firstOrFail();
+        }
+
+        return $inventory;
+    }
+
+    /**
      * Active "Type de Sortie" options for a farm's Sorties de Stock forms — configurable by
      * farm_manager/super_admin (see StockExitTypeController) instead of a hardcoded list.
      * Self-seeds the five types this app has always used on first access, so an existing farm

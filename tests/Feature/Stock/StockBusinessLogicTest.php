@@ -181,6 +181,52 @@ class StockBusinessLogicTest extends TestCase
         $this->assertDatabaseCount('manual_stock_entries', 0);
     }
 
+    // --- One locked inventory row per product (Controller::lockedInventoryFor) ---
+
+    public function test_stock_inventory_rejects_a_second_row_for_the_same_product(): void
+    {
+        $this->receive(10, 10);
+
+        $this->expectException(\Illuminate\Database\UniqueConstraintViolationException::class);
+
+        StockInventory::create(['product_id' => $this->product->id, 'quantity_on_hand' => 0, 'quantity_reserved' => 0]);
+    }
+
+    public function test_editing_a_sortie_to_another_product_moves_the_stock_between_them(): void
+    {
+        $other = Product::create([
+            'farm_id' => $this->farm->id, 'name' => 'Autre', 'category' => 'fertilizers',
+            'unit_type' => 'kg', 'min_stock_level' => 0, 'unit_cost' => 5, 'is_active' => true,
+        ]);
+        $this->receive(100, 10);
+        $this->actingAs($this->farmManager)->post(route('stock.movements.in'), [
+            'product_id' => $other->id, 'quantity' => 40, 'unit_cost' => 5, 'date' => now()->toDateString(),
+        ]);
+        $this->sortie(30);
+        $entry = \App\Models\ManualStockEntry::firstOrFail();
+
+        $this->actingAs($this->farmManager)
+            ->put(route('stock.manual-entries.update', $entry), ['product_id' => $other->id, 'quantity' => 25])
+            ->assertSessionDoesntHaveErrors();
+
+        $this->assertDatabaseHas('stock_inventory', ['product_id' => $this->product->id, 'quantity_on_hand' => 100]);
+        $this->assertDatabaseHas('stock_inventory', ['product_id' => $other->id, 'quantity_on_hand' => 15]);
+        $this->assertSame(1, StockInventory::where('product_id', $other->id)->count());
+    }
+
+    public function test_deleting_a_sortie_gives_its_quantity_back_exactly_once(): void
+    {
+        $this->receive(100, 10);
+        $this->sortie(30);
+        $entry = \App\Models\ManualStockEntry::firstOrFail();
+
+        $this->actingAs($this->farmManager)->delete(route('stock.manual-entries.destroy', $entry->id))->assertRedirect();
+        $this->actingAs($this->farmManager)->delete(route('stock.manual-entries.destroy', $entry->id));
+
+        $this->assertDatabaseHas('stock_inventory', ['product_id' => $this->product->id, 'quantity_on_hand' => 100]);
+        $this->assertDatabaseCount('manual_stock_entries', 0);
+    }
+
     // --- Automatic low-stock alert sync ---
 
     public function test_stock_dropping_to_or_below_minimum_creates_a_low_stock_alert(): void

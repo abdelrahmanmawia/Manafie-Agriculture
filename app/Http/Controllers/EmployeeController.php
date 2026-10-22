@@ -95,27 +95,17 @@ class EmployeeController extends Controller
         $user = $request->user();
         $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
         $searchQuery = $request->query('search');
+        $farmId = $this->scopedFarmId($request);
 
         // Employee is farm-scoped (the same real person can have pointage under several
         // enterprises of the farm over time); enterprise_id here only narrows which division's
-        // employees to show, it's never the scoping boundary itself.
-        $query = Employee::with('enterprise');
-
-        if ($user->role === 'super_admin') {
-            $query->where('farm_id', session('active_farm_id'));
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } elseif ($user->role === 'farm_manager') {
-            $query->where('farm_id', $user->farm_id);
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } elseif ($enterpriseId) {
-            $query->where('enterprise_id', $enterpriseId);
-        } elseif ($user->farm_id) {
-            $query->where('farm_id', $user->farm_id);
-        }
+        // employees to show, it's never the scoping boundary itself. The farm filter applies to
+        // every role unconditionally — a farm-scoped data_entry used to get only the
+        // enterprise_id filter when one was passed, so ?enterprise_id=<another farm's division>
+        // listed that farm's employees (CIN, RIB, phone, address).
+        $query = Employee::with('enterprise')
+            ->where('farm_id', $farmId)
+            ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId));
 
         if ($searchQuery) {
             $query->where(function($q) use ($searchQuery) {
@@ -127,8 +117,6 @@ class EmployeeController extends Controller
         }
 
         $enterprises = $this->assignableEnterprisesFor($user);
-
-        $farmId = $this->scopedFarmId($request);
 
         return Inertia::render('Admin/Employees', [
             'employees' => $query->get(),
@@ -415,6 +403,17 @@ class EmployeeController extends Controller
     public function destroy(Request $request, Employee $employee)
     {
         $this->assertEmployeeManagerAccess($request, $employee->farm_id);
+
+        // pointage_records.employee_id is restrict (migration 000042) — deleting an employee
+        // used to cascade away every pointage row they ever had, closed quinzaines included.
+        // Someone who has worked is deactivated instead; only a never-pointed record (e.g. a
+        // data-entry mistake) can actually be deleted.
+        if (PointageRecord::where('employee_id', $employee->id)->exists()) {
+            return redirect()->back()->with(
+                'error',
+                'Ce salarié a des pointages enregistrés et ne peut pas être supprimé. Désactivez-le plutôt.'
+            );
+        }
 
         $employee->delete();
         // Not redirect()->back(): when deletion is triggered from the employee's own Show page

@@ -546,4 +546,75 @@ class SecurityScopingTest extends TestCase
             'quinzaine_id' => $ownQuinzaine->id,
         ]);
     }
+
+    // --- ?enterprise_id= on farm-scoped (no single division) data_entry ---
+
+    public function test_farm_scoped_data_entry_cannot_list_another_farms_employees_via_enterprise_id(): void
+    {
+        $this->employeeB->update(['cin' => 'CIN-OF-FARM-B']);
+
+        $this->actingAs($this->dataEntryA)
+            ->get('/employees?enterprise_id=' . $this->enterpriseB->id)
+            ->assertOk()
+            ->assertDontSee('Employee B')
+            ->assertDontSee('CIN-OF-FARM-B');
+    }
+
+    public function test_farm_scoped_data_entry_still_filters_own_farm_employees_by_enterprise_id(): void
+    {
+        $this->actingAs($this->dataEntryA)
+            ->get('/employees?enterprise_id=' . $this->enterpriseA->id)
+            ->assertOk()
+            ->assertSee('Employee A');
+    }
+
+    public function test_farm_scoped_data_entry_cannot_list_another_farms_badges_via_enterprise_id(): void
+    {
+        $this->actingAs($this->dataEntryA)
+            ->get('/badges?enterprise_id=' . $this->enterpriseB->id)
+            ->assertOk()
+            ->assertDontSee('Employee B');
+    }
+
+    // --- Farm structure: bloc/sector ids in the payload must belong to the URL's farm ---
+
+    public function test_farm_manager_cannot_add_a_sector_under_another_farms_bloc(): void
+    {
+        $this->actingAs($this->managerA)
+            ->post('/farms/' . $this->farmA->id . '/sectors', [
+                'bloc_id' => $this->blocB->id,
+                'name' => 'Injected',
+            ])
+            ->assertSessionHasErrors('bloc_id');
+
+        $this->assertDatabaseMissing('sectors', ['name' => 'Injected']);
+    }
+
+    public function test_farm_manager_cannot_add_a_parcelle_under_a_sector_of_another_bloc(): void
+    {
+        $otherBlocA = Bloc::create(['farm_id' => $this->farmA->id, 'name' => 'Bloc A2']);
+        $sectorOfOtherBloc = \App\Models\Sector::create(['bloc_id' => $otherBlocA->id, 'name' => 'S1']);
+
+        $this->actingAs($this->managerA)
+            ->post('/farms/' . $this->farmA->id . '/parcelles', [
+                'bloc_id' => $this->blocA->id,
+                'sector_id' => $sectorOfOtherBloc->id,
+                'name' => 'Mismatched',
+            ])
+            ->assertSessionHasErrors('sector_id');
+
+        $this->assertDatabaseMissing('parcelles', ['name' => 'Mismatched']);
+    }
+
+    public function test_farm_manager_can_add_a_sector_under_their_own_bloc(): void
+    {
+        $this->actingAs($this->managerA)
+            ->post('/farms/' . $this->farmA->id . '/sectors', [
+                'bloc_id' => $this->blocA->id,
+                'name' => 'Own sector',
+            ])
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('sectors', ['bloc_id' => $this->blocA->id, 'name' => 'Own sector']);
+    }
 }

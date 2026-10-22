@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\PayrollService;
 use App\Services\TransportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class EnterpriseController extends Controller
@@ -304,12 +305,29 @@ class EnterpriseController extends Controller
     {
         $this->assertEnterpriseStructuralAccess($request, $enterprise->farm_id);
 
-        // Employees are farm-scoped but still reference a division; the FK cascades on
-        // enterprise delete, so detach first to keep the worker records.
-        Employee::where('enterprise_id', $enterprise->id)->update(['enterprise_id' => null]);
+        // quinzaines cascade on enterprise delete, and pointage_records cascade on quinzaine
+        // delete — so deleting a division that has ever been pointed would silently wipe its
+        // payroll history, closed periods included. Only an unused division can go.
+        $hasHistory = Quinzaine::where('enterprise_id', $enterprise->id)
+            ->where(fn ($q) => $q->where('is_closed', true)->orWhereHas('pointageRecords'))
+            ->exists();
+        if ($hasHistory) {
+            return redirect()->back()->with(
+                'error',
+                'Impossible de supprimer cette division : elle a un historique de pointage.'
+            );
+        }
 
         try {
-            $enterprise->delete();
+            // One transaction: the detach must roll back if the delete itself is refused,
+            // otherwise the employees lose their division while the division stays.
+            DB::transaction(function () use ($enterprise) {
+                // Employees are farm-scoped but still reference a division; the FK cascades on
+                // enterprise delete, so detach first to keep the worker records.
+                Employee::where('enterprise_id', $enterprise->id)->update(['enterprise_id' => null]);
+
+                $enterprise->delete();
+            });
         } catch (\Illuminate\Database\QueryException $e) {
             return redirect()->back()->with(
                 'error',
@@ -459,7 +477,7 @@ class EnterpriseController extends Controller
         $this->assertEnterpriseManagerAccess($request, $operation->farm_id);
 
         // Same reasoning as destroy() above: an operation still referenced by pointage/stock
-        // records (its FK has no cascade) would otherwise throw an uncaught QueryException
+        // records (restrict FKs, see migration 000042) would otherwise throw an uncaught QueryException
         // straight to a raw error page instead of a friendly message.
         try {
             $operation->delete();
