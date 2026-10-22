@@ -64,7 +64,10 @@ class PointageIntegrityTest extends TestCase
 
     private function cell(array $overrides = [])
     {
-        return $this->actingAs($this->manager)->post('/pointage/cell', array_merge([
+        // Guard named explicitly: a prior sync() in the same test leaves `sanctum` as the
+        // app's default guard (auth:sanctum calls shouldUse()), and a bare actingAs() would then
+        // log in on that guard instead of the session one. Real requests never share that state.
+        return $this->actingAs($this->manager, 'web')->post('/pointage/cell', array_merge([
             'employee_id' => $this->employee->id,
             'quinzaine_id' => $this->quinzaine->id,
             'operation_id' => $this->operation->id,

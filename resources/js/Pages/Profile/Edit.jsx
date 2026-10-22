@@ -27,9 +27,12 @@ export default function Edit({ auth, mustVerifyEmail, status }) {
                         <UpdatePasswordForm className="max-w-xl" />
                     </div>
 
-                    <div className="p-4 sm:p-8 bg-white shadow-sm sm:rounded-2xl border border-gray-100">
-                        <DeleteUserForm className="max-w-xl" />
-                    </div>
+                    {/* A super_admin account can't be deleted (ProfileController::destroy refuses it). */}
+                    {auth.user.role !== 'super_admin' && (
+                        <div className="p-4 sm:p-8 bg-white shadow-sm sm:rounded-2xl border border-gray-100">
+                            <DeleteUserForm className="max-w-xl" />
+                        </div>
+                    )}
                 </div>
             </div>
         </AuthenticatedLayout>

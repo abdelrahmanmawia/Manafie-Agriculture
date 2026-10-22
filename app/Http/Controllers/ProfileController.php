@@ -45,11 +45,16 @@ class ProfileController extends Controller
      */
     public function destroy(Request $request): RedirectResponse
     {
+        $user = $request->user();
+
+        // Same rule as UserController::destroy(): a super_admin account is never deleted —
+        // otherwise the only account able to create farms/users could delete itself and lock
+        // everyone out of administration. The UI doesn't offer it either (Profile/Edit.jsx).
+        abort_if($user->role === 'super_admin', 403, 'Un compte super administrateur ne peut pas être supprimé.');
+
         $request->validate([
             'password' => ['required', 'current_password'],
         ]);
-
-        $user = $request->user();
 
         // Logout must come first — it cycles and saves the remember token, which would re-insert
         // an already-deleted user. A user with stock history is protected by restrict FKs (see

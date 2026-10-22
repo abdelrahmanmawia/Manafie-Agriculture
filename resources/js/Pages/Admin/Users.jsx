@@ -7,8 +7,157 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { t } from '@/Helpers/i18n';
 
+/**
+ * Name / e-mail / (password) / farm / role / division / domain-access fields, shared by the
+ * create and edit modals so both stay identical. The division select is disabled for a
+ * farm_manager — the server also forces it empty for that role (UserController).
+ */
+function AccountFields({ idPrefix, data, setData, errors, farms, enterprises, passwordLabel = null }) {
+    const filteredEnterprises = data.farm_id
+        ? enterprises.filter(ent => ent.farm_id == data.farm_id)
+        : enterprises;
+
+    return (
+        <div className="space-y-4">
+            <div>
+                <label htmlFor={`${idPrefix}_name`} className="block text-sm font-bold text-gray-700 mb-1">{t('full_name')}</label>
+                <input id={`${idPrefix}_name`} type="text" className="w-full rounded border-gray-300" value={data.name} onChange={e => setData('name', e.target.value)} />
+                {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
+            </div>
+            <div>
+                <label htmlFor={`${idPrefix}_email`} className="block text-sm font-bold text-gray-700 mb-1">{t('email')}</label>
+                <input id={`${idPrefix}_email`} type="email" className="w-full rounded border-gray-300" value={data.email} onChange={e => setData('email', e.target.value)} />
+                {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
+            </div>
+            {passwordLabel && (
+                <div>
+                    <label htmlFor={`${idPrefix}_password`} className="block text-sm font-bold text-gray-700 mb-1">{passwordLabel}</label>
+                    <input id={`${idPrefix}_password`} type="password" title="password" className="w-full rounded border-gray-300" value={data.password} onChange={e => setData('password', e.target.value)} />
+                    {errors.password && <div className="text-red-500 text-xs mt-1">{errors.password}</div>}
+                </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label htmlFor={`${idPrefix}_farm_id`} className="block text-sm font-bold text-gray-700 mb-1">Ferme</label>
+                    <select
+                        id={`${idPrefix}_farm_id`}
+                        className="w-full rounded border-gray-300"
+                        value={data.farm_id}
+                        // A division belongs to one farm — changing farm clears it.
+                        onChange={e => setData(d => ({ ...d, farm_id: e.target.value, enterprise_id: '' }))}
+                    >
+                        <option value="">-- Choisir Ferme --</option>
+                        {farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                    </select>
+                    {errors.farm_id && <div className="text-red-500 text-xs mt-1">{errors.farm_id}</div>}
+                </div>
+                <div>
+                    <label htmlFor={`${idPrefix}_role`} className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
+                    <select id={`${idPrefix}_role`} className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
+                        <option value="farm_manager">Manager Ferme (Tous accès)</option>
+                        <option value="data_entry">{t('data_entry_personnel')}</option>
+                    </select>
+                    {errors.role && <div className="text-red-500 text-xs mt-1">{errors.role}</div>}
+                </div>
+                <div>
+                    <label htmlFor={`${idPrefix}_enterprise_id`} className="block text-sm font-bold text-gray-700 mb-1">Division (Optionnel)</label>
+                    <select
+                        id={`${idPrefix}_enterprise_id`}
+                        className="w-full rounded border-gray-300"
+                        value={data.role === 'farm_manager' ? '' : data.enterprise_id}
+                        onChange={e => setData('enterprise_id', e.target.value)}
+                        disabled={data.role === 'farm_manager'}
+                    >
+                        <option value="">Accès Global à la Ferme</option>
+                        {filteredEnterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                    </select>
+                    {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
+                </div>
+            </div>
+
+            {data.role === 'data_entry' && (
+                <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Accès</label>
+                    <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                checked={data.can_access_pointage}
+                                onChange={e => setData('can_access_pointage', e.target.checked)}
+                            />
+                            <span className="text-sm font-bold text-gray-700">Accès Pointage</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                                checked={data.can_access_stock}
+                                onChange={e => setData('can_access_stock', e.target.checked)}
+                            />
+                            <span className="text-sm font-bold text-gray-700">Accès Stock</span>
+                        </label>
+                    </div>
+                    {!data.can_access_pointage && !data.can_access_stock && (
+                        <p className="text-[11px] font-bold text-amber-600 mt-2 uppercase tracking-wide">
+                            Aucun accès sélectionné — ce compte ne pourra rien voir.
+                        </p>
+                    )}
+                    {(errors.can_access_pointage || errors.can_access_stock) && (
+                        <div className="text-red-500 text-xs mt-1">{errors.can_access_pointage || errors.can_access_stock}</div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
 export default function Users({ auth, users, farms = [], enterprises = [], selectedFarmId, selectedEnterpriseId }) {
     const [isAddingUser, setIsAddingUser] = useState(false);
+    const [editingUser, setEditingUser] = useState(null);
+    const [resettingUser, setResettingUser] = useState(null);
+
+    const editForm = useForm({
+        name: '', email: '', role: 'data_entry', farm_id: '', enterprise_id: '',
+        can_access_pointage: false, can_access_stock: false,
+    });
+    const openEdit = (user) => {
+        editForm.clearErrors();
+        editForm.setData({
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            farm_id: user.farm_id ?? '',
+            enterprise_id: user.enterprise_id ?? '',
+            can_access_pointage: !!user.can_access_pointage,
+            can_access_stock: !!user.can_access_stock,
+        });
+        setEditingUser(user);
+    };
+    const submitEdit = (e) => {
+        e.preventDefault();
+        editForm.put(route('users.update', editingUser.id), {
+            preserveScroll: true,
+            onSuccess: () => setEditingUser(null),
+        });
+    };
+
+    const resetForm = useForm({ password: '' });
+    const openReset = (user) => {
+        resetForm.reset();
+        resetForm.clearErrors();
+        setResettingUser(user);
+    };
+    const submitReset = (e) => {
+        e.preventDefault();
+        resetForm.put(route('users.password.reset', resettingUser.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                resetForm.reset();
+                setResettingUser(null);
+            },
+        });
+    };
     const [confirmingUserDeletion, setConfirmingUserDeletion] = useState(null);
     const { delete: destroy, processing: deleteProcessing } = useForm();
 
@@ -36,10 +185,6 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
         can_access_pointage: false,
         can_access_stock: false,
     });
-
-    const filteredEnterprises = data.farm_id 
-        ? enterprises.filter(ent => ent.farm_id == data.farm_id)
-        : enterprises;
 
     const submit = (e) => {
         e.preventDefault();
@@ -120,6 +265,26 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                                 <div className="flex items-center justify-center gap-2">
                                                     <button
                                                         type="button"
+                                                        title="Modifier"
+                                                        onClick={() => openEdit(user)}
+                                                        className="text-gray-400 hover:text-primary-600 transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        title="Réinitialiser le mot de passe"
+                                                        onClick={() => openReset(user)}
+                                                        className="text-gray-400 hover:text-amber-600 transition-colors"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        type="button"
                                                         title="Supprimer"
                                                         onClick={() => confirmUserDeletion(user)}
                                                         className="text-gray-400 hover:text-red-600 transition-colors"
@@ -143,94 +308,15 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                 <div className="p-8">
                     <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">{t('create_user_account_title')}</h3>
                     <form onSubmit={submit} className="space-y-6">
-                        <div className="space-y-4">
-                            <div>
-                                <label htmlFor="user_name" className="block text-sm font-bold text-gray-700 mb-1">{t('full_name')}</label>
-                                <input id="user_name" type="text" className="w-full rounded border-gray-300" value={data.name} onChange={e => setData('name', e.target.value)} />
-                                {errors.name && <div className="text-red-500 text-xs mt-1">{errors.name}</div>}
-                            </div>
-                            <div>
-                                <label htmlFor="user_email" className="block text-sm font-bold text-gray-700 mb-1">{t('email')}</label>
-                                <input id="user_email" type="email" className="w-full rounded border-gray-300" value={data.email} onChange={e => setData('email', e.target.value)} />
-                                {errors.email && <div className="text-red-500 text-xs mt-1">{errors.email}</div>}
-                            </div>
-                            <div>
-                                <label htmlFor="user_password" className="block text-sm font-bold text-gray-700 mb-1">{t('temp_password')}</label>
-                                <input id="user_password" type="password" title="password" className="w-full rounded border-gray-300" value={data.password} onChange={e => setData('password', e.target.value)} />
-                                {errors.password && <div className="text-red-500 text-xs mt-1">{errors.password}</div>}
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div>
-                                    <label htmlFor="user_farm_id" className="block text-sm font-bold text-gray-700 mb-1">Ferme</label>
-                                    <select
-                                        id="user_farm_id"
-                                        className="w-full rounded border-gray-300"
-                                        value={data.farm_id}
-                                        onChange={e => setData('farm_id', e.target.value)}
-                                    >
-                                        <option value="">-- Choisir Ferme --</option>
-                                        {farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                                    </select>
-                                    {errors.farm_id && <div className="text-red-500 text-xs mt-1">{errors.farm_id}</div>}
-                                </div>
-                                <div>
-                                    <label htmlFor="user_role" className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
-                                    <select id="user_role" className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
-                                        <option value="farm_manager">Manager Ferme (Tous accès)</option>
-                                        <option value="data_entry">{t('data_entry_personnel')}</option>
-                                    </select>
-                                    {errors.role && <div className="text-red-500 text-xs mt-1">{errors.role}</div>}
-                                </div>
-                                <div>
-                                    <label htmlFor="user_enterprise_id" className="block text-sm font-bold text-gray-700 mb-1">Division (Optionnel)</label>
-                                    <select
-                                        id="user_enterprise_id"
-                                        className="w-full rounded border-gray-300"
-                                        value={data.enterprise_id}
-                                        onChange={e => setData('enterprise_id', e.target.value)}
-                                        disabled={data.role === 'farm_manager'}
-                                    >
-                                        <option value="">Accès Global à la Ferme</option>
-                                        {filteredEnterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
-                                    </select>
-                                    {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
-                                </div>
-                            </div>
-
-                            {data.role === 'data_entry' && (
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Accès</label>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                                checked={data.can_access_pointage}
-                                                onChange={e => setData('can_access_pointage', e.target.checked)}
-                                            />
-                                            <span className="text-sm font-bold text-gray-700">Accès Pointage</span>
-                                        </label>
-                                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                                checked={data.can_access_stock}
-                                                onChange={e => setData('can_access_stock', e.target.checked)}
-                                            />
-                                            <span className="text-sm font-bold text-gray-700">Accès Stock</span>
-                                        </label>
-                                    </div>
-                                    {!data.can_access_pointage && !data.can_access_stock && (
-                                        <p className="text-[11px] font-bold text-amber-600 mt-2 uppercase tracking-wide">
-                                            Aucun accès sélectionné — ce compte ne pourra rien voir.
-                                        </p>
-                                    )}
-                                    {(errors.can_access_pointage || errors.can_access_stock) && (
-                                        <div className="text-red-500 text-xs mt-1">{errors.can_access_pointage || errors.can_access_stock}</div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                        <AccountFields
+                            idPrefix="user"
+                            data={data}
+                            setData={setData}
+                            errors={errors}
+                            farms={farms}
+                            enterprises={enterprises}
+                            passwordLabel={t('temp_password')}
+                        />
 
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={() => setIsAddingUser(false)}>{t('cancel')}</SecondaryButton>
@@ -238,6 +324,48 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                         </div>
                     </form>
                 </div>
+            </Modal>
+
+            <Modal show={editingUser !== null} onClose={() => setEditingUser(null)}>
+                <div className="p-8">
+                    <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Modifier l'utilisateur</h3>
+                    <form onSubmit={submitEdit} className="space-y-6">
+                        <AccountFields
+                            idPrefix="edit_user"
+                            data={editForm.data}
+                            setData={editForm.setData}
+                            errors={editForm.errors}
+                            farms={farms}
+                            enterprises={enterprises}
+                        />
+                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
+                            <SecondaryButton type="button" onClick={() => setEditingUser(null)}>{t('cancel')}</SecondaryButton>
+                            <PrimaryButton disabled={editForm.processing}>Enregistrer</PrimaryButton>
+                        </div>
+                    </form>
+                </div>
+            </Modal>
+
+            <Modal show={resettingUser !== null} onClose={() => setResettingUser(null)} maxWidth="md">
+                <form onSubmit={submitReset} className="p-8">
+                    <h3 className="text-xl font-bold mb-2 text-gray-800">Réinitialiser le mot de passe</h3>
+                    <p className="text-sm text-gray-600 mb-6">
+                        Nouveau mot de passe pour <strong>{resettingUser?.name}</strong>. Ses sessions ouvertes et ses stations de scan seront déconnectées.
+                    </p>
+                    <label htmlFor="reset_password" className="block text-sm font-bold text-gray-700 mb-1">Nouveau mot de passe</label>
+                    <input
+                        id="reset_password"
+                        type="password"
+                        className="w-full rounded border-gray-300"
+                        value={resetForm.data.password}
+                        onChange={e => resetForm.setData('password', e.target.value)}
+                    />
+                    {resetForm.errors.password && <div className="text-red-500 text-xs mt-1">{resetForm.errors.password}</div>}
+                    <div className="flex justify-end gap-3 pt-6">
+                        <SecondaryButton type="button" onClick={() => setResettingUser(null)}>{t('cancel')}</SecondaryButton>
+                        <PrimaryButton disabled={resetForm.processing}>Réinitialiser</PrimaryButton>
+                    </div>
+                </form>
             </Modal>
 
             <Modal show={confirmingUserDeletion !== null} onClose={closeDeleteModal}>
