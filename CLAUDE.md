@@ -74,6 +74,8 @@ All pay/invoice math lives in [PayrollService.php](app/Services/PayrollService.p
 
 The constants at the top of the class (`DEDUCTION_RATE`, `HS_HOURLY_RATE`, `CHARGE_RATE`, etc.) were reverse-engineered from an existing Excel model — treat them as fixed business constants, not tunables, unless the user provides updated formulas.
 
+Client invoicing (`net_factur_j`/`total_ttc`) is **dated**: `calculateInvoicing()` uses the October 2026 formula (from "P-15102026 PERSEALAND AGRI INTERIM.xlsx": comp × 1.0674, a JF day weighted like one H.S. hour, no separate JF bonus in TTC) for quinzaines starting on/after `OCTOBER_2026_INVOICING_FROM`, and the earlier formula before that, so re-exporting a past period never changes it. Always pass the quinzaine's `start_date`. Its inputs (TOTAL J = days actually worked, JF = every JF day worked or not, piece-rate excluded) are defined once in `invoicingForRecords()` — the closing snapshot and the Excel export both go through it; don't recount them elsewhere. Worker pay (`calculate()`) is not dated.
+
 `PayrollService::calculate()` is called per `PointageRecord` (per employee/day); `generateSnapshot()` aggregates a whole `Quinzaine` into a `QuinzaineSummary` (totals by employee/operation/bloc) — this is what powers payslips and history views.
 
 ### Stock movements always pair a `StockMovement` row with a `StockInventory` update

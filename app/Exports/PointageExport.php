@@ -99,7 +99,7 @@ class PointageExport implements FromView, ShouldAutoSize, WithColumnWidths, With
                 $employeeComplement = $empRecords->first()->employee->complement;
 
                 $invoicing = $this->payrollService->invoicingForRecords(
-                    $enterprise->contract_type, $empRecords, $employeeComplement, $enterprise->invoiced_to_client
+                    $enterprise->contract_type, $empRecords, $employeeComplement, $enterprise->invoiced_to_client, $quinzaine->start_date
                 );
                 $calc = $this->payrollService->calculate(
                     $enterprise->contract_type, $invoicing['rate'], 0, $employeeComplement, false, $enterprise->invoiced_to_client, true
@@ -110,7 +110,11 @@ class PointageExport implements FromView, ShouldAutoSize, WithColumnWidths, With
                     // The JF bonus in TOTAL TTC (jfDays * salNetJ * multiplier) is a flat amount
                     // PER JF day, added on top of net_factur_j*totalDays — not itself part of
                     // net_factur_j, and owed whether or not that specific JF day was worked.
-                    'jf_bonus_per_day' => $calc['sal_net_j'] * PayrollService::JF_TOTAL_TTC_MULTIPLIER,
+                    // The October 2026 formula has no such bonus (JF is folded into
+                    // net_factur_j instead), so it's 0 from then on.
+                    'jf_bonus_per_day' => $this->payrollService->invoicesJfBonus($quinzaine->start_date)
+                        ? $calc['sal_net_j'] * PayrollService::JF_TOTAL_TTC_MULTIPLIER
+                        : 0,
                 ];
             }
         }

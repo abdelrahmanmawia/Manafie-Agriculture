@@ -197,6 +197,49 @@ class PayrollServiceTest extends TestCase
         $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
     }
 
+    // --- October 2026 formula (P-15102026 PERSEALAND AGRI INTERIM.xlsx, cols AC/AD) ---
+
+    public function test_october_2026_formula_matches_the_reference_workbook(): void
+    {
+        // CIN G445076 SAYEH SAIDA, 1re Qz octobre 2026: NET/J 110 (comp 19.13), 3 days, no JF/H.S.
+        // 183.77 / 551.30 are the values Excel itself displays for this row.
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 19.13, 3, 0, 0, true, '2026-10-01');
+
+        $this->assertEqualsWithDelta(183.77, $calc['net_factur_j'], 0.005);
+        $this->assertEqualsWithDelta(551.30, $calc['total_ttc'], 0.005);
+    }
+
+    public function test_october_2026_formula_with_overtime(): void
+    {
+        // CIN GM180174, same workbook: NET/J 109 (comp 18.13), 15 days, 60 H.S. hours — expected
+        // values evaluated from that row's own AC/AD formulas.
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 18.13, 15, 0, 60, true, '2026-10-01');
+
+        $this->assertEqualsWithDelta(243.2378, $calc['net_factur_j'], 0.0001);
+        $this->assertEqualsWithDelta(3648.5665, $calc['total_ttc'], 0.0001);
+    }
+
+    public function test_october_2026_formula_invoices_jf_like_an_hs_hour_with_no_ttc_bonus(): void
+    {
+        // (Z+AA)*W/8/Y: one JF day weighs the same as one H.S. hour, and AD = AC*Y only.
+        $withJf = $this->svc->calculateInvoicing('avec_contrat', 97.44, 19.13, 10, 1, 0, true, '2026-10-16');
+        $withHsHour = $this->svc->calculateInvoicing('avec_contrat', 97.44, 19.13, 10, 0, 1, true, '2026-10-16');
+
+        $this->assertEqualsWithDelta($withHsHour['net_factur_j'], $withJf['net_factur_j'], 1e-9);
+        $this->assertEqualsWithDelta($withJf['net_factur_j'] * 10, $withJf['total_ttc'], 1e-9);
+    }
+
+    public function test_periods_before_october_2026_keep_the_previous_formula(): void
+    {
+        // Same inputs as the 2eme Qz Août spreadsheet test above, dated in late September.
+        $calc = $this->svc->calculateInvoicing('avec_contrat', 97.44, 3.267456, 10, 3, 0, true, '2026-09-16');
+
+        $this->assertEqualsWithDelta(198.843280896, $calc['net_factur_j'], 0.0001);
+        $this->assertEqualsWithDelta(2338.633608960, $calc['total_ttc'], 0.0001);
+        $this->assertTrue($this->svc->invoicesJfBonus('2026-09-16'));
+        $this->assertFalse($this->svc->invoicesJfBonus('2026-10-01'));
+    }
+
     // --- invoicingForRecords(): TOTAL J = worked days, JF = every JF day (business rule) ---
 
     public function test_invoicing_counts_worked_days_only_and_every_jf_day(): void

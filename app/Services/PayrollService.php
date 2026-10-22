@@ -22,6 +22,13 @@ class PayrollService
     const JF_TOTAL_TTC_MULTIPLIER = 1.24; // flat multiplier on a JF-day bonus's contribution to
                                     // TOTAL TTC — distinct from TAX_ADJUSTMENT*SERVICE_TAX (1.248),
                                     // per the real spreadsheet formula (see calculateInvoicing()).
+                                    // Not used from OCTOBER_2026_INVOICING_FROM on.
+
+    // Quinzaines starting on/after this date are invoiced with the October 2026 formula (see
+    // calculateInvoicing()); earlier ones keep the formula they were invoiced with, so
+    // re-exporting a past period never changes its figures.
+    const OCTOBER_2026_INVOICING_FROM = '2026-10-01';
+    const COMP_INVOICE_RATE = 1.0674; // October 2026 formula: comp * 1.0674 inside NET FACTUR J
 
     /**
      * Calculate a worker's own pay for a single day/record (brut, sal_net_j, hs_pay, total_net).
@@ -88,8 +95,21 @@ class PayrollService
      * The JF/H.S. term inside net_factur_j spreads that period's total overtime/holiday
      * invoicing evenly across every day the employee worked — the earlier per-day `calculate()`
      * approach could never reproduce this since it doesn't know the period's totals.
+     *
+     * From OCTOBER_2026_INVOICING_FROM on ($periodStart = the quinzaine's start_date), the
+     * business adopted the formula of "P-15102026 PERSEALAND AGRI INTERIM.xlsx" (cols AC/AD) as
+     * the reference — chosen explicitly over that same period's P.L.xlsm, which still used the
+     * formula above:
+     *
+     *   net_factur_j = ((brut*1.2109 + 5.62 + 3.22 + comp*1.0674) * 1.04
+     *                   + ((jfDays + hsHours) * brut / 8 / totalDays) * 1.04) * 1.2
+     *   total_ttc    = net_factur_j * totalDays
+     *
+     * i.e. comp is multiplied by 1.0674, a JF day is invoiced like one H.S. hour (brut/8, not a
+     * full brut day), and there is no separate JF bonus in TOTAL TTC. Worker pay (calculate())
+     * is unchanged — still NET/J per JF day.
      */
-    public function calculateInvoicing($contractType, $brutRate, $complement, $totalDays, $jfDaysCount, $hsHoursTotal, $invoicedToClient = null)
+    public function calculateInvoicing($contractType, $brutRate, $complement, $totalDays, $jfDaysCount, $hsHoursTotal, $invoicedToClient = null, $periodStart = null)
     {
         if ($invoicedToClient === null) {
             $invoicedToClient = $contractType === 'avec_contrat';
@@ -99,17 +119,39 @@ class PayrollService
             return ['net_factur_j' => 0, 'total_ttc' => 0];
         }
 
+        $october2026 = $this->usesOctober2026Invoicing($periodStart);
+
         $standardNetJ = $brutRate * (1 - self::DEDUCTION_RATE);
         $salNetJ = $standardNetJ + $complement;
 
         $baseBracket = $brutRate * self::CHARGE_RATE + self::FIXED_CHARGE_1 + self::FIXED_CHARGE_2
-            + $complement;
-        $jfHsBracket = ($jfDaysCount * $brutRate + $hsHoursTotal * $brutRate / self::STANDARD_WORKDAY_HOURS) / $totalDays;
+            + $complement * ($october2026 ? self::COMP_INVOICE_RATE : 1);
+        $jfHsBracket = $october2026
+            ? ($jfDaysCount + $hsHoursTotal) * $brutRate / self::STANDARD_WORKDAY_HOURS / $totalDays
+            : ($jfDaysCount * $brutRate + $hsHoursTotal * $brutRate / self::STANDARD_WORKDAY_HOURS) / $totalDays;
 
         $netFacturJ = ($baseBracket + $jfHsBracket) * self::TAX_ADJUSTMENT * self::SERVICE_TAX;
-        $totalTtc = $netFacturJ * $totalDays + $jfDaysCount * $salNetJ * self::JF_TOTAL_TTC_MULTIPLIER;
+        $totalTtc = $netFacturJ * $totalDays
+            + ($october2026 ? 0 : $jfDaysCount * $salNetJ * self::JF_TOTAL_TTC_MULTIPLIER);
 
         return ['net_factur_j' => $netFacturJ, 'total_ttc' => $totalTtc];
+    }
+
+    /** Whether a quinzaine starting on $periodStart is invoiced with the October 2026 formula. */
+    public function usesOctober2026Invoicing($periodStart): bool
+    {
+        return $periodStart !== null
+            && \Carbon\Carbon::parse($periodStart)->toDateString() >= self::OCTOBER_2026_INVOICING_FROM;
+    }
+
+    /**
+     * Whether TOTAL TTC carries a separate per-JF-day bonus (JF days * sal_net_j * 1.24) — true
+     * before October 2026 only. PointageExport's per-day billing breakdown needs this to keep its
+     * day columns summing to calculateInvoicing()'s total_ttc.
+     */
+    public function invoicesJfBonus($periodStart): bool
+    {
+        return ! $this->usesOctober2026Invoicing($periodStart);
     }
 
     /**
@@ -126,9 +168,10 @@ class PayrollService
      *  - rate = the period's own frozen day rate (never the enterprise's current one).
      *
      * Returns calculateInvoicing()'s figures plus the inputs used (days/jf/hs/rate), so callers
-     * can display them.
+     * can display them. $periodStart (the quinzaine's start_date) picks the formula — see
+     * calculateInvoicing().
      */
-    public function invoicingForRecords($contractType, $records, $complement, $invoicedToClient = null): array
+    public function invoicingForRecords($contractType, $records, $complement, $invoicedToClient = null, $periodStart = null): array
     {
         $dayRecords = $records->whereNull('quantity');
         if ($dayRecords->isEmpty()) {
@@ -143,7 +186,7 @@ class PayrollService
         ];
 
         return $this->calculateInvoicing(
-            $contractType, $inputs['rate'], $complement, $inputs['days'], $inputs['jf'], $inputs['hs'], $invoicedToClient
+            $contractType, $inputs['rate'], $complement, $inputs['days'], $inputs['jf'], $inputs['hs'], $invoicedToClient, $periodStart
         ) + $inputs;
     }
 
@@ -344,7 +387,8 @@ class PayrollService
                 $quinzaine->enterprise->contract_type,
                 $employeeRecords,
                 $employeeRecords->first()->employee->complement,
-                $quinzaine->enterprise->invoiced_to_client
+                $quinzaine->enterprise->invoiced_to_client,
+                $quinzaine->start_date
             );
             $totalTtc += $invoicing['total_ttc'];
         }

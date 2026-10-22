@@ -147,7 +147,8 @@
                     $quinzaine->enterprise->contract_type,
                     $employeeRecords->map(fn ($dayList) => $dayList[0]),
                     $emp->complement,
-                    $quinzaine->enterprise->invoiced_to_client
+                    $quinzaine->enterprise->invoiced_to_client,
+                    $quinzaine->start_date
                 );
                 $quinzaineNetFacturJ = $invoicing['net_factur_j'];
                 $quinzaineTotalTtc = $invoicing['total_ttc'];
@@ -274,7 +275,8 @@
                             $quinzaine->enterprise->contract_type,
                             $empRecords->map(fn ($dayList) => $dayList[0]),
                             $emp->complement,
-                            $quinzaine->enterprise->invoiced_to_client
+                            $quinzaine->enterprise->invoiced_to_client,
+                            $quinzaine->start_date
                         );
                         $grandTotalTtc += $empInvoicing['total_ttc'];
                         $grandTotalFacturJ = $empInvoicing['net_factur_j'];

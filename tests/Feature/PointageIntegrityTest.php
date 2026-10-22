@@ -272,6 +272,26 @@ class PointageIntegrityTest extends TestCase
         $this->assertEqualsWithDelta($expected, QuinzaineSummary::sole()->total_ttc, 0.01);
     }
 
+    public function test_october_2026_snapshot_uses_the_october_formula(): void
+    {
+        $this->enterprise->update(['invoiced_to_client' => true]);
+        $october = Quinzaine::create([
+            'enterprise_id' => $this->enterprise->id, 'label' => '1QZ Oct', 'start_date' => '2026-10-01',
+            'end_date' => '2026-10-15', 'is_closed' => false,
+        ]);
+
+        $this->cell(['quinzaine_id' => $october->id, 'date' => '2026-10-02']);
+        $this->cell(['quinzaine_id' => $october->id, 'date' => '2026-10-03', 'is_jf' => true]);
+        $this->cell(['quinzaine_id' => $october->id, 'date' => '2026-10-04', 'is_jf' => true, 'operation_id' => null, 'bloc_id' => null]);
+
+        $service = app(PayrollService::class);
+        $service->generateSnapshot($october->fresh());
+
+        // TOTAL J = 2, JF = 2, comp 10 (*1.0674), no separate JF bonus in TTC.
+        $nf = ((100 * 1.2109 + 5.62 + 3.22 + 10 * 1.0674) * 1.04 + ((2 + 0) * 100 / 8 / 2) * 1.04) * 1.2;
+        $this->assertEqualsWithDelta($nf * 2, QuinzaineSummary::where('quinzaine_id', $october->id)->sole()->total_ttc, 0.01);
+    }
+
     public function test_snapshot_invoicing_ignores_piece_rate_days_even_when_first(): void
     {
         $this->enterprise->update(['invoiced_to_client' => true]);
