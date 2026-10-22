@@ -8,6 +8,9 @@ class PayrollService
      * Constants based on user Excel formulas
      */
     const DEDUCTION_RATE = 0.0674; // (1 - 0.0674)
+    // How the payslip splits DEDUCTION_RATE into its two lines — they sum to exactly it.
+    const CNSS_RATE = 0.0448;
+    const AMO_RATE = 0.0226;
     const STANDARD_WORKDAY_HOURS = 8; // hs_hourly_rate = sal_brut_j / 8
     const CHARGE_RATE = 1.2109;    // sal_brut_j * 1.2109
     const FIXED_CHARGE_1 = 5.62;   // + 5.37
@@ -110,6 +113,69 @@ class PayrollService
     }
 
     /**
+     * Every line of one employee's payslip for one quinzaine. Previously PayrollController and
+     * the payslip template each rebuilt this themselves — with the enterprise's CURRENT rate
+     * instead of each record's frozen one, a hardcoded 0.0674, unworked JF days counted as a
+     * double day, sans_contrat JF days shown as a bonus that's never paid, and piece-rate days
+     * priced as day-rate ones — so Gains − Retenues didn't match the net actually paid.
+     *
+     * Day-rate records are re-run through calculate() with their own frozen rate; piece-rate
+     * records (quantity set) are a gain equal to their stored net, with no deduction.
+     * total_net is the sum of the records' stored net, same as the Grid/Excel export.
+     */
+    public function payslipBreakdown(string $contractType, $records, $complement): array
+    {
+        $isAvecContrat = $contractType === 'avec_contrat';
+        $dayRecords = $records->whereNull('quantity');
+        $pieceRecords = $records->whereNotNull('quantity');
+
+        $base = 0;
+        $hsPay = 0;
+        $jfPay = 0;
+        $jfDays = 0;
+        foreach ($dayRecords as $record) {
+            $worked = $record->operation_id !== null;
+            $calc = $this->calculate($contractType, $record->rate, $record->hours, $complement, $record->is_jf, null, $worked);
+
+            $base += $calc['brut'];
+            $hsPay += $calc['hs_pay'];
+            // Mirrors calculate(): only avec_contrat pays a JF bonus, and only on a worked JF day.
+            if ($isAvecContrat && $record->is_jf && $worked) {
+                $jfPay += $calc['sal_net_j'];
+                $jfDays++;
+            }
+        }
+
+        $dayRate = $dayRecords->last()?->rate;
+        $rateCalc = $dayRate !== null ? $this->calculate($contractType, $dayRate, 1, $complement) : null;
+        $complementPay = $isAvecContrat ? $dayRecords->count() * $complement : 0;
+        $piecePay = (float) $pieceRecords->sum('net');
+        $cnss = $isAvecContrat ? $base * self::CNSS_RATE : 0;
+        $amo = $isAvecContrat ? $base * self::AMO_RATE : 0;
+
+        return [
+            'days' => $dayRecords->count(),
+            'day_rate' => $dayRate,
+            'base' => $base,
+            'hs_hours' => (float) $dayRecords->sum('hours'),
+            'hs_hourly_rate' => $rateCalc['hs_pay'] ?? 0,
+            'hs_pay' => $hsPay,
+            'jf_days' => $jfDays,
+            'jf_day_rate' => $rateCalc['sal_net_j'] ?? 0,
+            'jf_pay' => $jfPay,
+            'complement' => $isAvecContrat ? $complement : 0,
+            'complement_pay' => $complementPay,
+            'piece_days' => $pieceRecords->count(),
+            'piece_pay' => $piecePay,
+            'cnss' => $cnss,
+            'amo' => $amo,
+            'total_gains' => $base + $hsPay + $jfPay + $complementPay + $piecePay,
+            'total_retenues' => $cnss + $amo,
+            'total_net' => (float) $records->sum('net'),
+        ];
+    }
+
+    /**
      * Generate a snapshot of totals for a closed quinzaine
      */
     /**
@@ -122,25 +188,41 @@ class PayrollService
      */
     public function recalculateOpenRecordsForEnterprise(\App\Models\Enterprise $enterprise): void
     {
-        \App\Models\PointageRecord::whereHas('quinzaine', function ($q) use ($enterprise) {
-            $q->where('enterprise_id', $enterprise->id)->where('is_closed', false);
-        })->whereNull('quantity')->with('employee')->get()->each(function ($record) use ($enterprise) {
-            $calc = $this->calculate(
-                $enterprise->contract_type,
-                $enterprise->default_brut_rate,
-                $record->hours,
-                $record->employee->complement,
-                $record->is_jf,
-                null,
-                $record->operation_id !== null
+        \Illuminate\Support\Facades\DB::transaction(function () use ($enterprise) {
+            $openIds = $this->lockOpenQuinzaines(
+                \App\Models\Quinzaine::where('enterprise_id', $enterprise->id)
             );
 
-            $record->update([
-                'rate' => $enterprise->default_brut_rate,
-                'brut' => $calc['brut'],
-                'net' => $calc['total_net'],
-            ]);
+            \App\Models\PointageRecord::whereIn('quinzaine_id', $openIds)
+                ->whereNull('quantity')->with('employee')->get()->each(function ($record) use ($enterprise) {
+                    $calc = $this->calculate(
+                        $enterprise->contract_type,
+                        $enterprise->default_brut_rate,
+                        $record->hours,
+                        $record->employee->complement,
+                        $record->is_jf,
+                        null,
+                        $record->operation_id !== null
+                    );
+
+                    $record->update([
+                        'rate' => $enterprise->default_brut_rate,
+                        'brut' => $calc['brut'],
+                        'net' => $calc['total_net'],
+                    ]);
+                });
         });
+    }
+
+    /**
+     * Locks (FOR UPDATE, in id order) the still-open quinzaines a recalculation is about to
+     * rewrite, and returns their ids. EnterpriseController::closeQuinzaine() locks the same rows,
+     * so a close can't snapshot a period halfway through a recalculation, nor can a recalculation
+     * rewrite a period's records after it has closed.
+     */
+    private function lockOpenQuinzaines($query)
+    {
+        return $query->where('is_closed', false)->orderBy('id')->lockForUpdate()->pluck('id');
     }
 
     /**
@@ -151,27 +233,33 @@ class PayrollService
     {
         $employee->loadMissing('enterprise');
 
-        \App\Models\PointageRecord::where('employee_id', $employee->id)
-            ->whereHas('quinzaine', fn($q) => $q->where('is_closed', false))
-            ->whereNull('quantity')
-            ->get()
-            ->each(function ($record) use ($employee) {
-                $calc = $this->calculate(
-                    $employee->enterprise->contract_type,
-                    $employee->enterprise->default_brut_rate,
-                    $record->hours,
-                    $employee->complement,
-                    $record->is_jf,
-                    null,
-                    $record->operation_id !== null
-                );
+        \Illuminate\Support\Facades\DB::transaction(function () use ($employee) {
+            $openIds = $this->lockOpenQuinzaines(
+                \App\Models\Quinzaine::whereHas('pointageRecords', fn ($q) => $q->where('employee_id', $employee->id))
+            );
 
-                $record->update([
-                    'rate' => $employee->enterprise->default_brut_rate,
-                    'brut' => $calc['brut'],
-                    'net' => $calc['total_net'],
-                ]);
-            });
+            \App\Models\PointageRecord::where('employee_id', $employee->id)
+                ->whereIn('quinzaine_id', $openIds)
+                ->whereNull('quantity')
+                ->get()
+                ->each(function ($record) use ($employee) {
+                    $calc = $this->calculate(
+                        $employee->enterprise->contract_type,
+                        $employee->enterprise->default_brut_rate,
+                        $record->hours,
+                        $employee->complement,
+                        $record->is_jf,
+                        null,
+                        $record->operation_id !== null
+                    );
+
+                    $record->update([
+                        'rate' => $employee->enterprise->default_brut_rate,
+                        'brut' => $calc['brut'],
+                        'net' => $calc['total_net'],
+                    ]);
+                });
+        });
     }
 
     public function generateSnapshot(\App\Models\Quinzaine $quinzaine)
@@ -211,12 +299,18 @@ class PayrollService
             $employeeNets[$employeeId] = ($employeeNets[$employeeId] ?? 0) + $record->net;
             $employees[$employeeId] = $record->employee_id;
 
-            $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement, 'rate' => $record->rate];
-            $employeeAggregates[$employeeId]['days']++;
-            if ($record->is_jf && $worked) {
-                $employeeAggregates[$employeeId]['jf']++;
+            // Piece-rate records (quantity set) stay out of the invoicing inputs, same as
+            // PointageExport: their `rate` is the operation's per-unit price, not a day rate, so
+            // if one happened to be an employee's first record it used to become the brut rate
+            // their whole period was invoiced at.
+            if ($record->quantity === null) {
+                $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement, 'rate' => $record->rate];
+                $employeeAggregates[$employeeId]['days']++;
+                if ($record->is_jf && $worked) {
+                    $employeeAggregates[$employeeId]['jf']++;
+                }
+                $employeeAggregates[$employeeId]['hs'] += $record->hours;
             }
-            $employeeAggregates[$employeeId]['hs'] += $record->hours;
 
             // Breakdown by Operation/Bloc — an unworked paid JF day has neither, so it's
             // deliberately left out of both breakdowns (its net is still in totalNet above).

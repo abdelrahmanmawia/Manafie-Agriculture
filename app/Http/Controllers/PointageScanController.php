@@ -10,9 +10,15 @@ use App\Models\Quinzaine;
 use App\Services\PayrollService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class PointageScanController extends Controller
 {
+    const TOKEN_LIFETIME_DAYS = 30;
+
+    // Upper bound on one sync batch — a full day for a large farm is a few hundred scans.
+    const MAX_SCANS_PER_SYNC = 1000;
+
     protected $payrollService;
 
     public function __construct(PayrollService $payrollService)
@@ -42,7 +48,11 @@ class PointageScanController extends Controller
     {
         $farmId = $this->resolveWriteFarmId($request);
 
-        $token = $request->user()->createToken('scan-station', ["farm:{$farmId}"]);
+        // Expires so a lost/stolen station device doesn't hold a write credential forever (the
+        // app-wide sanctum.expiration is null). Long enough to outlast any offline stretch; an
+        // expired station just needs "Configurer" again while online — its queued scans live in
+        // IndexedDB separately from the token and survive the re-setup.
+        $token = $request->user()->createToken('scan-station', ["farm:{$farmId}"], now()->addDays(self::TOKEN_LIFETIME_DAYS));
 
         return response()->json(['token' => $token->plainTextToken]);
     }
@@ -56,6 +66,11 @@ class PointageScanController extends Controller
     private function scanFarmId(Request $request): int
     {
         $user = $request->user();
+
+        // Re-checked on every API call, not just when the token was minted: a user whose
+        // Pointage access was revoked since must not keep writing pointage through an old token.
+        abort_unless($user->canAccessPointage(), 403);
+
         if ($user->farm_id) {
             return $user->farm_id;
         }
@@ -75,6 +90,7 @@ class PointageScanController extends Controller
         $farmId = $this->scanFarmId($request);
 
         $employees = Employee::where('farm_id', $farmId)
+            ->when($request->user()->enterprise_id, fn ($q, $enterpriseId) => $q->where('enterprise_id', $enterpriseId))
             ->where('is_active', true)
             ->whereNotNull('badge_uuid')
             ->get(['id', 'badge_uuid', 'full_name', 'matricule']);
@@ -106,19 +122,25 @@ class PointageScanController extends Controller
         $farmId = $this->scanFarmId($request);
 
         $validated = $request->validate([
-            'scans' => 'required|array',
-            'scans.*.scan_uuid' => 'required|string',
-            'scans.*.badge_uuid' => 'required|string',
-            'scans.*.scanned_at' => 'required|date',
+            'scans' => 'required|array|max:' . self::MAX_SCANS_PER_SYNC,
+            'scans.*.scan_uuid' => 'required|string|max:64',
+            'scans.*.badge_uuid' => 'required|string|max:64',
+            // A few minutes of slack for a station clock running slightly ahead; a scan can't
+            // be from the future.
+            'scans.*.scanned_at' => 'required|date|before_or_equal:' . now()->addMinutes(10)->toIso8601String(),
             'scans.*.bloc_id' => 'required|exists:blocs,id',
             'scans.*.operation_id' => 'required|exists:operations,id',
         ]);
 
         $results = [];
+        // A division-locked user (same rule as everywhere else) only ever points their own
+        // division's people, even though the token itself is farm-scoped.
+        $enterpriseId = $request->user()->enterprise_id;
 
         foreach ($validated['scans'] as $scan) {
             $employee = Employee::where('badge_uuid', $scan['badge_uuid'])
                 ->where('farm_id', $farmId)
+                ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
                 ->first();
 
             if (!$employee) {
@@ -170,16 +192,6 @@ class PointageScanController extends Controller
                 $quinzaine->enterprise->invoiced_to_client
             );
 
-            // Not updateOrCreate(): its lookup compares the raw 'Y-m-d' string against the
-            // `date`-cast column, but Eloquent persists that same value with a trailing
-            // "00:00:00" — the two never match on a second call, so updateOrCreate silently
-            // inserts a duplicate row instead of updating the existing one. whereDate() lets
-            // the DB compare just the date part, which is what makes retrying a batch safe.
-            $existing = PointageRecord::where('employee_id', $employee->id)
-                ->where('quinzaine_id', $quinzaine->id)
-                ->whereDate('date', $date)
-                ->first();
-
             $attributes = [
                 'operation_id' => $scan['operation_id'],
                 'bloc_id' => $scan['bloc_id'],
@@ -192,17 +204,42 @@ class PointageScanController extends Controller
                 'scan_uuid' => $scan['scan_uuid'],
             ];
 
-            if ($existing) {
-                $existing->update($attributes);
-            } else {
-                PointageRecord::create(array_merge($attributes, [
-                    'employee_id' => $employee->id,
-                    'quinzaine_id' => $quinzaine->id,
-                    'date' => $date,
-                ]));
-            }
+            // Same quinzaine share-lock + is_closed re-read as PointageController::writeWhileOpen(),
+            // so a sync can't land in a period that closed after the check above.
+            $results[] = DB::transaction(function () use ($quinzaine, $employee, $date, $attributes, $scan) {
+                if (Quinzaine::whereKey($quinzaine->id)->sharedLock()->value('is_closed')) {
+                    return ['scan_uuid' => $scan['scan_uuid'], 'ok' => false, 'reason' => 'Cette période est clôturée.'];
+                }
 
-            $results[] = ['scan_uuid' => $scan['scan_uuid'], 'ok' => true];
+                // Not updateOrCreate(): its lookup compares the raw 'Y-m-d' string against the
+                // `date`-cast column, but Eloquent persists that same value with a trailing
+                // "00:00:00" — the two never match on a second call, so updateOrCreate silently
+                // inserts a duplicate row instead of updating the existing one. whereDate() lets
+                // the DB compare just the date part, which is what makes retrying a batch safe.
+                $existing = PointageRecord::where('employee_id', $employee->id)
+                    ->where('quinzaine_id', $quinzaine->id)
+                    ->whereDate('date', $date)
+                    ->first();
+
+                if ($existing && $existing->scan_uuid === null) {
+                    // Entered (or last edited) by hand in the Grid — it may carry H.S., a JF flag
+                    // or a piece-rate quantity a scan knows nothing about. A scan only proves
+                    // presence, which that record already records, so it never overwrites it.
+                    return ['scan_uuid' => $scan['scan_uuid'], 'ok' => true, 'reason' => 'Déjà pointé manuellement — saisie conservée.'];
+                }
+
+                if ($existing) {
+                    $existing->update($attributes);
+                } else {
+                    PointageRecord::create(array_merge($attributes, [
+                        'employee_id' => $employee->id,
+                        'quinzaine_id' => $quinzaine->id,
+                        'date' => $date,
+                    ]));
+                }
+
+                return ['scan_uuid' => $scan['scan_uuid'], 'ok' => true];
+            });
         }
 
         return response()->json(['results' => $results]);

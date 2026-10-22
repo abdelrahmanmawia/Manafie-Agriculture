@@ -135,4 +135,70 @@ class PayrollServiceTest extends TestCase
         $this->assertEquals(0, $calc['net_factur_j']);
         $this->assertEquals(0, $calc['total_ttc']);
     }
+
+    // --- payslipBreakdown() ---
+
+    /** A record with its net computed the way PointageController stores it. */
+    private function dayRecord(string $contract, float $rate, float $complement, array $attrs = []): object
+    {
+        $attrs += ['hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'quantity' => null];
+        $calc = $this->svc->calculate($contract, $rate, $attrs['hours'], $complement, $attrs['is_jf'], null, $attrs['operation_id'] !== null);
+
+        return (object) ($attrs + ['rate' => $rate, 'net' => $calc['total_net']]);
+    }
+
+    public function test_payslip_gains_minus_retenues_equals_net_for_avec_contrat(): void
+    {
+        $records = collect([
+            $this->dayRecord('avec_contrat', 100, 10, ['hours' => 2]),
+            $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true]),                        // worked JF
+            $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true, 'operation_id' => null]), // unworked JF
+            (object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'quantity' => 40, 'net' => 200], // piece-rate
+        ]);
+
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records, 10);
+
+        $this->assertSame(3, $p['days']);
+        $this->assertSame(1, $p['jf_days']);           // unworked JF is not a bonus day
+        $this->assertSame(1, $p['piece_days']);
+        $this->assertEqualsWithDelta(300, $p['base'], 0.001);
+        $this->assertEqualsWithDelta(200, $p['piece_pay'], 0.001);
+        $this->assertEqualsWithDelta(300 * PayrollService::DEDUCTION_RATE, $p['total_retenues'], 0.001);
+        $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
+    }
+
+    public function test_payslip_sans_contrat_has_no_deduction_jf_bonus_or_complement(): void
+    {
+        $records = collect([
+            $this->dayRecord('sans_contrat', 90, 10, ['hours' => 1]),
+            $this->dayRecord('sans_contrat', 90, 10, ['is_jf' => true]),
+        ]);
+
+        $p = $this->svc->payslipBreakdown('sans_contrat', $records, 10);
+
+        $this->assertEquals(0, $p['total_retenues']);
+        $this->assertEquals(0, $p['jf_pay']);
+        $this->assertEquals(0, $p['complement_pay']);
+        $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'], 0.001);
+    }
+
+    public function test_payslip_uses_each_records_own_rate(): void
+    {
+        // Rate changed mid-period and the record was frozen at the old one — the payslip must
+        // follow the record, not whatever rate is current.
+        $records = collect([
+            $this->dayRecord('avec_contrat', 100, 0),
+            $this->dayRecord('avec_contrat', 120, 0),
+        ]);
+
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records, 0);
+
+        $this->assertEqualsWithDelta(220, $p['base'], 0.001);
+        $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
+    }
+
+    public function test_cnss_and_amo_split_exactly_the_deduction_rate(): void
+    {
+        $this->assertEqualsWithDelta(PayrollService::DEDUCTION_RATE, PayrollService::CNSS_RATE + PayrollService::AMO_RATE, 1e-9);
+    }
 }

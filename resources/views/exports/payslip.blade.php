@@ -62,93 +62,96 @@
             </tr>
         </thead>
         <tbody>
+            {{-- Every amount below comes from PayrollService::payslipBreakdown(), computed from
+                 each record's own frozen rate — not recomputed here, and never from the
+                 division's current rate. --}}
+
             {{-- 1. Salaire de Base --}}
+            @if($payslip['days'] > 0)
             <tr>
                 <td>Salaire de base (Jours de présence)</td>
-                <td style="text-align: center;">{{ $records->count() }} J</td>
-                <td style="text-align: right;">{{ number_format($quinzaine->enterprise->default_brut_rate, 2) }}</td>
-                <td style="text-align: right;">{{ number_format($records->count() * $quinzaine->enterprise->default_brut_rate, 2) }}</td>
+                <td style="text-align: center;">{{ $payslip['days'] }} J</td>
+                <td style="text-align: right;">{{ number_format($payslip['day_rate'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['base'], 2) }}</td>
                 <td></td>
             </tr>
+            @endif
 
-            {{-- 2. Heures Supplémentaires --}}
-            @php
-                // Overtime hourly rate = the standard daily net salary (after the worker deduction for
-                // "avec contrat", before any complement/prime) ÷ 8 — never the raw brut rate.
-                $standardNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
-                    ? $quinzaine->enterprise->default_brut_rate * (1 - 0.0674)
-                    : $quinzaine->enterprise->default_brut_rate;
-                $hsHourlyRate = $standardNetJ / 8;
-            @endphp
-            @if($records->sum('hours') > 0)
+            {{-- 2. Travail à la tâche (piece-rate days: quantity × the operation's own rate) --}}
+            @if($payslip['piece_days'] > 0)
+            <tr>
+                <td>Travail à la tâche</td>
+                <td style="text-align: center;">{{ $payslip['piece_days'] }} J</td>
+                <td></td>
+                <td style="text-align: right;">{{ number_format($payslip['piece_pay'], 2) }}</td>
+                <td></td>
+            </tr>
+            @endif
+
+            {{-- 3. Heures Supplémentaires --}}
+            @if($payslip['hs_hours'] > 0)
             <tr>
                 <td>Heures Supplémentaires (H.S)</td>
-                <td style="text-align: center;">{{ $records->sum('hours') }} H</td>
-                <td style="text-align: right;">{{ number_format($hsHourlyRate, 2) }}</td>
-                <td style="text-align: right;">{{ number_format($records->sum('hours') * $hsHourlyRate, 2) }}</td>
+                <td style="text-align: center;">{{ $payslip['hs_hours'] }} H</td>
+                <td style="text-align: right;">{{ number_format($payslip['hs_hourly_rate'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['hs_pay'], 2) }}</td>
                 <td></td>
             </tr>
             @endif
 
-            {{-- 3. Jours Fériés --}}
-            @if($records->where('is_jf', true)->count() > 0)
+            {{-- 4. Jours Fériés — worked JF days only (an unworked JF day is a normal paid day,
+                 already in the base line), and avec_contrat only, same as calculate(). --}}
+            @if($payslip['jf_days'] > 0)
             <tr>
                 <td>Primes Jour Férié (JF)</td>
-                <td style="text-align: center;">{{ $records->where('is_jf', true)->count() }} J</td>
-                <td style="text-align: right;">{{ number_format($baseNetJ, 2) }}</td>
-                <td style="text-align: right;">{{ number_format($records->where('is_jf', true)->count() * $baseNetJ, 2) }}</td>
+                <td style="text-align: center;">{{ $payslip['jf_days'] }} J</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_day_rate'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_pay'], 2) }}</td>
                 <td></td>
             </tr>
             @endif
 
-            {{-- 4. Complément / Primes — avec_contrat only: PayrollService::calculate() never folds
-                 complement into sans_contrat's net pay, so showing it here for HAFILATY employees
-                 would imply a bonus that isn't actually paid. --}}
-            @if($quinzaine->enterprise->contract_type === 'avec_contrat' && $employee->complement > 0)
+            {{-- 5. Complément / Primes — avec_contrat only (payslipBreakdown() zeroes it otherwise). --}}
+            @if($payslip['complement_pay'] > 0)
             <tr>
                 <td>Complément / Prime de rendement</td>
-                <td style="text-align: center;">{{ $records->count() }} J</td>
-                <td style="text-align: right;">{{ number_format($employee->complement, 2) }}</td>
-                <td style="text-align: right;">{{ number_format($records->count() * $employee->complement, 2) }}</td>
+                <td style="text-align: center;">{{ $payslip['days'] }} J</td>
+                <td style="text-align: right;">{{ number_format($payslip['complement'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['complement_pay'], 2) }}</td>
                 <td></td>
             </tr>
             @endif
 
-            {{-- 5. Deductions (CNSS / AMO) --}}
-            @if($quinzaine->enterprise->contract_type === 'avec_contrat')
-                @php
-                    $totalBrut = ($records->count() * $quinzaine->enterprise->default_brut_rate) + ($records->sum('hours') * $hsHourlyRate);
-                    $cnss = min($totalBrut, 6000) * 0.0448;
-                    $amo = $totalBrut * 0.0226;
-                @endphp
+            {{-- 6. Deductions (CNSS / AMO) — together PayrollService::DEDUCTION_RATE of the base. --}}
+            @if($payslip['total_retenues'] > 0)
                 <tr>
-                    <td>Cotisation CNSS (4.48%)</td>
+                    <td>Cotisation CNSS ({{ number_format(\App\Services\PayrollService::CNSS_RATE * 100, 2) }}%)</td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td style="text-align: right;">{{ number_format($cnss, 2) }}</td>
+                    <td style="text-align: right;">{{ number_format($payslip['cnss'], 2) }}</td>
                 </tr>
                 <tr>
-                    <td>Cotisation AMO (2.26%)</td>
+                    <td>Cotisation AMO ({{ number_format(\App\Services\PayrollService::AMO_RATE * 100, 2) }}%)</td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td style="text-align: right;">{{ number_format($amo, 2) }}</td>
+                    <td style="text-align: right;">{{ number_format($payslip['amo'], 2) }}</td>
                 </tr>
             @endif
         </tbody>
         <tfoot>
             <tr class="total-row">
                 <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Général</td>
-                <td style="text-align: right;">{{ number_format($totalGains, 2) }}</td>
-                <td style="text-align: right;">{{ number_format($totalRetenues, 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['total_gains'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['total_retenues'], 2) }}</td>
             </tr>
         </tfoot>
     </table>
 
     <div style="text-align: right; margin-top: 10px;">
         <div class="label">Net à Payer</div>
-        <div class="net-pay">{{ number_format($totalNet, 2) }} DH</div>
+        <div class="net-pay">{{ number_format($payslip['total_net'], 2) }} DH</div>
     </div>
 
     <div class="signature">

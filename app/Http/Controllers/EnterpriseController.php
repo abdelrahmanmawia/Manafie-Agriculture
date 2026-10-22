@@ -347,15 +347,24 @@ class EnterpriseController extends Controller
         // supposed to be historically frozen the moment the quinzaine first closes, and
         // generateSnapshot() partly depends on live state (employee complement) that could
         // have changed since.
-        if ($quinzaine->is_closed) {
-            return redirect()->back()->with('success', 'Quinzaine closed successfully.');
-        }
+        //
+        // The check, the close and both snapshots run in one transaction with the quinzaine row
+        // locked FOR UPDATE: two concurrent closes can't both see "open", a snapshot failure rolls
+        // the close back instead of leaving a closed period with no summary, and in-flight cell
+        // writes (which share-lock the same row, see PointageController::writeWhileOpen()) finish
+        // before the snapshot reads the records.
+        DB::transaction(function () use ($quinzaine) {
+            $quinzaine = Quinzaine::lockForUpdate()->findOrFail($quinzaine->id);
+            if ($quinzaine->is_closed) {
+                return;
+            }
 
-        $quinzaine->update(['is_closed' => true]);
+            $quinzaine->update(['is_closed' => true]);
 
-        // Generate Snapshot for performance
-        $this->payrollService->generateSnapshot($quinzaine);
-        $this->transportService->generateSnapshot($quinzaine);
+            // Generate Snapshot for performance
+            $this->payrollService->generateSnapshot($quinzaine);
+            $this->transportService->generateSnapshot($quinzaine);
+        });
 
         return redirect()->back()->with('success', 'Quinzaine closed successfully.');
     }

@@ -7,6 +7,7 @@ use App\Models\TransportSnapshot;
 use App\Models\TransportVehicle;
 use App\Models\TransportVehicleAttendance;
 use App\Services\TransportService;
+use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -104,6 +105,13 @@ class TransportController extends Controller
         // the attendance fact itself is shared farm-wide regardless (see TransportService).
         if ($quinzaine->is_closed) {
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        }
+
+        // The closed check above only means anything for a date inside this quinzaine —
+        // otherwise any open quinzaine id could be used to toggle a day of a closed period.
+        $day = Carbon::parse($validated['date'])->startOfDay();
+        if (! $day->betweenIncluded($quinzaine->start_date->copy()->startOfDay(), $quinzaine->end_date->copy()->startOfDay())) {
+            return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
         }
 
         $existing = TransportVehicleAttendance::where('transport_vehicle_id', $validated['transport_vehicle_id'])

@@ -12,7 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Scan-station tokens expire (PointageScanController::TOKEN_LIFETIME_DAYS); drop the dead rows.
+        $schedule->command('sanctum:prune-expired --hours=24')->daily();
     }
 
     /**

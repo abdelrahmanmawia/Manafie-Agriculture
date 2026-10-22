@@ -306,10 +306,45 @@ class PointageController extends Controller
             abort_unless($blocRecord->farm_id === $farmId, 403);
         }
 
-        if ($quinzaine->is_closed) {
-            return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        if (! $this->dateInQuinzaine($validated['date'], $quinzaine)) {
+            return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
         }
 
+        return $this->writeWhileOpen($quinzaine, fn () => $this->writeCell($validated, $quinzaine, $employee, $operationRecord));
+    }
+
+    /**
+     * Records dated outside their quinzaine are invisible in the Grid/summary (both filter to
+     * start..end) but still counted by generateSnapshot() and payroll history — pay nobody can
+     * see or correct. Only a date inside the period may be written.
+     */
+    private function dateInQuinzaine(string $date, Quinzaine $quinzaine): bool
+    {
+        $day = Carbon::parse($date)->startOfDay();
+
+        return $day->betweenIncluded($quinzaine->start_date->copy()->startOfDay(), $quinzaine->end_date->copy()->startOfDay());
+    }
+
+    /**
+     * Runs a pointage write with the quinzaine row share-locked and is_closed re-read under that
+     * lock. EnterpriseController::closeQuinzaine() takes the same row FOR UPDATE, so a close waits
+     * for in-flight cell writes and any write arriving after it sees the period closed — before,
+     * a save landing mid-close could slip into a "frozen" period after its snapshot was taken.
+     * Shared (not exclusive) so concurrent cell writes on the same quinzaine don't serialize.
+     */
+    private function writeWhileOpen(Quinzaine $quinzaine, \Closure $write)
+    {
+        return DB::transaction(function () use ($quinzaine, $write) {
+            if (Quinzaine::whereKey($quinzaine->id)->sharedLock()->value('is_closed')) {
+                return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+            }
+
+            return $write();
+        });
+    }
+
+    private function writeCell(array $validated, Quinzaine $quinzaine, Employee $employee, ?Operation $operationRecord)
+    {
         // No operation/bloc, and not a paid holiday either -> plain absence, no pay: delete
         // the record. If is_jf IS set though, this is a public holiday the employee did NOT
         // work — still owed one day's pay, just never the worked+JF double (see the branch
@@ -407,21 +442,38 @@ class PointageController extends Controller
      * requests interleave between those statements and each end up inserting its own row for
      * the same day instead of the second cleanly replacing the first — confirmed as the exact
      * cause of a real duplicate-record bug (two 2QZ Août 2026 employees each had an extra
-     * `pointage_records` row for the same date, double-counting that day's net). updateOrCreate
-     * closes almost all of that window; the unique index on
+     * `pointage_records` row for the same date, double-counting that day's net). Look-up-then-
+     * write closes almost all of that window; the unique index on
      * (employee_id, quinzaine_id, date) is the real backstop — it turns the rare remaining race
      * into a caught constraint violation instead of a silent duplicate, so the catch below just
      * retries as a plain update.
+     *
+     * The look-up uses whereDate(), not updateOrCreate()'s plain `date = 'Y-m-d'`: Eloquent's
+     * date cast stores 'Y-m-d 00:00:00', which a string compare (SQLite) never matches — the
+     * create then hit the unique index and the fallback update matched nothing, silently
+     * dropping the edit. Same reasoning as PointageScanController::sync()'s own look-up.
      */
     private function upsertPointageRecord(array $identity, array $values): void
     {
+        // Every write through here is a manual Grid entry: clearing scan_uuid marks the record
+        // as hand-entered, which PointageScanController::sync() then never overwrites (a scan
+        // would otherwise reset the H.S./JF typed in here).
+        $values['scan_uuid'] = null;
+
+        $existing = fn () => PointageRecord::where('employee_id', $identity['employee_id'])
+            ->where('quinzaine_id', $identity['quinzaine_id'])
+            ->whereDate('date', $identity['date']);
+
         try {
-            DB::transaction(fn () => PointageRecord::updateOrCreate($identity, $values));
+            DB::transaction(function () use ($existing, $identity, $values) {
+                $record = $existing()->first();
+                $record ? $record->update($values) : PointageRecord::create($identity + $values);
+            });
         } catch (\Illuminate\Database\QueryException $e) {
             if ($e->getCode() !== '23000') {
                 throw $e;
             }
-            PointageRecord::where($identity)->update($values);
+            $existing()->update($values);
         }
     }
 
@@ -463,10 +515,17 @@ class PointageController extends Controller
             abort_unless(Bloc::where('id', $validated['bloc_id'])->where('farm_id', $farmId)->exists(), 403);
         }
 
-        if ($quinzaine->is_closed) {
-            return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        foreach ($validated['dates'] as $date) {
+            if (! $this->dateInQuinzaine($date, $quinzaine)) {
+                return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
+            }
         }
 
+        return $this->writeWhileOpen($quinzaine, fn () => $this->writeCellBulk($validated, $quinzaine, $employee));
+    }
+
+    private function writeCellBulk(array $validated, Quinzaine $quinzaine, Employee $employee)
+    {
         // If operation_id is null, this is a clear operation - delete all records for the dates
         if (!$validated['operation_id'] || !$validated['bloc_id']) {
             foreach ($validated['dates'] as $date) {

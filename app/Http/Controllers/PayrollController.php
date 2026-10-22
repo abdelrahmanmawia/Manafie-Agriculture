@@ -80,62 +80,26 @@ class PayrollController extends Controller
             return redirect()->back()->with('error', 'Aucun pointage trouvé pour ce salarié.');
         }
 
-        // Calculate Totals for the PDF
-        $totalNet = 0;
-        $totalGains = 0;
-        $totalRetenues = 0;
-
-        foreach($records as $record) {
-            // Use this RECORD's own frozen rate, not the enterprise's CURRENT default_brut_rate
-            // — a closed quinzaine's numbers must not silently drift if the rate changes later
-            // (see PointageExport.php's own comment on the same principle). totalNet is summed
-            // straight from $record->net (never recomputed) so it always matches the Grid/Excel
-            // export exactly; $calc here is only used to reconstruct the gains/deductions
-            // breakdown display below.
-            $calc = $this->payrollService->calculate(
-                $quinzaine->enterprise->contract_type,
-                $record->rate,
-                $record->hours,
-                $employee->complement,
-                $record->is_jf,
-                $quinzaine->enterprise->invoiced_to_client
-            );
-            $totalNet += $record->net;
-
-            // Simplified Gain/Deduction math for the PDF view — reuse the service's own hs_pay
-            // rather than re-deriving the HS rate here, so this always matches PayrollService::calculate().
-            // Complement/prime only exists for avec_contrat in PayrollService::calculate() (sans_contrat's
-            // total_net never includes it), so mirror that here too or totalGains/totalRetenues drift from
-            // the real net pay. On a JF day for avec_contrat, $calc['sal_net_j'] already folds it in, so
-            // it's only added as its own line the rest of the time.
-            $isAvecContrat = $quinzaine->enterprise->contract_type === 'avec_contrat';
-            $brutDay = $calc['brut'] + $calc['hs_pay'] + ($record->is_jf ? $calc['sal_net_j'] : 0)
-                + ($isAvecContrat && !$record->is_jf ? $employee->complement : 0);
-            $totalGains += $brutDay;
-            $totalRetenues += ($brutDay - $record->net);
-        }
-
-        // Same historical-rate reasoning as above: base it on the employee's own last worked
-        // day's rate this period, not the enterprise's current rate.
-        $baseRateThisPeriod = $records->last()->rate ?? $quinzaine->enterprise->default_brut_rate;
-        $standardNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
-            ? $baseRateThisPeriod * (1 - 0.0674)
-            : $baseRateThisPeriod;
-        $baseNetJ = $quinzaine->enterprise->contract_type === 'avec_contrat'
-            ? $standardNetJ + $employee->complement
-            : $standardNetJ;
+        // Every line (and the totals) comes from PayrollService::payslipBreakdown() — see there
+        // for what the hand-rolled math that used to live here got wrong.
+        $payslip = $this->payrollService->payslipBreakdown(
+            $quinzaine->enterprise->contract_type,
+            $records,
+            $employee->complement
+        );
 
         $pdf = Pdf::loadView('exports.payslip', [
             'employee' => $employee,
             'quinzaine' => $quinzaine,
             'records' => $records,
-            'totalNet' => $totalNet,
-            'totalGains' => $totalGains,
-            'totalRetenues' => $totalRetenues,
-            'baseNetJ' => $baseNetJ
+            'payslip' => $payslip,
         ]);
 
-        return $pdf->download('Bulletin_' . $employee->matricule . '_' . $quinzaine->label . '.pdf');
+        // Same filename sanitizing as PointageController::export() — a label like "1QZ 01/2026"
+        // would otherwise put a path separator in the download name.
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+
+        return $pdf->download('Bulletin_' . $employee->matricule . '_' . $cleanLabel . '.pdf');
     }
 
     public function history(Request $request)

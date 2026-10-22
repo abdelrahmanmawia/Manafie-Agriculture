@@ -278,7 +278,13 @@ document.addEventListener('DOMContentLoaded', () => {
             // Network/server unreachable — the queue is left untouched so the next manual
             // click, 'online' event, or periodic auto-retry picks it back up, but the
             // operator needs to actually see that it didn't go through.
-            syncStatus.textContent = '✗ Synchronisation impossible — nouvelle tentative automatique en cours.';
+            // 401/403 won't fix themselves by retrying: the station's token expired (it's
+            // time-limited) or the account lost Pointage access. The queue is still kept — a
+            // fresh "Configurer" while online mints a new token without touching it.
+            const authFailed = e.message === 'sync-http-401' || e.message === 'sync-http-403';
+            syncStatus.textContent = authFailed
+                ? '✗ Accès de la station expiré ou retiré — reconfigurez la station en ligne. Les scans en attente sont conservés.'
+                : '✗ Synchronisation impossible — nouvelle tentative automatique en cours.';
             syncStatus.className = 'err';
         }
         await refreshUI();
