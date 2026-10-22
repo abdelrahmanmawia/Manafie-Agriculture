@@ -255,6 +255,23 @@ class PointageIntegrityTest extends TestCase
 
     // --- Snapshot invoicing ---
 
+    public function test_snapshot_counts_worked_days_and_every_jf_day_like_the_export(): void
+    {
+        $this->enterprise->update(['invoiced_to_client' => true]);
+
+        $this->cell(['date' => '2026-01-02']);
+        $this->cell(['date' => '2026-01-03', 'is_jf' => true]);                                  // worked JF
+        $this->cell(['date' => '2026-01-04', 'is_jf' => true, 'operation_id' => null, 'bloc_id' => null]); // unworked JF
+        $this->assertDatabaseCount('pointage_records', 3);
+
+        $service = app(PayrollService::class);
+        $service->generateSnapshot($this->quinzaine->fresh());
+
+        // TOTAL J = 2 worked days (the worked JF included), JF = 2 (worked and unworked).
+        $expected = $service->calculateInvoicing('avec_contrat', 100, 10, 2, 2, 0, true)['total_ttc'];
+        $this->assertEqualsWithDelta($expected, QuinzaineSummary::sole()->total_ttc, 0.01);
+    }
+
     public function test_snapshot_invoicing_ignores_piece_rate_days_even_when_first(): void
     {
         $this->enterprise->update(['invoiced_to_client' => true]);

@@ -142,13 +142,11 @@
                     $quinzaineTotalNet += $recordList[0]->net;
                 }
 
-                $invoicing = $payrollService->calculateInvoicing(
+                // Same TOTAL J / JF counting as the closing snapshot (PayrollService::invoicingForRecords()).
+                $invoicing = $payrollService->invoicingForRecords(
                     $quinzaine->enterprise->contract_type,
-                    $employeeRate,
+                    $employeeRecords->map(fn ($dayList) => $dayList[0]),
                     $emp->complement,
-                    $totalJours,
-                    $totalJf,
-                    $totalHs,
                     $quinzaine->enterprise->invoiced_to_client
                 );
                 $quinzaineNetFacturJ = $invoicing['net_factur_j'];
@@ -272,13 +270,10 @@
                             $grandTotalNet += $recordList[0]->net;
                         }
 
-                        $empInvoicing = $payrollService->calculateInvoicing(
+                        $empInvoicing = $payrollService->invoicingForRecords(
                             $quinzaine->enterprise->contract_type,
-                            $empRate,
+                            $empRecords->map(fn ($dayList) => $dayList[0]),
                             $emp->complement,
-                            $empJours,
-                            $empJfCount,
-                            $empRecords->sum(fn($r) => $r[0]->hours),
                             $quinzaine->enterprise->invoiced_to_client
                         );
                         $grandTotalTtc += $empInvoicing['total_ttc'];

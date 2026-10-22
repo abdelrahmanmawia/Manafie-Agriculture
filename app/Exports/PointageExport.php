@@ -89,23 +89,20 @@ class PointageExport implements FromView, ShouldAutoSize, WithColumnWidths, With
         $showInvoicing = $enterprise->invoiced_to_client ?? ($enterprise->contract_type === 'avec_contrat');
 
         // Per-employee net_factur_j and JF-in-TTC-bonus, computed once per employee from their
-        // WHOLE period (quantity/piece-rate days excluded — same inputs calculateInvoicing()
-        // already needs) rather than per record, since net_factur_j isn't a per-day figure.
+        // WHOLE period rather than per record, since net_factur_j isn't a per-day figure. The
+        // TOTAL J / JF / H.S. counting is PayrollService::invoicingForRecords() — the same one the
+        // closing snapshot uses, so the export and the stored totals can't disagree.
         $employeeInvoicing = [];
         if ($showInvoicing) {
             $plainByEmployee = $records->filter(fn ($r) => $r->quantity === null)->groupBy('employee_id');
             foreach ($plainByEmployee as $employeeId => $empRecords) {
-                $totalDays = $empRecords->filter(fn ($r) => $r->operation_id !== null && $r->bloc_id !== null)->count();
-                $jfCount = $empRecords->filter(fn ($r) => $r->is_jf)->count();
-                $hsTotal = $empRecords->sum('hours');
-                $empRate = $empRecords->first()->rate;
                 $employeeComplement = $empRecords->first()->employee->complement;
 
-                $invoicing = $this->payrollService->calculateInvoicing(
-                    $enterprise->contract_type, $empRate, $employeeComplement, $totalDays, $jfCount, $hsTotal, $enterprise->invoiced_to_client
+                $invoicing = $this->payrollService->invoicingForRecords(
+                    $enterprise->contract_type, $empRecords, $employeeComplement, $enterprise->invoiced_to_client
                 );
                 $calc = $this->payrollService->calculate(
-                    $enterprise->contract_type, $empRate, 0, $employeeComplement, false, $enterprise->invoiced_to_client, true
+                    $enterprise->contract_type, $invoicing['rate'], 0, $employeeComplement, false, $enterprise->invoiced_to_client, true
                 );
 
                 $employeeInvoicing[$employeeId] = [

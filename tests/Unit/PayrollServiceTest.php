@@ -197,6 +197,37 @@ class PayrollServiceTest extends TestCase
         $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
     }
 
+    // --- invoicingForRecords(): TOTAL J = worked days, JF = every JF day (business rule) ---
+
+    public function test_invoicing_counts_worked_days_only_and_every_jf_day(): void
+    {
+        $worked = fn (array $a = []) => (object) ($a + ['rate' => 97.44, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'quantity' => null]);
+        $records = collect(array_merge(
+            array_fill(0, 9, $worked()),                                      // 9 normal worked days
+            [$worked(['is_jf' => true, 'hours' => 2])],                       // 1 worked JF day (+2 H.S.)
+            array_fill(0, 2, $worked(['is_jf' => true, 'operation_id' => null, 'bloc_id' => null])), // 2 unworked JF days
+            [$worked(['rate' => 5, 'quantity' => 40])],                       // piece-rate: ignored
+        ));
+
+        $inv = $this->svc->invoicingForRecords('avec_contrat', $records, 3.267456, true);
+
+        $this->assertSame(10, $inv['days']); // the worked JF counts, the unworked ones don't
+        $this->assertSame(3, $inv['jf']);    // every JF day, worked or not
+        $this->assertEquals(2, $inv['hs']);
+        $this->assertEquals(97.44, $inv['rate']);
+        $expected = $this->svc->calculateInvoicing('avec_contrat', 97.44, 3.267456, 10, 3, 2, true);
+        $this->assertEqualsWithDelta($expected['total_ttc'], $inv['total_ttc'], 1e-9);
+    }
+
+    public function test_invoicing_for_a_worker_with_only_piece_rate_days_is_zero(): void
+    {
+        $records = collect([(object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'quantity' => 40]]);
+
+        $inv = $this->svc->invoicingForRecords('avec_contrat', $records, 0, true);
+
+        $this->assertEquals(0, $inv['total_ttc']);
+    }
+
     public function test_cnss_and_amo_split_exactly_the_deduction_rate(): void
     {
         $this->assertEqualsWithDelta(PayrollService::DEDUCTION_RATE, PayrollService::CNSS_RATE + PayrollService::AMO_RATE, 1e-9);

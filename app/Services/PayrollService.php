@@ -113,6 +113,41 @@ class PayrollService
     }
 
     /**
+     * One employee's client invoicing for a whole quinzaine, straight from their records — the
+     * single definition of calculateInvoicing()'s inputs, shared by the closing snapshot and the
+     * Excel export (which used to count JF days differently from each other). Confirmed with
+     * the business against the approved workbook:
+     *  - TOTAL J = days actually worked (operation and bloc set). A JF day the employee worked
+     *    counts; a paid JF day they did NOT work does not.
+     *  - JF = every JF day of the period, worked or not — the same for every worker; what
+     *    differs between them is only TOTAL J.
+     *  - Piece-rate records (quantity set) are left out entirely: their `rate` is the
+     *    operation's per-unit price, not a day rate.
+     *  - rate = the period's own frozen day rate (never the enterprise's current one).
+     *
+     * Returns calculateInvoicing()'s figures plus the inputs used (days/jf/hs/rate), so callers
+     * can display them.
+     */
+    public function invoicingForRecords($contractType, $records, $complement, $invoicedToClient = null): array
+    {
+        $dayRecords = $records->whereNull('quantity');
+        if ($dayRecords->isEmpty()) {
+            return ['net_factur_j' => 0, 'total_ttc' => 0, 'days' => 0, 'jf' => 0, 'hs' => 0, 'rate' => null];
+        }
+
+        $inputs = [
+            'days' => $dayRecords->filter(fn ($r) => $r->operation_id !== null && $r->bloc_id !== null)->count(),
+            'jf' => $dayRecords->filter(fn ($r) => $r->is_jf)->count(),
+            'hs' => (float) $dayRecords->sum('hours'),
+            'rate' => $dayRecords->first()->rate,
+        ];
+
+        return $this->calculateInvoicing(
+            $contractType, $inputs['rate'], $complement, $inputs['days'], $inputs['jf'], $inputs['hs'], $invoicedToClient
+        ) + $inputs;
+    }
+
+    /**
      * Every line of one employee's payslip for one quinzaine. Previously PayrollController and
      * the payslip template each rebuilt this themselves — with the enterprise's CURRENT rate
      * instead of each record's frozen one, a hardcoded 0.0674, unworked JF days counted as a
@@ -274,16 +309,8 @@ class PayrollService
         $opCosts = [];
         $blocCosts = [];
         $employees = [];
-        // net_factur_j/total_ttc are period-level (see calculateInvoicing()), so each employee's
-        // days-worked/JF-day/H.S.-hours totals for this whole quinzaine need collecting first.
-        $employeeAggregates = [];
 
         foreach ($quinzaine->pointageRecords as $record) {
-            // A record with no operation is a paid public holiday the employee did NOT work
-            // (see PointageController::updateCell()) — pays a single day's rate, never the JF
-            // double, and doesn't count as a worked/bonus day for the invoicing spread below.
-            $worked = $record->operation_id !== null;
-
             // Read straight from this record's own frozen rate/brut/net — never recompute via
             // calculate(), which would use the enterprise's CURRENT default_brut_rate instead
             // of whatever was actually in effect when this day was entered. This snapshot is
@@ -299,19 +326,6 @@ class PayrollService
             $employeeNets[$employeeId] = ($employeeNets[$employeeId] ?? 0) + $record->net;
             $employees[$employeeId] = $record->employee_id;
 
-            // Piece-rate records (quantity set) stay out of the invoicing inputs, same as
-            // PointageExport: their `rate` is the operation's per-unit price, not a day rate, so
-            // if one happened to be an employee's first record it used to become the brut rate
-            // their whole period was invoiced at.
-            if ($record->quantity === null) {
-                $employeeAggregates[$employeeId] ??= ['days' => 0, 'jf' => 0, 'hs' => 0, 'complement' => $record->employee->complement, 'rate' => $record->rate];
-                $employeeAggregates[$employeeId]['days']++;
-                if ($record->is_jf && $worked) {
-                    $employeeAggregates[$employeeId]['jf']++;
-                }
-                $employeeAggregates[$employeeId]['hs'] += $record->hours;
-            }
-
             // Breakdown by Operation/Bloc — an unworked paid JF day has neither, so it's
             // deliberately left out of both breakdowns (its net is still in totalNet above).
             if ($record->operation) {
@@ -324,16 +338,12 @@ class PayrollService
             }
         }
 
-        foreach ($employeeAggregates as $agg) {
-            // Same historical-rate reasoning: use this employee's own rate as it stood this
-            // period, not the enterprise's current rate.
-            $invoicing = $this->calculateInvoicing(
+        // Same TOTAL J / JF / H.S. counting as the Excel export — see invoicingForRecords().
+        foreach ($quinzaine->pointageRecords->groupBy('employee_id') as $employeeRecords) {
+            $invoicing = $this->invoicingForRecords(
                 $quinzaine->enterprise->contract_type,
-                $agg['rate'],
-                $agg['complement'],
-                $agg['days'],
-                $agg['jf'],
-                $agg['hs'],
+                $employeeRecords,
+                $employeeRecords->first()->employee->complement,
                 $quinzaine->enterprise->invoiced_to_client
             );
             $totalTtc += $invoicing['total_ttc'];
