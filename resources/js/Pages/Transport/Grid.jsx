@@ -5,20 +5,24 @@ import { Head, Link, router } from '@inertiajs/react';
 // Day-by-day grid, rows = vehicles (not employees) — mirrors Pointage/Grid.jsx's sticky-table
 // shape, but each cell is a plain toggle (this vehicle operated this day or not) rather than an
 // operation/bloc picker, since a vehicle's cost is a flat net_per_day, not hours-based. See
-// TransportController::grid()/toggleAttendance() and TransportVehicle::netPerDay().
+// TransportController::grid()/setAttendance() and TransportVehicle::netPerDay().
 export default function Grid({ auth, quinzaine, vehicles, days, existingAttendances }) {
     const [pendingCell, setPendingCell] = useState(null);
 
     const isMarked = (vehicleId, day) => !!(existingAttendances[vehicleId] && existingAttendances[vehicleId][day]);
 
+    // Sends the state the click asks for (not "toggle"), so a double-click or a retried request
+    // can't flip it back; clicks on a cell already being saved are ignored.
     const toggleCell = (vehicleId, day) => {
         if (quinzaine.is_closed) return;
         const key = `${vehicleId}_${day}`;
+        if (pendingCell === key) return;
         setPendingCell(key);
-        router.post(route('transport.attendance.toggle'), {
+        router.post(route('transport.attendance.set'), {
             transport_vehicle_id: vehicleId,
             quinzaine_id: quinzaine.id,
             date: day,
+            present: !isMarked(vehicleId, day),
         }, {
             preserveScroll: true,
             preserveState: true,

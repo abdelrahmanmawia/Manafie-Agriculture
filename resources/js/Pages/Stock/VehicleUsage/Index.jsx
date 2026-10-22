@@ -12,15 +12,22 @@ export default function Index({ auth, vehicles, days, startDate, endDate, existi
 
     // One click toggles the cell: off -> on (at the vehicle's own default_daily_rate, set once
     // from the vehicle's edit form, not retyped every day), on -> off. Mirrors the Pointage grid's
-    // own quick-toggle interaction.
+    // own quick-toggle interaction. It sends the state the click asks for (`used`), not "toggle",
+    // so a double-click or a retried request can't flip it back; clicks on a cell already being
+    // saved are ignored.
+    const [pendingCell, setPendingCell] = useState(null);
     const toggleCell = (vehicle, date) => {
         if (closedSet.has(date)) {
             return; // Closed period — server would reject this anyway, don't even try.
         }
+        const key = `${vehicle.id}_${date}`;
+        if (pendingCell === key) return;
+        setPendingCell(key);
         router.post(route('stock.vehicle-usage.cell'), {
             vehicle_id: vehicle.id,
             date,
-        }, { preserveScroll: true });
+            used: !existingUsages[vehicle.id]?.[date]?.[0],
+        }, { preserveScroll: true, onFinish: () => setPendingCell(null) });
     };
 
     const goToRange = (start, end) => {

@@ -84,12 +84,19 @@ class TransportController extends Controller
         ]);
     }
 
-    public function toggleAttendance(Request $request)
+    /**
+     * Marks one vehicle as having run (present=true) or not (present=false) on one day. Takes the
+     * wanted state rather than toggling: a toggle flipped twice on a double-click or a retried
+     * request, silently undoing the click, and two concurrent "add"s hit the unique index as a
+     * 500. Setting a state that's already there is a no-op.
+     */
+    public function setAttendance(Request $request)
     {
         $validated = $request->validate([
             'transport_vehicle_id' => 'required|exists:transport_vehicles,id',
             'quinzaine_id' => 'required|exists:quinzaines,id',
             'date' => 'required|date',
+            'present' => 'required|boolean',
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
@@ -115,15 +122,19 @@ class TransportController extends Controller
         }
 
         $existing = TransportVehicleAttendance::where('transport_vehicle_id', $validated['transport_vehicle_id'])
-            ->whereDate('date', $validated['date']);
+            ->whereDate('date', $day->toDateString());
 
-        if ($existing->exists()) {
+        if (! $request->boolean('present')) {
             $existing->delete();
-        } else {
-            TransportVehicleAttendance::create([
-                'transport_vehicle_id' => $validated['transport_vehicle_id'],
-                'date' => $validated['date'],
-            ]);
+        } elseif (! $existing->exists()) {
+            try {
+                TransportVehicleAttendance::create([
+                    'transport_vehicle_id' => $validated['transport_vehicle_id'],
+                    'date' => $day->toDateString(),
+                ]);
+            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                // A concurrent request marked the same day first — already in the wanted state.
+            }
         }
 
         return redirect()->back();

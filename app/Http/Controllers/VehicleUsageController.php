@@ -103,11 +103,18 @@ class VehicleUsageController extends Controller
      * presence, using the vehicle's own default_daily_rate (set once, changeable any time from
      * the vehicle's edit form) as the rate for that day.
      */
+    /**
+     * Marks one vehicle as rented/used (used=true) or not (used=false) on one day. Takes the
+     * wanted state rather than toggling: a toggle flipped twice on a double-click or a retried
+     * request, silently undoing the click, and two concurrent "add"s hit the unique index as a
+     * 500. Setting a state that's already there is a no-op.
+     */
     public function cell(Request $request)
     {
         $validated = $request->validate([
             'vehicle_id' => 'required|exists:vehicles,id',
             'date' => 'required|date',
+            'used' => 'required|boolean',
         ]);
 
         $date = Carbon::parse($validated['date'])->format('Y-m-d');
@@ -132,12 +139,15 @@ class VehicleUsageController extends Controller
         }
 
         $existing = VehicleUsage::where('vehicle_id', $validated['vehicle_id'])
-            ->whereDate('date', $date)
-            ->first();
+            ->whereDate('date', $date);
 
-        if ($existing) {
+        if (! $request->boolean('used')) {
             $existing->delete();
 
+            return redirect()->back();
+        }
+
+        if ($existing->exists()) {
             return redirect()->back();
         }
 
@@ -147,12 +157,16 @@ class VehicleUsageController extends Controller
             ]);
         }
 
-        VehicleUsage::create([
-            'vehicle_id' => $validated['vehicle_id'],
-            'farm_id' => $farmId,
-            'date' => $date,
-            'daily_rate' => $vehicle->default_daily_rate,
-        ]);
+        try {
+            VehicleUsage::create([
+                'vehicle_id' => $validated['vehicle_id'],
+                'farm_id' => $farmId,
+                'date' => $date,
+                'daily_rate' => $vehicle->default_daily_rate,
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            // A concurrent request marked the same day first — already in the wanted state.
+        }
 
         return redirect()->back();
     }

@@ -136,10 +136,11 @@ class PointageIntegrityTest extends TestCase
         $company = TransportCompany::create(['farm_id' => $this->farm->id, 'name' => 'Transco']);
         $vehicle = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'T1']);
 
-        $this->actingAs($this->manager)->post('/transport/attendance/toggle', [
+        $this->actingAs($this->manager)->post('/transport/attendance', [
             'transport_vehicle_id' => $vehicle->id,
             'quinzaine_id' => $this->quinzaine->id,
             'date' => '2026-01-20',
+            'present' => true,
         ])->assertSessionHasErrors('date');
 
         $this->assertDatabaseCount('transport_vehicle_attendances', 0);
