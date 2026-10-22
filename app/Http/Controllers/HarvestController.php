@@ -6,6 +6,7 @@ use App\Models\Harvest;
 use App\Models\Bloc;
 use App\Models\Parcelle;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Log; // Import Log facade
 use Illuminate\Validation\ValidationException; // Import ValidationException
@@ -157,44 +158,51 @@ class HarvestController extends Controller
             }
         }
 
-        if ($validated['weighing_type'] === 'total') {
-            // Distribute total weight proportionally by box count
-            $totalWeight = $validated['total_weight_kg'];
-            $totalBoxes = $harvests->sum('boxes_count') ?: $harvests->count(); // Fallback to count if boxes_count is 0
+        // All or nothing: a failure part-way through used to leave the batch half weighed, with
+        // some harvests carrying the new weighing_batch_id and others not.
+        DB::transaction(function () use ($validated, $harvests, $weighingBatchId, $now) {
+            if ($validated['weighing_type'] === 'total') {
+                // Distribute total weight proportionally by box count. A harvest with no box count
+                // weighs as one box — on BOTH sides of the ratio: the denominator used to be the raw
+                // box sum while each zero-box harvest still took a one-box share, so the shares
+                // added up to more than the weight actually entered.
+                $totalWeight = $validated['total_weight_kg'];
+                $boxesOf = fn ($harvest) => $harvest->boxes_count ?: 1;
+                $totalBoxes = $harvests->sum($boxesOf);
 
-            foreach ($harvests as $harvest) {
-                $boxes = $harvest->boxes_count ?: 1; // Ensure boxes is at least 1 to avoid division by zero
-                $actualKg = ($totalWeight / $totalBoxes) * $boxes;
-                $unitPriceDh = $harvest->unit_price_dh ?? 0;
-                $totalRevenue = $actualKg * $unitPriceDh;
+                foreach ($harvests as $harvest) {
+                    $actualKg = ($totalWeight / $totalBoxes) * $boxesOf($harvest);
+                    $unitPriceDh = $harvest->unit_price_dh ?? 0;
+                    $totalRevenue = $actualKg * $unitPriceDh;
 
-                $harvest->update([
-                    'actual_kg' => $actualKg,
-                    'quantity_kg' => $actualKg, // Update quantity to actual
-                    'is_weighed' => true,
-                    'weighed_at' => $now,
-                    'weighing_batch_id' => $weighingBatchId,
-                    'total_revenue_dh' => $totalRevenue
-                ]);
+                    $harvest->update([
+                        'actual_kg' => $actualKg,
+                        'quantity_kg' => $actualKg, // Update quantity to actual
+                        'is_weighed' => true,
+                        'weighed_at' => $now,
+                        'weighing_batch_id' => $weighingBatchId,
+                        'total_revenue_dh' => $totalRevenue
+                    ]);
+                }
+            } else {
+                // Individual weights provided
+                $individualWeights = $validated['individual_weights'];
+                foreach ($harvests as $harvest) {
+                    $actualKg = $individualWeights[$harvest->id] ?? $harvest->estimated_kg;
+                    $unitPriceDh = $harvest->unit_price_dh ?? 0;
+                    $totalRevenue = $actualKg * $unitPriceDh;
+
+                    $harvest->update([
+                        'actual_kg' => $actualKg,
+                        'quantity_kg' => $actualKg,
+                        'is_weighed' => true,
+                        'weighed_at' => $now,
+                        'weighing_batch_id' => $weighingBatchId,
+                        'total_revenue_dh' => $totalRevenue
+                    ]);
+                }
             }
-        } else {
-            // Individual weights provided
-            $individualWeights = $validated['individual_weights'];
-            foreach ($harvests as $harvest) {
-                $actualKg = $individualWeights[$harvest->id] ?? $harvest->estimated_kg;
-                $unitPriceDh = $harvest->unit_price_dh ?? 0;
-                $totalRevenue = $actualKg * $unitPriceDh;
-
-                $harvest->update([
-                    'actual_kg' => $actualKg,
-                    'quantity_kg' => $actualKg,
-                    'is_weighed' => true,
-                    'weighed_at' => $now,
-                    'weighing_batch_id' => $weighingBatchId,
-                    'total_revenue_dh' => $totalRevenue
-                ]);
-            }
-        }
+        });
 
         return redirect()->back()->with('success', count($harvestIds) . ' récolte(s) pesée(s) avec succès.');
     }

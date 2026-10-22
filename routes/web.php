@@ -5,6 +5,7 @@ use App\Http\Controllers\BadgeController;
 use App\Http\Controllers\PointageScanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EnterpriseController;
+use App\Http\Controllers\FarmController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AnalyticsController;
@@ -20,7 +21,7 @@ use App\Http\Controllers\StockAlertController;
 use App\Http\Controllers\FuelTransactionController;
 use App\Http\Controllers\ManualStockEntryController;
 use App\Http\Controllers\StockReportController;
-use App\Http\Controllers\StockController; // Import StockController
+use App\Http\Controllers\StockController;
 use App\Http\Controllers\StockExitTypeController;
 use App\Http\Controllers\VehicleTypeController;
 use App\Http\Controllers\EquipmentTypeController;
@@ -29,9 +30,7 @@ use App\Http\Controllers\TransportLocationController;
 use App\Http\Controllers\TransportCompanyController;
 use App\Http\Controllers\TransportVehicleController;
 use App\Http\Controllers\TransportController;
-use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,21 +51,21 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', [EnterpriseController::class, 'index'])->name('dashboard');
 
     // Farm & Enterprise Management
-    Route::post('/farms', [App\Http\Controllers\FarmController::class, 'store'])->name('farms.store');
-    Route::post('/farms/{farm}/activate', [App\Http\Controllers\FarmController::class, 'activate'])->name('farms.activate');
-    Route::post('/farms/deactivate', [App\Http\Controllers\FarmController::class, 'deactivate'])->name('farms.deactivate');
-    Route::delete('/farms/{farm}', [App\Http\Controllers\FarmController::class, 'destroy'])->name('farms.destroy');
-    Route::get('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'settings'])->name('farms.settings');
-    Route::patch('/farms/{farm}/settings', [App\Http\Controllers\FarmController::class, 'updateSettings'])->name('farms.updateSettings');
-    Route::post('/farms/{farm}/operations', [App\Http\Controllers\FarmController::class, 'addOperation'])->name('farms.operations.store');
-    Route::put('/farms/operations/{operation}', [App\Http\Controllers\FarmController::class, 'updateOperation'])->name('farms.operations.update');
-    Route::post('/farms/{farm}/blocs', [App\Http\Controllers\FarmController::class, 'addBloc'])->name('farms.blocs.store');
-    Route::post('/farms/{farm}/sectors', [App\Http\Controllers\FarmController::class, 'addSector'])->name('farms.sectors.store');
-    Route::post('/farms/{farm}/parcelles', [App\Http\Controllers\FarmController::class, 'addParcelle'])->name('farms.parcelles.store');
-    Route::delete('/farms/operations/{operation}', [App\Http\Controllers\FarmController::class, 'deleteOperation'])->name('farms.operations.destroy');
-    Route::delete('/farms/blocs/{bloc}', [App\Http\Controllers\FarmController::class, 'deleteBloc'])->name('farms.blocs.destroy');
-    Route::delete('/farms/sectors/{sector}', [App\Http\Controllers\FarmController::class, 'deleteSector'])->name('farms.sectors.destroy');
-    Route::delete('/farms/parcelles/{parcelle}', [App\Http\Controllers\FarmController::class, 'deleteParcelle'])->name('farms.parcelles.destroy');
+    Route::post('/farms', [FarmController::class, 'store'])->name('farms.store');
+    Route::post('/farms/{farm}/activate', [FarmController::class, 'activate'])->name('farms.activate');
+    Route::post('/farms/deactivate', [FarmController::class, 'deactivate'])->name('farms.deactivate');
+    Route::delete('/farms/{farm}', [FarmController::class, 'destroy'])->name('farms.destroy');
+    Route::get('/farms/{farm}/settings', [FarmController::class, 'settings'])->name('farms.settings');
+    Route::patch('/farms/{farm}/settings', [FarmController::class, 'updateSettings'])->name('farms.updateSettings');
+    Route::post('/farms/{farm}/operations', [FarmController::class, 'addOperation'])->name('farms.operations.store');
+    Route::put('/farms/operations/{operation}', [FarmController::class, 'updateOperation'])->name('farms.operations.update');
+    Route::post('/farms/{farm}/blocs', [FarmController::class, 'addBloc'])->name('farms.blocs.store');
+    Route::post('/farms/{farm}/sectors', [FarmController::class, 'addSector'])->name('farms.sectors.store');
+    Route::post('/farms/{farm}/parcelles', [FarmController::class, 'addParcelle'])->name('farms.parcelles.store');
+    Route::delete('/farms/operations/{operation}', [FarmController::class, 'deleteOperation'])->name('farms.operations.destroy');
+    Route::delete('/farms/blocs/{bloc}', [FarmController::class, 'deleteBloc'])->name('farms.blocs.destroy');
+    Route::delete('/farms/sectors/{sector}', [FarmController::class, 'deleteSector'])->name('farms.sectors.destroy');
+    Route::delete('/farms/parcelles/{parcelle}', [FarmController::class, 'deleteParcelle'])->name('farms.parcelles.destroy');
 
     Route::post('/enterprises', [EnterpriseController::class, 'store'])->name('enterprises.store');
     Route::patch('/enterprises/{enterprise}', [EnterpriseController::class, 'update'])->name('enterprises.update');
@@ -85,7 +84,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pointage/quinzaines', [PointageController::class, 'quinzaines'])->name('pointage.quinzaines');
     Route::get('/pointage/grid/{quinzaine}', [PointageController::class, 'grid'])->name('pointage.grid');
     Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');
-    Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions'); // New route
+    Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions');
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
     Route::post('/pointage/cell-bulk', [PointageController::class, 'updateCellBulk'])->name('pointage.cell.bulk');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
