@@ -148,7 +148,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/transport/vehicles/{transportVehicle}', [TransportVehicleController::class, 'destroy'])->name('transport.vehicles.destroy');
     Route::get('/transport/summary', [TransportController::class, 'summary'])->name('transport.summary.index');
     Route::get('/transport/grid/{quinzaine}', [TransportController::class, 'grid'])->name('transport.grid');
-    Route::post('/transport/attendance', [TransportController::class, 'setAttendance'])->name('transport.attendance.set');
+    Route::post('/transport/absence', [TransportController::class, 'setAbsence'])->name('transport.absence.set');
 
     // Division/Quinzaine/Bloc/Operation management — same domain as Employees above.
     Route::get('/settings', [EnterpriseController::class, 'settings'])->name('settings.index');

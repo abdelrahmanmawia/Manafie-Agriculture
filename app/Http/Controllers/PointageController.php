@@ -12,6 +12,7 @@ use App\Models\Bloc;
 use App\Models\Parcelle;
 use App\Services\JourFerieService;
 use App\Services\PayrollService;
+use App\Services\TransportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -25,9 +26,12 @@ class PointageController extends Controller
 {
     protected $payrollService;
 
-    public function __construct(PayrollService $payrollService)
+    protected $transportService;
+
+    public function __construct(PayrollService $payrollService, TransportService $transportService)
     {
         $this->payrollService = $payrollService;
+        $this->transportService = $transportService;
     }
 
     public function export(Request $request, $quinzaineId)
@@ -407,6 +411,11 @@ class PointageController extends Controller
         try {
             DB::transaction(function () use ($existing, $identity, $values) {
                 $record = $existing()->first();
+                // The day keeps the vehicle it was first entered with (TransportService): moving
+                // the worker to another équipe later doesn't move this day to the new vehicle.
+                if (! $record || $record->transport_vehicle_id === null) {
+                    $values['transport_vehicle_id'] = $this->transportService->riderVehicleId($identity['employee_id']);
+                }
                 $record ? $record->update($values) : PointageRecord::create($identity + $values);
             });
         } catch (\Illuminate\Database\QueryException $e) {

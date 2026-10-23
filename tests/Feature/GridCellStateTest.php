@@ -7,7 +7,7 @@ use App\Models\Farm;
 use App\Models\Quinzaine;
 use App\Models\TransportCompany;
 use App\Models\TransportVehicle;
-use App\Models\TransportVehicleAttendance;
+use App\Models\TransportVehicleAbsence;
 use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleUsage;
@@ -15,8 +15,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * The transport attendance and vehicle usage grids send the wanted state of a cell
- * (present/used), not "toggle": repeating a request — a double-click, a retry — must leave the
+ * The transport absence and vehicle usage grids send the wanted state of a cell
+ * (absent/used), not "toggle": repeating a request — a double-click, a retry — must leave the
  * cell as asked instead of flipping it back.
  */
 class GridCellStateTest extends TestCase
@@ -48,13 +48,13 @@ class GridCellStateTest extends TestCase
         ]);
     }
 
-    private function attendance(bool $present)
+    private function absence(bool $absent)
     {
-        return $this->actingAs($this->manager)->post('/transport/attendance', [
+        return $this->actingAs($this->manager)->post('/transport/absence', [
             'transport_vehicle_id' => $this->bus->id,
             'quinzaine_id' => $this->quinzaine->id,
             'date' => '2026-01-05',
-            'present' => $present,
+            'absent' => $absent,
         ]);
     }
 
@@ -67,35 +67,35 @@ class GridCellStateTest extends TestCase
         ]);
     }
 
-    // --- Transport attendance ---
+    // --- Transport absence ---
 
-    public function test_marking_attendance_twice_keeps_it_marked(): void
+    public function test_marking_absence_twice_keeps_it_marked(): void
     {
-        $this->attendance(true)->assertSessionHasNoErrors();
-        $this->attendance(true)->assertSessionHasNoErrors();
+        $this->absence(true)->assertSessionHasNoErrors();
+        $this->absence(true)->assertSessionHasNoErrors();
 
-        $this->assertSame(1, TransportVehicleAttendance::count());
+        $this->assertSame(1, TransportVehicleAbsence::count());
     }
 
-    public function test_unmarking_attendance_twice_keeps_it_unmarked(): void
+    public function test_unmarking_absence_twice_keeps_it_unmarked(): void
     {
-        $this->attendance(true);
+        $this->absence(true);
 
-        $this->attendance(false)->assertSessionHasNoErrors();
-        $this->attendance(false)->assertSessionHasNoErrors();
+        $this->absence(false)->assertSessionHasNoErrors();
+        $this->absence(false)->assertSessionHasNoErrors();
 
-        $this->assertSame(0, TransportVehicleAttendance::count());
+        $this->assertSame(0, TransportVehicleAbsence::count());
     }
 
-    public function test_attendance_requires_the_wanted_state(): void
+    public function test_absence_requires_the_wanted_state(): void
     {
-        $this->actingAs($this->manager)->post('/transport/attendance', [
+        $this->actingAs($this->manager)->post('/transport/absence', [
             'transport_vehicle_id' => $this->bus->id,
             'quinzaine_id' => $this->quinzaine->id,
             'date' => '2026-01-05',
-        ])->assertSessionHasErrors('present');
+        ])->assertSessionHasErrors('absent');
 
-        $this->assertSame(0, TransportVehicleAttendance::count());
+        $this->assertSame(0, TransportVehicleAbsence::count());
     }
 
     // --- Vehicle usage ---

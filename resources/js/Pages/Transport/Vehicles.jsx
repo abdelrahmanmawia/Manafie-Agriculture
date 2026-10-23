@@ -8,11 +8,18 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 
-const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', fixed_net_per_day: '' };
+const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', price_per_person: '', fixed_net_per_day: '' };
+
+// How the vehicle is paid per day it runs (TransportService::dailyCost()).
+const priceLabel = (vehicle) => vehicle.fixed_net_per_day !== null
+    ? `Forfait ${vehicle.fixed_net_per_day} dh/jour`
+    : vehicle.price_per_person !== null ? `${vehicle.price_per_person} dh/personne` : null;
 
 // Farm-scoped list of transport vehicles (the "CODE"/matricule) — each belongs to one
 // TransportCompany and has its own driver. Its riders are the members of the équipes riding
 // it: they're assigned on the Équipes page (one équipe, one vehicle), and only summarised here.
+// Its daily cost is computed from the pointage: riders who worked that day × price per person
+// (or the optional flat daily rate), see the Grille Transport.
 export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
     const [editingId, setEditingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
@@ -38,6 +45,7 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
             driver_name: vehicle.driver_name || '',
             driver_phone: vehicle.driver_phone || '',
             capacity: vehicle.capacity ?? '',
+            price_per_person: vehicle.price_per_person ?? '',
             fixed_net_per_day: vehicle.fixed_net_per_day ?? '',
         });
         setEditingId(vehicle.id);
@@ -59,12 +67,6 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
     const toggleActive = (vehicle) => {
         router.put(route('transport.vehicles.update', vehicle.id), {
             is_active: !vehicle.is_active,
-        }, { preserveScroll: true });
-    };
-
-    const resetToAutoPrice = (vehicle) => {
-        router.put(route('transport.vehicles.update', vehicle.id), {
-            fixed_net_per_day: null,
         }, { preserveScroll: true });
     };
 
@@ -141,23 +143,15 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
                                                     <InputLabel value="Capacité (places)" />
                                                     <TextInput type="number" min="0" className="block w-full" value={editForm.data.capacity} onChange={(e) => editForm.setData('capacity', e.target.value)} />
                                                 </div>
+                                                <div>
+                                                    <InputLabel value="Prix par personne (dh)" />
+                                                    <TextInput type="number" step="0.01" min="0" className="block w-full" value={editForm.data.price_per_person} onChange={(e) => editForm.setData('price_per_person', e.target.value)} placeholder="ex. 30" />
+                                                    <InputError message={editForm.errors.price_per_person} className="mt-1" />
+                                                </div>
                                                 <div className="col-span-2">
-                                                    <InputLabel value="Salaire Net/Jour" />
-                                                    <div className="flex items-center gap-2">
-                                                        <TextInput
-                                                            type="number" step="0.01" min="0"
-                                                            className="block w-full"
-                                                            value={editForm.data.fixed_net_per_day}
-                                                            onChange={(e) => editForm.setData('fixed_net_per_day', e.target.value)}
-                                                            placeholder={`Auto : ${vehicle.net_per_day} dh (somme des résidences des ouvriers de ses équipes)`}
-                                                        />
-                                                        {vehicle.fixed_net_per_day !== null && (
-                                                            <button type="button" onClick={() => { editForm.setData('fixed_net_per_day', ''); resetToAutoPrice(vehicle); }} className="text-xs text-primary-600 hover:text-primary-700 shrink-0 whitespace-nowrap">
-                                                                Auto (calculé)
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-xs text-gray-400 mt-1">Laisser vide pour calculer automatiquement selon les résidences des ouvriers des équipes qui l'utilisent.</p>
+                                                    <InputLabel value="Forfait / jour (optionnel)" />
+                                                    <TextInput type="number" step="0.01" min="0" className="block w-full" value={editForm.data.fixed_net_per_day} onChange={(e) => editForm.setData('fixed_net_per_day', e.target.value)} placeholder="Vide = ouvriers présents × prix par personne" />
+                                                    <p className="text-xs text-gray-400 mt-1">Si rempli, ce montant fixe remplace le calcul par personne, chaque jour où au moins un ouvrier de ses équipes a travaillé.</p>
                                                     <InputError message={editForm.errors.fixed_net_per_day} className="mt-1" />
                                                 </div>
                                             </div>
@@ -178,10 +172,9 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
                                                     {vehicle.driver_phone && ` · ${vehicle.driver_phone}`}
                                                     {vehicle.capacity && ` · ${vehicle.capacity} places`}
                                                     {' · '}
-                                                    <span className="font-semibold text-primary-600">{vehicle.net_per_day} dh/jour</span>
-                                                    <span className={`ml-1 text-[10px] uppercase font-bold ${vehicle.fixed_net_per_day !== null ? 'text-amber-600' : 'text-gray-400'}`}>
-                                                        ({vehicle.fixed_net_per_day !== null ? 'fixe' : 'auto'})
-                                                    </span>
+                                                    {priceLabel(vehicle)
+                                                        ? <span className={`font-semibold ${vehicle.fixed_net_per_day !== null ? 'text-amber-600' : 'text-primary-600'}`}>{priceLabel(vehicle)}</span>
+                                                        : <span className="font-semibold text-red-600">Prix par personne non défini</span>}
                                                 </p>
                                             </div>
                                             {confirmingDeleteId === vehicle.id ? (
@@ -238,6 +231,10 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
                                 </div>
                                 <div>
                                     <TextInput type="number" min="0" className="block w-full" value={createForm.data.capacity} onChange={(e) => createForm.setData('capacity', e.target.value)} placeholder="Capacité (places)" />
+                                </div>
+                                <div>
+                                    <TextInput type="number" step="0.01" min="0" className="block w-full" value={createForm.data.price_per_person} onChange={(e) => createForm.setData('price_per_person', e.target.value)} placeholder="Prix par personne (dh)" />
+                                    <InputError message={createForm.errors.price_per_person} />
                                 </div>
                                 <div className="flex items-start">
                                     <PrimaryButton disabled={createForm.processing || companies.length === 0}>Ajouter</PrimaryButton>

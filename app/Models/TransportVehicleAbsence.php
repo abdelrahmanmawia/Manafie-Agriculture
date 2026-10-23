@@ -5,7 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class TransportVehicleAttendance extends Model
+/** A day this vehicle didn't come (its riders came on their own): no transport cost that day. */
+class TransportVehicleAbsence extends Model
 {
     use HasFactory;
 

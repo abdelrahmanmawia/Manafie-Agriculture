@@ -10,6 +10,9 @@ export default function Summary({ auth, periods, selectedPeriodKey, breakdown, i
     };
 
     const selectedPeriod = periods.find((p) => p.key === selectedPeriodKey);
+    const tarif = (row) => row.net_per_day !== null
+        ? `forfait ${row.net_per_day.toFixed(2)} dh/jour`
+        : row.price_per_person !== null ? `${row.price_per_person.toFixed(2)} dh/pers.` : 'non défini';
     const grandTotal = breakdown.reduce((sum, row) => sum + row.subtotal, 0);
 
     const byCompany = breakdown.reduce((acc, row) => {
@@ -65,7 +68,7 @@ export default function Summary({ auth, periods, selectedPeriodKey, breakdown, i
 
                     {selectedPeriodKey && breakdown.length === 0 && (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-sm text-gray-500 italic">
-                            Aucun véhicule marqué comme ayant circulé pour cette période. Remplissez la Grille Transport de la quinzaine d'abord.
+                            Aucun ouvrier transporté pour cette période : le pointage est vide, ou les équipes qui ont travaillé n'ont pas de véhicule.
                         </div>
                     )}
 
@@ -80,9 +83,9 @@ export default function Summary({ auth, periods, selectedPeriodKey, breakdown, i
                                     <thead>
                                         <tr className="text-left text-gray-500 uppercase text-xs tracking-wider">
                                             <th className="px-6 py-2 font-semibold">Véhicule</th>
-                                            <th className="px-6 py-2 font-semibold text-right">Effectif</th>
-                                            <th className="px-6 py-2 font-semibold text-right">Net / jour</th>
+                                            <th className="px-6 py-2 font-semibold text-right">Tarif</th>
                                             <th className="px-6 py-2 font-semibold text-right">Jours</th>
+                                            <th className="px-6 py-2 font-semibold text-right" title="Total des ouvriers transportés sur les jours facturés">Personnes</th>
                                             <th className="px-6 py-2 font-semibold text-right">Sous-total</th>
                                         </tr>
                                     </thead>
@@ -90,9 +93,9 @@ export default function Summary({ auth, periods, selectedPeriodKey, breakdown, i
                                         {rows.map((row, i) => (
                                             <tr key={i}>
                                                 <td className="px-6 py-2">{row.vehicle_code || '—'}</td>
-                                                <td className="px-6 py-2 text-right">{row.employee_count}</td>
-                                                <td className="px-6 py-2 text-right">{row.net_per_day.toFixed(2)} dh</td>
+                                                <td className="px-6 py-2 text-right">{tarif(row)}</td>
                                                 <td className="px-6 py-2 text-right">{row.days_count}</td>
+                                                <td className="px-6 py-2 text-right">{row.rider_days}</td>
                                                 <td className="px-6 py-2 text-right font-semibold">{row.subtotal.toFixed(2)} dh</td>
                                             </tr>
                                         ))}

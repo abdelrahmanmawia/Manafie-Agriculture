@@ -8,6 +8,7 @@ use App\Models\Operation;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Services\PayrollService;
+use App\Services\TransportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -21,9 +22,12 @@ class PointageScanController extends Controller
 
     protected $payrollService;
 
-    public function __construct(PayrollService $payrollService)
+    protected $transportService;
+
+    public function __construct(PayrollService $payrollService, TransportService $transportService)
     {
         $this->payrollService = $payrollService;
+        $this->transportService = $transportService;
     }
 
     /**
@@ -226,6 +230,11 @@ class PointageScanController extends Controller
                     // or a piece-rate quantity a scan knows nothing about. A scan only proves
                     // presence, which that record already records, so it never overwrites it.
                     return ['scan_uuid' => $scan['scan_uuid'], 'ok' => true, 'reason' => 'Déjà pointé manuellement — saisie conservée.'];
+                }
+
+                // The vehicle the worker rode, kept from the first write (see TransportService).
+                if (! $existing || $existing->transport_vehicle_id === null) {
+                    $attributes['transport_vehicle_id'] = $this->transportService->riderVehicleId($employee->id);
                 }
 
                 if ($existing) {

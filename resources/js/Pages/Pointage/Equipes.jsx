@@ -11,10 +11,11 @@ import InputError from '@/Components/InputError';
 const emptyForm = { name: '', chef_employee_id: '', transport_vehicle_id: '' };
 
 // Chef d'équipe teams — the unit of the first pointage step (Grid "Par équipe"). Members can
-// come from any division; the vehicle an équipe rides is how its members travel (its riders,
-// whose residences price the vehicle's auto daily cost). Members are picked per équipe with a
-// checklist (EquipeController::syncMembers()); a worker is in one équipe at a time.
-export default function Equipes({ auth, equipes, employees, vehicles, locations, canManage }) {
+// come from any division; the vehicle an équipe rides is how its members travel (each member
+// who works a day counts as one of its riders that day, see the Grille Transport). Members are
+// picked per équipe with a checklist (EquipeController::syncMembers()); a worker is in one
+// équipe at a time.
+export default function Equipes({ auth, equipes, employees, vehicles, canManage }) {
     const [editingId, setEditingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
     const [managingMembersId, setManagingMembersId] = useState(null);
@@ -75,14 +76,6 @@ export default function Equipes({ auth, equipes, employees, vehicles, locations,
     const submitMembers = (e, equipeId) => {
         e.preventDefault();
         membersForm.put(route('equipes.members', equipeId), { preserveScroll: true, onSuccess: () => setManagingMembersId(null) });
-    };
-
-    // Fires immediately on select — a rider with no residence can't be priced in the vehicle's
-    // auto daily cost, so it's fixable right here.
-    const quickSetResidence = (employeeId, locationId) => {
-        router.put(route('transport.employees.residence', employeeId), {
-            residence_location_id: locationId || null,
-        }, { preserveScroll: true, preserveState: true });
     };
 
     const formFields = (form, chefOptions) => (
@@ -207,16 +200,6 @@ export default function Equipes({ auth, equipes, employees, vehicles, locations,
                                                                     </span>
                                                                 </label>
                                                                 {elsewhere && !checked && <span className="text-xs text-amber-600 shrink-0">déjà dans {elsewhere.name}</span>}
-                                                                {equipe.transport_vehicle_id && (
-                                                                    <select
-                                                                        value={emp.residence_location_id || ''}
-                                                                        onChange={(e) => quickSetResidence(emp.id, e.target.value)}
-                                                                        className={`text-xs rounded-md shrink-0 max-w-[9.5rem] py-1 ${emp.residence_location_id ? 'border-gray-200 text-gray-500' : 'border-amber-300 text-amber-700 bg-amber-50'}`}
-                                                                    >
-                                                                        <option value="">résidence ?</option>
-                                                                        {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                                                                    </select>
-                                                                )}
                                                             </div>
                                                         );
                                                     })}

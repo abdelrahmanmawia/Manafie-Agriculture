@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Employee;
 use App\Models\Equipe;
-use App\Models\TransportLocation;
 use App\Models\TransportVehicle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,11 +40,8 @@ class EquipeController extends Controller
                 ->where('farm_id', $farmId)
                 ->where('is_active', true)
                 ->orderBy('full_name')
-                ->get(['id', 'matricule', 'full_name', 'equipe_id', 'enterprise_id', 'residence_location_id']),
+                ->get(['id', 'matricule', 'full_name', 'equipe_id', 'enterprise_id']),
             'vehicles' => TransportVehicle::where('farm_id', $farmId)->where('is_active', true)->orderBy('code')->get(['id', 'code']),
-            // For the members checklist's "quick-set residence" picker: a rider with no residence
-            // can't be priced in the vehicle's auto daily cost.
-            'locations' => TransportLocation::where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'canManage' => ! $request->user()->enterprise_id,
         ]);
     }

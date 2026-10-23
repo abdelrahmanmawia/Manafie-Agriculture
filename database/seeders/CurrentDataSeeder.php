@@ -42,7 +42,6 @@ class CurrentDataSeeder extends Seeder
         'quinzaines',
         'pointage_records',
         'quinzaine_summaries',
-        'transport_vehicle_attendances',
         'transport_snapshots',
     ];
 
@@ -77,8 +76,8 @@ class CurrentDataSeeder extends Seeder
                 }
             }
 
-            // Same carry-over as migration 000046: one équipe per vehicle, named after it, riding
-            // it, with its riders as members.
+            // Same carry-over as migrations 000046/000047: one équipe per vehicle, named after it,
+            // riding it, with its riders as members — and their pointage stamped with it.
             foreach (DB::table('transport_vehicles')->whereIn('id', array_keys($ridersByVehicle))->get(['id', 'farm_id', 'code']) as $vehicle) {
                 $equipeId = DB::table('equipes')->insertGetId([
                     'farm_id' => $vehicle->farm_id,
@@ -89,6 +88,7 @@ class CurrentDataSeeder extends Seeder
                     'updated_at' => now(),
                 ]);
                 DB::table('employees')->whereIn('id', $ridersByVehicle[$vehicle->id])->update(['equipe_id' => $equipeId]);
+                DB::table('pointage_records')->whereIn('employee_id', $ridersByVehicle[$vehicle->id])->update(['transport_vehicle_id' => $vehicle->id]);
             }
         });
     }

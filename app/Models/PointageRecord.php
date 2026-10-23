@@ -10,7 +10,7 @@ class PointageRecord extends Model
     use HasFactory;
 
     protected $fillable = [
-        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'date',
+        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'transport_vehicle_id', 'date',
         'hours', 'quantity', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net', 'scan_uuid'
     ];
 
@@ -32,6 +32,12 @@ class PointageRecord extends Model
     public function operation()
     {
         return $this->belongsTo(Operation::class);
+    }
+
+    /** The vehicle the worker rode that day, stamped from their équipe when the record was written. */
+    public function transportVehicle()
+    {
+        return $this->belongsTo(TransportVehicle::class);
     }
 
     public function bloc()

@@ -14,16 +14,11 @@ class TransportVehicleController extends Controller
     {
         $farmId = $this->scopedFarmId($request);
 
-        $vehicles = TransportVehicle::with(['transportCompany', 'employees.residenceLocation'])
-            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
-            ->orderBy('code')
-            ->get();
-
         return Inertia::render('Transport/Vehicles', [
-            // net_per_day computed server-side (TransportVehicle::netPerDay()) so the page can
-            // show each vehicle's current daily cost — auto or fixed — without recomputing the
-            // rider-price sum in JS.
-            'vehicles' => $vehicles->map(fn ($v) => array_merge($v->toArray(), ['net_per_day' => $v->netPerDay()])),
+            'vehicles' => TransportVehicle::with('transportCompany')
+                ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+                ->orderBy('code')
+                ->get(),
             'companies' => TransportCompany::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->where('is_active', true)
                 ->orderBy('name')
@@ -50,6 +45,7 @@ class TransportVehicleController extends Controller
             'driver_name' => 'nullable|string|max:255',
             'driver_phone' => 'nullable|string|max:50',
             'capacity' => 'nullable|integer|min:0',
+            'price_per_person' => 'nullable|numeric|min:0',
             'fixed_net_per_day' => 'nullable|numeric|min:0',
         ]);
 
@@ -68,6 +64,7 @@ class TransportVehicleController extends Controller
             'driver_name' => 'nullable|string|max:255',
             'driver_phone' => 'nullable|string|max:50',
             'capacity' => 'nullable|integer|min:0',
+            'price_per_person' => 'nullable|numeric|min:0',
             'fixed_net_per_day' => 'nullable|numeric|min:0',
             'is_active' => 'boolean',
         ]);

@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Quinzaine;
 use App\Models\TransportSnapshot;
 use App\Models\TransportVehicle;
-use App\Models\TransportVehicleAttendance;
+use App\Models\TransportVehicleAbsence;
 use App\Services\TransportService;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
@@ -15,25 +15,15 @@ use Inertia\Inertia;
 class TransportController extends Controller
 {
     /**
-     * Day-by-day grid, rows = vehicles (farm-pooled, not enterprise-scoped — same reasoning
-     * Transport/Vehicles.jsx already uses), columns = each day of this quinzaine. Marking a
-     * cell records that the vehicle operated that day (TransportVehicleAttendance); a vehicle's
-     * net/day (auto or fixed, see TransportVehicle::netPerDay()) times marked days is its cost
-     * for this quinzaine, mirroring how PointageController::grid() drives payroll.
+     * Day-by-day grid, rows = vehicles (farm-pooled, not enterprise-scoped), columns = each day of
+     * this quinzaine. Each cell shows that day's riders and cost, computed from the pointage
+     * (TransportService::daily()); the only thing set here by hand is "the vehicle didn't come"
+     * (setAbsence()).
      */
-    public function grid(Request $request, $quinzaineId)
+    public function grid(Request $request, TransportService $transportService, $quinzaineId)
     {
-        $user = $request->user();
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
-
-        $farmId = $quinzaine->enterprise->farm_id;
-
-        $vehicles = TransportVehicle::with(['transportCompany', 'employees.residenceLocation'])
-            ->where('farm_id', $farmId)
-            ->where('is_active', true)
-            ->orderBy('code')
-            ->get();
 
         $period = CarbonPeriod::create($quinzaine->start_date, $quinzaine->end_date);
         $days = [];
@@ -41,79 +31,65 @@ class TransportController extends Controller
             $days[] = $date->format('Y-m-d');
         }
 
-        // Farm-wide, not this quinzaine's own — a sibling division's Quinzaine for the same
-        // real-world period shares these exact rows (see TransportService's class doc), so
-        // marking a cell here is immediately visible from any sibling division's grid too.
-        $existingAttendances = TransportVehicleAttendance::whereBetween('date', [$quinzaine->start_date, $quinzaine->end_date])
-            ->whereHas('transportVehicle', fn ($q) => $q->where('farm_id', $farmId))
-            ->get()
-            ->groupBy(['transport_vehicle_id', function ($item) {
-                return $item->date->format('Y-m-d');
-            }]);
+        $daily = $transportService->daily($quinzaine->start_date, $quinzaine->end_date, $quinzaine->enterprise->farm_id);
 
         return Inertia::render('Transport/Grid', [
             'quinzaine' => $quinzaine,
-            'vehicles' => $vehicles->map(fn ($v) => [
+            'vehicles' => $daily['vehicles']->values()->map(fn ($v) => [
                 'id' => $v->id,
                 'code' => $v->code,
                 'company_name' => $v->transportCompany?->name,
+                'price_per_person' => $v->price_per_person,
                 'fixed_net_per_day' => $v->fixed_net_per_day,
-                'net_per_day' => $v->netPerDay(),
-                'employee_count' => $v->employees->count(),
             ]),
             'days' => $days,
-            'existingAttendances' => $existingAttendances,
+            'cells' => (object) $daily['days'],
         ]);
     }
 
     /**
-     * Marks one vehicle as having run (present=true) or not (present=false) on one day. Takes the
-     * wanted state rather than toggling: a toggle flipped twice on a double-click or a retried
-     * request, silently undoing the click, and two concurrent "add"s hit the unique index as a
-     * 500. Setting a state that's already there is a no-op.
+     * Marks one vehicle as not having come (absent=true) on one day, or clears that (false): its
+     * riders who worked that day came on their own, so they're paid but the vehicle costs
+     * nothing that day. Takes the wanted state rather than toggling, so a double-click or a
+     * retried request can't flip it back; setting a state that's already there is a no-op.
      */
-    public function setAttendance(Request $request)
+    public function setAbsence(Request $request)
     {
         $validated = $request->validate([
             'transport_vehicle_id' => 'required|exists:transport_vehicles,id',
             'quinzaine_id' => 'required|exists:quinzaines,id',
             'date' => 'required|date',
-            'present' => 'required|boolean',
+            'absent' => 'required|boolean',
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
         $this->assertQuinzaineInScope($request, $quinzaine);
 
-        // Same reasoning as PointageController::updateCell(): exists:transport_vehicles,id only
-        // proves the ID exists SOMEWHERE, not that it belongs to this farm.
+        // exists:transport_vehicles,id only proves the ID exists SOMEWHERE, not on this farm.
         $vehicle = TransportVehicle::findOrFail($validated['transport_vehicle_id']);
         abort_unless($vehicle->farm_id === $quinzaine->enterprise->farm_id, 403);
 
-        // Checked against whichever division's grid the request came from — a simple, reasonable
-        // proxy; this doesn't try to reason about a sibling division's own close state, since
-        // the attendance fact itself is shared farm-wide regardless (see TransportService).
+        // Checked against whichever division's grid the request came from — the absence itself
+        // is a farm-wide fact shared by every sibling division (see TransportService).
         if ($quinzaine->is_closed) {
             return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
         }
 
         // The closed check above only means anything for a date inside this quinzaine —
-        // otherwise any open quinzaine id could be used to toggle a day of a closed period.
+        // otherwise any open quinzaine id could be used to change a day of a closed period.
         $day = Carbon::parse($validated['date'])->startOfDay();
         if (! $day->betweenIncluded($quinzaine->start_date->copy()->startOfDay(), $quinzaine->end_date->copy()->startOfDay())) {
             return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
         }
 
-        $existing = TransportVehicleAttendance::where('transport_vehicle_id', $validated['transport_vehicle_id'])
+        $existing = TransportVehicleAbsence::where('transport_vehicle_id', $vehicle->id)
             ->whereDate('date', $day->toDateString());
 
-        if (! $request->boolean('present')) {
+        if (! $request->boolean('absent')) {
             $existing->delete();
         } elseif (! $existing->exists()) {
             try {
-                TransportVehicleAttendance::create([
-                    'transport_vehicle_id' => $validated['transport_vehicle_id'],
-                    'date' => $day->toDateString(),
-                ]);
+                TransportVehicleAbsence::create(['transport_vehicle_id' => $vehicle->id, 'date' => $day->toDateString()]);
             } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
                 // A concurrent request marked the same day first — already in the wanted state.
             }
@@ -162,12 +138,11 @@ class TransportController extends Controller
                 // rows for this period at a time (whichever closed most recently) — querying
                 // across every sibling id here just finds that one set, nothing to merge.
                 $rows = TransportSnapshot::whereIn('quinzaine_id', $selectedPeriod['quinzaine_ids'])->get()->map(fn ($s) => $s->only([
-                    'company_name', 'vehicle_code', 'net_per_day', 'days_count', 'subtotal', 'employee_count',
+                    'company_name', 'vehicle_code', 'price_per_person', 'net_per_day', 'days_count', 'rider_days', 'subtotal', 'employee_count',
                 ]))->all();
             } else {
-                // Live preview reads the whole period in one call — attendance is farm-wide, not
-                // per-quinzaine, so every sibling division already shares the same picture; no
-                // merging across quinzaine_ids needed (unlike before this was fixed).
+                // Live preview reads the whole period in one call — transport is farm-wide, not
+                // per-quinzaine, so every sibling division already shares the same picture.
                 $rows = $transportService->previewForDateRange($selectedPeriod['start_date'], $selectedPeriod['end_date'], $farmId);
             }
 
@@ -178,7 +153,7 @@ class TransportController extends Controller
         }
 
         return Inertia::render('Transport/Summary', [
-            // A representative quinzaine_id per period — any sibling works equally (attendance
+            // A representative quinzaine_id per period — any sibling works equally (transport
             // is shared farm-wide, see TransportService), used to link to the Grille Transport
             // for that period without picking a specific division.
             'periods' => $periods->map(fn ($p) => ['key' => $p['key'], 'label' => $p['label'], 'is_closed' => $p['is_closed'], 'quinzaine_id' => $p['quinzaine_ids'][0]])->values(),

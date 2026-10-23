@@ -7,7 +7,6 @@ use App\Models\Enterprise;
 use App\Models\Equipe;
 use App\Models\Farm;
 use App\Models\TransportCompany;
-use App\Models\TransportLocation;
 use App\Models\TransportVehicle;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -34,12 +33,12 @@ class EquipeTest extends TestCase
         $this->manager = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $this->farm->id]);
     }
 
-    private function employee(string $name, ?Equipe $equipe = null, ?TransportLocation $residence = null): Employee
+    private function employee(string $name, ?Equipe $equipe = null): Employee
     {
         return Employee::create([
             'farm_id' => $this->farm->id, 'enterprise_id' => $this->enterprise->id, 'matricule' => $name, 'full_name' => $name,
             'type' => 'persea', 'base_rate' => 97.44, 'is_active' => true,
-            'equipe_id' => $equipe?->id, 'residence_location_id' => $residence?->id,
+            'equipe_id' => $equipe?->id,
         ]);
     }
 
@@ -155,16 +154,11 @@ class EquipeTest extends TestCase
     {
         $company = TransportCompany::create(['farm_id' => $this->farm->id, 'name' => 'Co']);
         $van = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'T1']);
-        $near = TransportLocation::create(['farm_id' => $this->farm->id, 'name' => 'Near', 'price_per_person' => 10]);
-        $far = TransportLocation::create(['farm_id' => $this->farm->id, 'name' => 'Far', 'price_per_person' => 25]);
-        $this->employee('A', $this->equipe('One', ['transport_vehicle_id' => $van->id]), $near);
-        $this->employee('B', $this->equipe('Two', ['transport_vehicle_id' => $van->id]), $far);
-        $this->employee('C', $this->equipe('Walks'), $far);
+        $this->employee('A', $this->equipe('One', ['transport_vehicle_id' => $van->id]));
+        $this->employee('B', $this->equipe('Two', ['transport_vehicle_id' => $van->id]));
+        $this->employee('C', $this->equipe('Walks'));
 
-        $van->load('employees.residenceLocation');
-
-        $this->assertCount(2, $van->employees);
-        $this->assertEquals(35, $van->netPerDay());
+        $this->assertEqualsCanonicalizing(['A', 'B'], $van->employees()->pluck('full_name')->all());
     }
 
     public function test_a_vehicle_still_ridden_by_an_equipe_cannot_be_deleted(): void

@@ -131,19 +131,19 @@ class PointageIntegrityTest extends TestCase
         $this->assertDatabaseCount('pointage_records', 1);
     }
 
-    public function test_transport_attendance_outside_the_quinzaine_is_rejected(): void
+    public function test_transport_absence_outside_the_quinzaine_is_rejected(): void
     {
         $company = TransportCompany::create(['farm_id' => $this->farm->id, 'name' => 'Transco']);
         $vehicle = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'T1']);
 
-        $this->actingAs($this->manager)->post('/transport/attendance', [
+        $this->actingAs($this->manager)->post('/transport/absence', [
             'transport_vehicle_id' => $vehicle->id,
             'quinzaine_id' => $this->quinzaine->id,
             'date' => '2026-01-20',
-            'present' => true,
+            'absent' => true,
         ])->assertSessionHasErrors('date');
 
-        $this->assertDatabaseCount('transport_vehicle_attendances', 0);
+        $this->assertDatabaseCount('transport_vehicle_absences', 0);
     }
 
     // --- Quinzaine close ---
