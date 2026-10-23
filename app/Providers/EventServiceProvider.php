@@ -21,6 +21,15 @@ class EventServiceProvider extends ServiceProvider
     ];
 
     /**
+     * Model observers.
+     *
+     * @var array<class-string, array<int, class-string>>
+     */
+    protected $observers = [
+        \App\Models\Farm::class => [\App\Observers\FarmObserver::class],
+    ];
+
+    /**
      * Register any events for your application.
      */
     public function boot(): void

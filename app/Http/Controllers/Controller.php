@@ -67,104 +67,44 @@ class Controller extends BaseController
 
     /**
      * Active "Type de Sortie" options for a farm's Sorties de Stock forms — configurable by
-     * farm_manager/super_admin (see StockExitTypeController) instead of a hardcoded list.
-     * Self-seeds the five types this app has always used on first access, so an existing farm
-     * (or a brand new one) never sees an empty dropdown; the seeded keys match exactly what's
-     * already stored on old manual_stock_entries rows and what the sortie form's
-     * requires_maintenance_log-driven "Intervention liée" field expects.
+     * farm_manager/super_admin (see StockExitTypeController) instead of a hardcoded list. Every
+     * farm gets its default list when it's created (FarmDefaultsService); this only reads.
+     * Editing an entry whose type was since deactivated must still show that type as an option
+     * ($mustIncludeKey) — otherwise the select silently falls back to a different one on save.
      */
     protected function exitTypesFor(?int $farmId, ?string $mustIncludeKey = null)
     {
-        if (!$farmId) {
-            return collect();
-        }
-
-        if (! \App\Models\StockExitType::where('farm_id', $farmId)->exists()) {
-            foreach ([
-                ['key' => 'consumption', 'label' => 'Consommation'],
-                ['key' => 'loss', 'label' => 'Perte'],
-                ['key' => 'theft', 'label' => 'Vol'],
-                ['key' => 'damage', 'label' => 'Dommage'],
-                ['key' => 'maintenance', 'label' => 'Maintenance', 'requires_maintenance_log' => true],
-            ] as $default) {
-                \App\Models\StockExitType::create($default + ['farm_id' => $farmId]);
-            }
-        }
-
-        // Editing an entry whose type was since deactivated must still show that type as an
-        // option — otherwise the select silently falls back to a different one on save.
-        return \App\Models\StockExitType::where('farm_id', $farmId)
-            ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
-            ->orderBy('id')
-            ->get(['id', 'key', 'label', 'requires_maintenance_log']);
+        return $this->farmOptions(\App\Models\StockExitType::class, $farmId, $mustIncludeKey, ['id', 'key', 'label', 'requires_maintenance_log']);
     }
 
     /**
-     * Active vehicle "Type" options for a farm's Véhicules forms — configurable by
-     * farm_manager/super_admin (see VehicleTypeController) instead of a hardcoded list. Same
-     * self-seeding/mustIncludeKey pattern as exitTypesFor() — see there for why. Equipment
-     * types stay a separate, still-hardcoded list (VehicleController::equipmentTypes()); only
-     * "vehicle" asset_type entries use this table.
+     * Active vehicle "Type" options for a farm's Véhicules forms (asset_type=vehicle) —
+     * configurable per farm (VehicleTypeController). Same read as exitTypesFor().
      */
     protected function vehicleTypesFor(?int $farmId, ?string $mustIncludeKey = null)
     {
-        if (!$farmId) {
-            return collect();
-        }
-
-        if (! \App\Models\VehicleType::where('farm_id', $farmId)->exists()) {
-            foreach ([
-                ['key' => 'tractor', 'label' => 'Tracteur'],
-                ['key' => 'truck', 'label' => 'Camion'],
-                ['key' => 'van', 'label' => 'Camionnette'],
-                ['key' => 'car', 'label' => 'Voiture'],
-                ['key' => 'quad', 'label' => 'Quad'],
-                ['key' => 'other', 'label' => 'Autre'],
-            ] as $default) {
-                \App\Models\VehicleType::create($default + ['farm_id' => $farmId]);
-            }
-        }
-
-        return \App\Models\VehicleType::where('farm_id', $farmId)
-            ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
-            ->orderBy('id')
-            ->get(['id', 'key', 'label']);
+        return $this->farmOptions(\App\Models\VehicleType::class, $farmId, $mustIncludeKey, ['id', 'key', 'label']);
     }
 
     /**
-     * Active equipment "Type" options for a farm's Véhicules forms — configurable by
-     * farm_manager/super_admin (see EquipmentTypeController) instead of a hardcoded list. Same
-     * self-seeding/mustIncludeKey pattern as vehicleTypesFor()/exitTypesFor() — see there for
-     * why. Only asset_type=equipment vehicles use this table.
+     * Active equipment "Type" options for a farm's Véhicules forms (asset_type=equipment) —
+     * configurable per farm (EquipmentTypeController). Same read as exitTypesFor().
      */
     protected function equipmentTypesFor(?int $farmId, ?string $mustIncludeKey = null)
+    {
+        return $this->farmOptions(\App\Models\EquipmentType::class, $farmId, $mustIncludeKey, ['id', 'key', 'label']);
+    }
+
+    private function farmOptions(string $model, ?int $farmId, ?string $mustIncludeKey, array $columns)
     {
         if (!$farmId) {
             return collect();
         }
 
-        if (! \App\Models\EquipmentType::where('farm_id', $farmId)->exists()) {
-            foreach ([
-                ['key' => 'pump', 'label' => 'Pompe'],
-                ['key' => 'generator', 'label' => 'Générateur'],
-                ['key' => 'sprayer', 'label' => 'Pulvérisateur / Atomiseur'],
-                ['key' => 'compressor', 'label' => 'Compresseur'],
-                ['key' => 'mulcher', 'label' => 'Broyeur'],
-                ['key' => 'plow', 'label' => 'Charrue à Disque'],
-                ['key' => 'mower', 'label' => 'Faucheuse'],
-                ['key' => 'leveler', 'label' => 'Lame Niveleuse'],
-                ['key' => 'roller', 'label' => 'Rouleau Cover Crop'],
-                ['key' => 'tool', 'label' => 'Outil'],
-                ['key' => 'other', 'label' => 'Autre'],
-            ] as $default) {
-                \App\Models\EquipmentType::create($default + ['farm_id' => $farmId]);
-            }
-        }
-
-        return \App\Models\EquipmentType::where('farm_id', $farmId)
+        return $model::where('farm_id', $farmId)
             ->where(fn ($q) => $q->where('is_active', true)->when($mustIncludeKey, fn ($q2) => $q2->orWhere('key', $mustIncludeKey)))
             ->orderBy('id')
-            ->get(['id', 'key', 'label']);
+            ->get($columns);
     }
 
     /**
