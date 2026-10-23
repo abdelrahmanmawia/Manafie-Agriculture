@@ -47,6 +47,10 @@ export default function Show({ auth, manualStockEntry }) {
         });
     };
 
+    const unverifyEntry = () => {
+        post(route('stock.manual-entries.unverify', manualStockEntry.id), { preserveScroll: true });
+    };
+
     const closeModal = () => {
         setConfirmingEntryDeletion(false);
         setConfirmingVerification(false);
@@ -76,20 +80,27 @@ export default function Show({ auth, manualStockEntry }) {
                             <p className="text-sm text-gray-500 mt-1">Sortie #{manualStockEntry.id}</p>
                         </div>
                     </div>
+                    {/* Anyone with Stock access may verify; a verified sortie is locked (no edit/delete)
+                        until a manager unlocks it — see ManualStockEntryController. */}
                     <div className="flex items-center gap-2">
-                        <Link
-                            href={route('stock.manual-entries.edit', manualStockEntry.id)}
-                            className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Modifier
-                        </Link>
-                        {!manualStockEntry.is_verified && auth.user.role !== 'data_entry' && (
+                        {!manualStockEntry.is_verified && (
+                            <Link
+                                href={route('stock.manual-entries.edit', manualStockEntry.id)}
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Modifier
+                            </Link>
+                        )}
+                        {!manualStockEntry.is_verified && (
                             <PrimaryButton onClick={confirmVerification} className="rounded-xl">Vérifier</PrimaryButton>
                         )}
-                        {auth.user.role !== 'data_entry' && (
+                        {manualStockEntry.is_verified && ['super_admin', 'farm_manager'].includes(auth.user.role) && (
+                            <SecondaryButton onClick={unverifyEntry} disabled={processing} className="rounded-xl">Déverrouiller</SecondaryButton>
+                        )}
+                        {!manualStockEntry.is_verified && (
                             <DangerButton onClick={confirmEntryDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
                     </div>

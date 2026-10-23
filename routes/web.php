@@ -237,6 +237,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
     Route::delete('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
     Route::post('/stock/manual-entries/{manualStockEntry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
+    Route::post('/stock/manual-entries/{manualStockEntry}/unverify', [ManualStockEntryController::class, 'unverify'])->name('stock.manual-entries.unverify');
 
     // Stock Management - Exit Types (the "Type de Sortie" options — configurable per farm)
     Route::post('/stock/exit-types', [StockExitTypeController::class, 'store'])->name('stock.exit-types.store');

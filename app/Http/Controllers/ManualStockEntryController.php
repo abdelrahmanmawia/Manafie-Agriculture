@@ -23,6 +23,13 @@ use Illuminate\Validation\ValidationException;
 class ManualStockEntryController extends Controller
 {
     /**
+     * A verified sortie is locked: neither edited nor deleted, by anyone, until a manager
+     * unlocks it (unverify()) — otherwise verification protected nothing, since the entry and
+     * its StockMovement audit row could still be rewritten or removed afterwards.
+     */
+    private const LOCKED_MESSAGE = 'Cette sortie est vérifiée et verrouillée. Un responsable doit la déverrouiller avant toute modification.';
+
+    /**
      * show/edit/update/destroy/verify all trusted the route-bound $entry with no
      * ownership check — any authenticated user could view or mutate another farm's
      * manual stock entry by walking IDs.
@@ -228,6 +235,10 @@ class ManualStockEntryController extends Controller
     {
         $this->assertEntryInScope($request, $manualStockEntry);
 
+        if ($manualStockEntry->is_verified) {
+            return redirect()->route('stock.manual-entries.show', $manualStockEntry)->with('error', self::LOCKED_MESSAGE);
+        }
+
         $products = Product::with('category')->where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
         // Keep the entry's currently assigned employee selectable even if they've since gone
         // inactive, so editing the entry doesn't silently drop that field.
@@ -304,6 +315,12 @@ class ManualStockEntryController extends Controller
             // stock below, so two overlapping saves of the same entry must not both start from
             // the same pre-edit values.
             $manualStockEntry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
+
+            // Checked here, under the row lock, rather than before the transaction: a verify()
+            // landing between that check and this write would otherwise still be overwritten.
+            if ($manualStockEntry->is_verified) {
+                return redirect()->back()->with('error', self::LOCKED_MESSAGE);
+            }
 
             $oldProductId = $manualStockEntry->product_id;
             $oldQuantity = $manualStockEntry->quantity;
@@ -407,6 +424,9 @@ class ManualStockEntryController extends Controller
             if (! $entry) {
                 return back();
             }
+            if ($entry->is_verified) {
+                return back()->with('error', self::LOCKED_MESSAGE);
+            }
 
             // Revert stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
@@ -434,13 +454,40 @@ class ManualStockEntryController extends Controller
         }
         $this->assertEntryInScope($request, $manualStockEntry);
 
-        $manualStockEntry->update([
-            'is_verified' => true,
-            'verified_by' => $request->user()->id,
-            'verified_at' => now(),
-        ]);
+        DB::transaction(function () use ($request, $manualStockEntry) {
+            $entry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
+
+            // Verifying twice (double-click) must not replace who verified it first, or when.
+            if (! $entry->is_verified) {
+                $entry->update([
+                    'is_verified' => true,
+                    'verified_by' => $request->user()->id,
+                    'verified_at' => now(),
+                ]);
+            }
+        });
 
         return back()->with('success', 'Entrée vérifiée avec succès.');
+    }
+
+    /**
+     * "Déverrouiller": takes a verified sortie back to unverified so a mistake can be corrected
+     * (edit/destroy refuse a verified entry), after which it gets verified again. Manager-level
+     * only — anyone with Stock access, the magasinier included, can verify, but if they could
+     * also unlock, verification would protect nothing.
+     */
+    public function unverify(Request $request, ManualStockEntry $manualStockEntry)
+    {
+        abort_unless(in_array($request->user()->role, ['super_admin', 'farm_manager']), 403);
+        $this->assertEntryInScope($request, $manualStockEntry);
+
+        $manualStockEntry->update([
+            'is_verified' => false,
+            'verified_by' => null,
+            'verified_at' => null,
+        ]);
+
+        return back()->with('success', 'Entrée déverrouillée — elle peut être corrigée puis vérifiée à nouveau.');
     }
 
     // Every optional foreign key below was previously validated only with exists:TABLE,id —
