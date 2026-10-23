@@ -26,7 +26,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * each day cell holds the "BLOC|ABREVIATION" code worked that day, and every total — TOTAL (days),
  * TOTAL NET, NET FACTUR J / TTC, the per-bloc operation tables and the footer — is the fiche's own
  * Excel formula, so the office can still correct a cell in Excel and see everything follow.
- * The inputs written as values are what the system knows: SAL NET/J, H.S hours, J.F count.
+ * The inputs written as values are what the system knows: SAL NET/J, H.S hours, J.F count, and
+ * the bloc tables' J.F / H.SUP per operation (writeBlocs()).
  *
  * Three fiches (ficheFor()): a division that invoices a client gets the AGRI INTERIM one
  * (NET FACTUR J / TOTAL TTC, MARGE); the others get the declared-workforce one (RIB, COMP,
@@ -178,6 +179,21 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $hs = (float) $worked->sum('hours');
             $jf = $employeeRecords->where('is_jf', true)->count();
 
+            // Each H.S. hour and worked J.F. day goes to the operation of the day it happened; an
+            // unworked J.F. has no operation of its own and goes to the worker's main one.
+            $mainCode = collect($codes)->countBy()->sortDesc()->keys()->first();
+            $hsByCode = [];
+            $jfByCode = [];
+            foreach ($employeeRecords as $record) {
+                $code = $codes[$record->date->format('Y-m-d')] ?? $mainCode;
+                if ((float) $record->hours > 0 && isset($codes[$record->date->format('Y-m-d')])) {
+                    $hsByCode[$code] = ($hsByCode[$code] ?? 0) + (float) $record->hours;
+                }
+                if ($record->is_jf) {
+                    $jfByCode[$code] = ($jfByCode[$code] ?? 0) + 1;
+                }
+            }
+
             // What the fiche formula can't express — piece-rate days, a NET/J that changed during
             // the period — is added to TOTAL NET as a constant so it still equals what the worker
             // is paid. Below 1 DH it's just the fiche's own rounding (11.36/h), left alone.
@@ -199,8 +215,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 'brut' => (float) ($employeeRecords->whereNull('quantity')->first()?->rate ?? $this->enterprise->default_brut_rate),
                 'hs' => $hs,
                 'jf' => $jf,
-                // The operation the fiche charges this worker's H.S. and J.F. to: their main one.
-                'op' => collect($codes)->countBy()->sortDesc()->keys()->first(),
+                'hs_by_code' => $hsByCode,
+                'jf_by_code' => $jfByCode,
                 'adjustment' => abs($adjustment) >= 1 ? $adjustment : 0.0,
             ];
         }
@@ -239,7 +255,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $this->c = [
                 'headerRow' => 5, 'firstRow' => 6, 'rib' => null, 'day' => 5, 'net_j' => $s, 'comp' => null, 'brut' => null,
                 'marge' => null, 'total' => $s + 1, 'hs' => $s + 2, 'jf' => $s + 3, 'jf_dh' => $s + 4, 'total_net' => $s + 5,
-                'factur' => null, 'ttc' => null, 'op' => $s + 7,
+                'factur' => null, 'ttc' => null,
                 'bloc_name' => 3, 'bloc_abbr' => 4, 'bloc_day' => 5,
                 'bloc_total' => 5 + $n, 'bloc_jf' => 6 + $n, 'bloc_hs' => 7 + $n, 'bloc_net' => 10 + $n,
                 'footer_label' => [$s - 3, $s + 1], 'footer_value' => [$s + 2, $s + 5],
@@ -254,14 +270,14 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $this->c = $this->fiche === self::FICHE_FACTURE
             ? $common + [
                 'headerRow' => 4, 'firstRow' => 5, 'marge' => $s + 3, 'total' => $s + 4, 'jf' => $s + 5, 'jf_dh' => null,
-                'hs' => $s + 6, 'total_net' => $s + 7, 'factur' => $s + 8, 'ttc' => $s + 9, 'op' => $s + 11,
+                'hs' => $s + 6, 'total_net' => $s + 7, 'factur' => $s + 8, 'ttc' => $s + 9,
                 'bloc_total' => 8 + $n, 'bloc_jf' => 9 + $n, 'bloc_hs' => 10 + $n, 'bloc_net' => 12 + $n,
                 'footer_label' => [$s - 3, $s + 2], 'footer_value' => [$s + 3, $s + 4], 'footer_ttc' => [$s + 5, $s + 7],
                 'print_last' => $s + 9,
             ]
             : $common + [
                 'headerRow' => 5, 'firstRow' => 6, 'marge' => null, 'total' => $s + 3, 'jf' => $s + 4, 'jf_dh' => $s + 5,
-                'hs' => $s + 6, 'total_net' => $s + 7, 'factur' => null, 'ttc' => null, 'op' => $s + 9,
+                'hs' => $s + 6, 'total_net' => $s + 7, 'factur' => null, 'ttc' => null,
                 'bloc_total' => 8 + $n, 'bloc_jf' => 9 + $n, 'bloc_hs' => 10 + $n, 'bloc_net' => 11 + $n,
                 'footer_label' => [$s + 4, $s + 5], 'footer_value' => [$s + 6, $s + 7],
                 'print_last' => $s + 7,
@@ -358,7 +374,6 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $c['total_net'] => $this->fiche === self::FICHE_NON_DECLAREE ? 'TOTALNET' : 'TOTAL NET',
             $c['factur'] => 'NET FACTUR J',
             $c['ttc'] => 'TOTAL TTC ',
-            $c['op'] => 'OP H.S / J.F',
         ], fn ($v, $k) => $k !== '' && $k !== null, ARRAY_FILTER_USE_BOTH);
         unset($labels['']);
 
@@ -372,7 +387,6 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $this->style($this->range($c['net_j'], $row, $c['print_last'], $row), $this->font($t['font'], $t['money_header'], true));
             $this->style($this->range($c['total_net'], $row, $c['print_last'], $row), $this->font($t['font'], $t['total_size'], true));
         }
-        $this->style($this->cell($c['op'], $row), $this->font($t['font'], 10, true), $this->fill($t['header_fill']), $this->center());
         $this->ws->getRowDimension($row)->setRowHeight(end($t['heights']));
     }
 
@@ -429,8 +443,6 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $this->ws->setCellValue($L('ttc'), $ttc);
         }
 
-        $this->text($L('op'), (string) $row['op']);
-
         $range = $this->range(1, $r, $c['print_last'], $r);
         $this->style($range, $this->font($t['font'], 14), $this->center(), ['borders' => ['vertical' => ['borderStyle' => Border::BORDER_THIN], 'outline' => ['borderStyle' => Border::BORDER_THIN], 'horizontal' => ['borderStyle' => Border::BORDER_HAIR]]], ['numberFormat' => ['formatCode' => '0.00']]);
         $this->style($this->range(1, $r, 4, $r), ['font' => ['bold' => $t['names_bold']], 'numberFormat' => ['formatCode' => '@']]);
@@ -442,7 +454,6 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             'font' => ['size' => $t['total_size'], 'bold' => $this->fiche === self::FICHE_FACTURE],
             'numberFormat' => ['formatCode' => '#,##0.00'],
         ]);
-        $this->style($this->cell($c['op'], $r), $this->font($t['font'], 11));
         $this->ws->getRowDimension($r)->setRowHeight($t['data_height']);
     }
 
@@ -504,8 +515,10 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
     /**
      * One table per bloc worked this period, one line per operation worked in it: what each day's
-     * workers on it cost (their SAL NET/J), its days, and the J.F / H.S. of the workers whose main
-     * operation it is. Returns the TOT NET cell of each bloc's total line, and the last row used.
+     * workers on it cost (their SAL NET/J), its days, and the J.F / H.S. done on it. Unlike the
+     * hand-made fiches (which charged a worker's whole H.S./J.F. to one "OP H.S / J.F" column),
+     * those two come from the records, each hour/day on the operation it was worked on — values,
+     * not formulas. Returns the TOT NET cell of each bloc's total line, and the last row used.
      */
     private function writeBlocs(array $rows, array $days, int $first, int $last, int $r): array
     {
@@ -514,10 +527,18 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $n = count($days);
 
         $blocs = [];
+        $hsByCode = [];
+        $jfByCode = [];
         foreach ($rows as $row) {
             foreach ($row['codes'] as $code) {
                 [$bloc, $abbr] = explode('|', $code, 2);
                 $blocs[$bloc][$abbr] = true;
+            }
+            foreach ($row['hs_by_code'] as $code => $hours) {
+                $hsByCode[$code] = ($hsByCode[$code] ?? 0) + $hours;
+            }
+            foreach ($row['jf_by_code'] as $code => $count) {
+                $jfByCode[$code] = ($jfByCode[$code] ?? 0) + round($count * $row['net_j'], 2);
             }
         }
         $operationNames = $this->operationNames();
@@ -566,18 +587,17 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 $jfCell = $this->col($c['bloc_jf']).$opRow;
                 $hsCell = $this->col($c['bloc_hs']).$opRow;
                 $hsRate = $this->num($this->hsRate);
+                $code = $this->code($bloc, $abbr);
+                $hours = $hsByCode[$code] ?? 0;
+                $this->ws->setCellValue($jfCell, $jfByCode[$code] ?? 0);
                 if ($this->fiche === self::FICHE_DECLAREE) {
                     $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=SUM({$dayCells})");
-                    $this->ws->setCellValue($jfCell, "=SUMIF({$main('op')},{$match},{$main('jf_dh')})");
-                    $this->ws->setCellValue($hsCell, "=SUMIF({$main('op')},{$match},{$main('hs')})*{$hsRate}");
+                    $this->ws->setCellValue($hsCell, round($hours * $this->hsRate, 2));
                     $totalCell = $this->col($c['bloc_total']).$opRow;
                     $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "={$totalCell}+{$jfCell}+{$hsCell}");
                 } else {
                     $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=COUNTIF({$daysRange},{$match})");
-                    $this->ws->setCellValue($jfCell, $this->fiche === self::FICHE_FACTURE
-                        ? "=SUMPRODUCT(({$main('op')}=({$match}))*{$main('jf')}*{$main('net_j')})"
-                        : "=SUMIF({$main('op')},{$match},{$main('jf_dh')})");
-                    $this->ws->setCellValue($hsCell, "=SUMIF({$main('op')},{$match},{$main('hs')})");
+                    $this->ws->setCellValue($hsCell, $hours);
                     $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "=SUM({$dayCells})+{$jfCell}+{$hsCell}*{$hsRate}");
                 }
 
@@ -674,12 +694,12 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $widths = match ($this->fiche) {
             self::FICHE_FACTURE => ['A' => 6.44, 'B' => 16.78, 'C' => 16.22, 'D' => 16.33, 'day' => 11.33, 'rib' => 39.11,
                 'net_j' => 16, 'comp' => 14, 'brut' => 16, 'marge' => 14, 'total' => 12, 'jf' => 10, 'hs' => 13.78,
-                'total_net' => 18.66, 'factur' => 16.11, 'ttc' => 21.55, 'op' => 16],
+                'total_net' => 18.66, 'factur' => 16.11, 'ttc' => 21.55],
             self::FICHE_DECLAREE => ['A' => 8, 'B' => 19.33, 'C' => 20.78, 'D' => 13.22, 'day' => 11.55, 'rib' => 39.11,
                 'net_j' => 11.55, 'comp' => 11.55, 'brut' => 11.55, 'total' => 11.55, 'jf' => 11.55, 'jf_dh' => 11.55,
-                'hs' => 13.44, 'total_net' => 16.11, 'op' => 16],
+                'hs' => 13.44, 'total_net' => 16.11],
             default => ['A' => 6.89, 'B' => 20.33, 'C' => 25.11, 'D' => 15.44, 'day' => 8.33,
-                'net_j' => 10.33, 'total' => 8.55, 'hs' => 11.11, 'jf' => 8.11, 'jf_dh' => 12, 'total_net' => 15.89, 'op' => 16],
+                'net_j' => 10.33, 'total' => 8.55, 'hs' => 11.11, 'jf' => 8.11, 'jf_dh' => 12, 'total_net' => 15.89],
         };
         foreach (['A', 'B', 'C', 'D'] as $letter) {
             $ws->getColumnDimension($letter)->setWidth($widths[$letter]);

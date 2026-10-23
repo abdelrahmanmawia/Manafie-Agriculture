@@ -177,6 +177,44 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART'), 0.05);
     }
 
+    public function test_bloc_tables_charge_each_hs_and_jf_to_the_operation_it_was_worked_on(): void
+    {
+        $division = $this->division();
+        $q = $this->quinzaine($division);
+        $worker = $this->worker($division, '001');
+        $this->work($worker, $q, '2026-10-01', ['hours' => 2]);
+        $this->work($worker, $q, '2026-10-02');
+        $this->work($worker, $q, '2026-10-03');
+        $this->work($worker, $q, '2026-10-04', ['bloc_id' => $this->b2->id, 'operation_id' => $this->irr->id, 'hours' => 3, 'is_jf' => true]);
+        // An unworked J.F. has no operation: it goes to the worker's main one (B1 D.M).
+        PointageRecord::create([
+            'employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => '2026-10-05', 'is_jf' => true,
+            'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 90.87,
+        ]);
+
+        $ws = $this->sheet($q);
+        $this->assertArrayNotHasKey('OP H.S / J.F', $this->columns($ws, 5));
+
+        // A bloc table line, by abbreviation; its J.F / H.SUP columns from the header just above.
+        $line = function (string $abbr) use ($ws) {
+            foreach ($ws->getRowIterator() as $row) {
+                $r = $row->getRowIndex();
+                if ($ws->getCell('F'.$r)->getValue() === $abbr && $ws->getCell('E'.$r)->getValue() !== 'OPERATIONS') {
+                    $header = $this->columns($ws, $r - 1);
+
+                    return ['jf' => $this->value($ws, $header['J.F'].$r), 'hs' => $this->value($ws, $header['H.SUP'].$r)];
+                }
+            }
+            $this->fail("No bloc line {$abbr}");
+        };
+
+        $this->assertEqualsWithDelta(2 * 11.36, $line('D.M')['hs'], 0.001);
+        $this->assertEqualsWithDelta(90.87, $line('D.M')['jf'], 0.001);
+        $this->assertEqualsWithDelta(3 * 11.36, $line('Irr')['hs'], 0.001);
+        $this->assertEqualsWithDelta(90.87, $line('Irr')['jf'], 0.001);
+        $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART'), 0.05);
+    }
+
     public function test_invoiced_fiche_bills_like_payroll_for_both_invoicing_formulas(): void
     {
         $division = $this->division(['name' => 'P-AGRI INTERIM', 'invoiced_to_client' => true]);
