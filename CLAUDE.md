@@ -81,6 +81,8 @@ Client invoicing (`net_factur_j`/`total_ttc`) is **dated**: `calculateInvoicing(
 ### Stock movements always pair a `StockMovement` row with a `StockInventory` update
 Every stock-affecting controller action (`StockMovementController::stockIn/stockOut/adjustment`, `FuelTransactionController`, `ManualStockEntryController`) wraps the write in `DB::transaction()` and does two things together: insert an immutable `StockMovement` audit row, then mutate `StockInventory.quantity_on_hand` (`firstOrCreate` if it doesn't exist yet). Follow this pattern for any new stock-mutating endpoint rather than updating inventory directly. Stock only ever flows from the central `magasin` out to a bloc (`stockOut`) — there is no bloc-to-bloc transfer in this business, and no such endpoint (a `transfer()` method existed but modeled a workflow that doesn't happen and silently destroyed stock quantities; it was removed).
 
+A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyone with Stock access — the magasinier included — can verify it; once verified it is locked for everyone until a `farm_manager`/`super_admin` unlocks it (`ManualStockEntryController::unverify`). Réceptions (`stockIn`) and inventory counts have no edit/delete at all. Every stock write locks its `StockInventory` row through `Controller::lockedInventoryFor()` (one row per product, `unique(product_id)`).
+
 ### Quinzaine locking
 A `Quinzaine` has `is_closed`. Once closed, `PointageController::updateCell` refuses further edits ("This period is closed and cannot be modified"). Any new mutation on pointage data for a given quinzaine should check this flag first.
 
