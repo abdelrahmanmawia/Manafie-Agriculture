@@ -181,8 +181,13 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                                 value={employee.residence_location && `${employee.residence_location.name} (${employee.residence_location.price_per_person} dh)`}
                             />
                             <InfoRow
+                                label="Équipe"
+                                value={employee.equipe && `${employee.equipe.name}${employee.equipe.chef ? ` (chef : ${employee.equipe.chef.full_name})` : ''}`}
+                            />
+                            {/* The vehicle is the équipe's — its members ride it. */}
+                            <InfoRow
                                 label="Véhicule"
-                                value={employee.transport_vehicle && `${employee.transport_vehicle.code} — ${employee.transport_vehicle.transport_company?.name || '?'}`}
+                                value={employee.equipe?.transport_vehicle && `${employee.equipe.transport_vehicle.code} — ${employee.equipe.transport_vehicle.transport_company?.name || '?'}`}
                             />
                         </div>
                     </div>

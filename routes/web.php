@@ -5,6 +5,7 @@ use App\Http\Controllers\BadgeController;
 use App\Http\Controllers\PointageScanController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\EnterpriseController;
+use App\Http\Controllers\EquipeController;
 use App\Http\Controllers\FarmController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\UserController;
@@ -122,6 +123,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/employees/{employee}/contract', [EmployeeController::class, 'generateContract'])->name('employees.contract');
     Route::get('/employees/{employee}/photo/{kind}', [EmployeeController::class, 'photo'])->whereIn('kind', ['photo', 'cin'])->name('employees.photo');
 
+    // Équipes (chef d'équipe teams) — the unit of the Grid's first pointage step ("Par équipe").
+    Route::get('/equipes', [EquipeController::class, 'index'])->name('equipes.index');
+    Route::post('/equipes', [EquipeController::class, 'store'])->name('equipes.store');
+    Route::put('/equipes/{equipe}', [EquipeController::class, 'update'])->name('equipes.update');
+    Route::delete('/equipes/{equipe}', [EquipeController::class, 'destroy'])->name('equipes.destroy');
+    Route::put('/equipes/{equipe}/members', [EquipeController::class, 'syncMembers'])->name('equipes.members');
+
     // Transport — employee-adjacent master data (residence pricing, companies, vehicles) and
     // its per-quinzaine cost summary. Nested under the Pointage domain rather than a separate
     // access.domain gate, since it's tightly coupled to Employee records, not a distinct area.
@@ -138,7 +146,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/transport/vehicles', [TransportVehicleController::class, 'store'])->name('transport.vehicles.store');
     Route::put('/transport/vehicles/{transportVehicle}', [TransportVehicleController::class, 'update'])->name('transport.vehicles.update');
     Route::delete('/transport/vehicles/{transportVehicle}', [TransportVehicleController::class, 'destroy'])->name('transport.vehicles.destroy');
-    Route::put('/transport/vehicles/{transportVehicle}/employees', [TransportVehicleController::class, 'syncEmployees'])->name('transport.vehicles.employees');
     Route::get('/transport/summary', [TransportController::class, 'summary'])->name('transport.summary.index');
     Route::get('/transport/grid/{quinzaine}', [TransportController::class, 'grid'])->name('transport.grid');
     Route::post('/transport/attendance', [TransportController::class, 'setAttendance'])->name('transport.attendance.set');

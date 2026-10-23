@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', transportId = null, transports = [] }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
     // Jour férié: the day whose header was clicked (action modal), and the per-division result
     // the server flashes back (summary modal).
@@ -69,20 +69,22 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // desktop table's own JOURS column, factored out so both views and the filter agree.
     const dayCountFor = (empId) => Object.keys(existingRecords[empId] || {}).length;
 
-    // Each row is pointed against ITS OWN division's quinzaine for these dates (in transport mode
-    // the riders can belong to several divisions). Null = that division has no quinzaine for
+    // Each row is pointed against ITS OWN division's quinzaine for these dates (in équipe mode
+    // the members can belong to several divisions). Null = that division has no quinzaine for
     // the period yet, so the row is read-only.
     const empById = (id) => employees.find(e => e.id === id);
     const qidFor = (id) => empById(id)?.quinzaine_id ?? null;
     const closedFor = (id) => { const e = empById(id); return e ? !!e.quinzaine_closed : !!quinzaine.is_closed; };
     const entFor = (emp) => emp.enterprise ?? quinzaine.enterprise;
 
-    // Division mode narrows the list client-side; transport mode reloads from the server so it
-    // can bring in riders from other divisions.
-    const [transportFilter, setTransportFilter] = useState('all');
+    // Division mode narrows the list client-side; équipe mode reloads from the server so it
+    // can bring in members from other divisions.
+    const [equipeFilter, setEquipeFilter] = useState('all');
+    const equipeLabel = (e) => `${e.name}${e.chef ? ` — chef : ${e.chef.full_name}` : ''} (${e.employees_count})`;
+    const chefId = mode === 'equipe' ? equipes.find(e => String(e.id) === String(equipeId))?.chef_employee_id : null;
     const openMode = (m, t) => router.get(
         route('pointage.grid', quinzaine.id),
-        m === 'transport' ? { mode: 'transport', ...(t ? { transport: t } : {}) } : {},
+        m === 'equipe' ? { mode: 'equipe', ...(t ? { equipe: t } : {}) } : {},
         { preserveScroll: true },
     );
 
@@ -95,13 +97,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const matchesDayFilter = dayFilter === 'all'
             || (dayFilter === 'zero' && days === 0)
             || (dayFilter === 'worked' && days > 0);
-        const matchesTransport = mode === 'transport' || transportFilter === 'all'
-            || (transportFilter === 'none' ? !emp.transport_vehicle_id : String(emp.transport_vehicle_id) === transportFilter);
-        return matchesSearch && matchesDayFilter && matchesTransport;
+        const matchesEquipe = mode === 'equipe' || equipeFilter === 'all'
+            || (equipeFilter === 'none' ? !emp.equipe_id : String(emp.equipe_id) === equipeFilter);
+        return matchesSearch && matchesDayFilter && matchesEquipe;
     });
 
 
-    // Pointage mode switch: by division (the quinzaine's own people) or by transport (a van's
+    // Pointage mode switch: by division (the quinzaine's own people) or by équipe (a chef's team,
     // riders, whatever their division). In division mode the select just filters the list.
     const modeBar = (
         <div className="flex flex-wrap items-center gap-2">
@@ -110,34 +112,35 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'division' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
                     Par division
                 </button>
-                <button type="button" onClick={() => mode !== 'transport' && openMode('transport', transportId || (transports[0]?.id ?? null))}
-                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'transport' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
-                    Par transport
+                <button type="button" onClick={() => mode !== 'equipe' && openMode('equipe', equipeId || (equipes[0]?.id ?? null))}
+                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'equipe' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                    Par équipe
                 </button>
             </div>
-            {mode === 'transport' ? (
-                <select value={transportId || ''} onChange={(e) => openMode('transport', e.target.value)}
+            {mode === 'equipe' ? (
+                <select value={equipeId || ''} onChange={(e) => openMode('equipe', e.target.value)}
                     className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
-                    <option value="">-- Choisir un transport --</option>
-                    {transports.map(t => <option key={t.id} value={t.id}>{t.code} ({t.employees_count})</option>)}
+                    <option value="">-- Choisir une équipe --</option>
+                    {equipes.map(e => <option key={e.id} value={e.id}>{equipeLabel(e)}</option>)}
+                    <option value="none">Sans équipe</option>
                 </select>
             ) : (
-                <select value={transportFilter} onChange={(e) => setTransportFilter(e.target.value)}
+                <select value={equipeFilter} onChange={(e) => setEquipeFilter(e.target.value)}
                     className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
-                    <option value="all">Tous les transports</option>
-                    <option value="none">Sans transport</option>
-                    {transports.map(t => <option key={t.id} value={String(t.id)}>{t.code} ({t.employees_count})</option>)}
+                    <option value="all">Toutes les équipes</option>
+                    <option value="none">Sans équipe</option>
+                    {equipes.map(e => <option key={e.id} value={String(e.id)}>{equipeLabel(e)}</option>)}
                 </select>
             )}
         </div>
     );
-    const noQuinzaineNote = mode === 'transport' && employees.some(e => !e.quinzaine_id) && (
+    const noQuinzaineNote = mode === 'equipe' && employees.some(e => !e.quinzaine_id) && (
         <p className="text-[10px] font-bold text-orange-600 uppercase tracking-wide">
             ⚠ {employees.filter(e => !e.quinzaine_id).length} ouvrier(s) : leur division n'a pas de quinzaine pour ces dates, ligne en lecture seule.
         </p>
     );
-    const transportEmptyNote = mode === 'transport' && !transportId && (
-        <p className="text-center text-xs font-bold text-gray-400 uppercase py-6">Choisissez un transport pour afficher ses ouvriers.</p>
+    const equipeEmptyNote = mode === 'equipe' && !equipeId && (
+        <p className="text-center text-xs font-bold text-gray-400 uppercase py-6">Choisissez une équipe pour afficher ses ouvriers.</p>
     );
 
     const filteredOperations = operations.filter(op => {
@@ -635,7 +638,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 </div>
                             </div>
                         </div>
-                        {(noQuinzaineNote || transportEmptyNote) && <div className="px-6 pt-3">{noQuinzaineNote}{transportEmptyNote}</div>}
+                        {(noQuinzaineNote || equipeEmptyNote) && <div className="px-6 pt-3">{noQuinzaineNote}{equipeEmptyNote}</div>}
                         {clipboard && (
                             <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -704,7 +707,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <td className="border border-gray-200 p-2 font-bold bg-white sticky left-0 z-10 shadow-sm group-hover:bg-primary-50">
                                                     <div className="flex items-center justify-between gap-2">
                                                         <div className="flex flex-col">
-                                                            <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">{emp.full_name}</span>
+                                                            <span className="text-gray-900 leading-none mb-1 uppercase tracking-tighter">
+                                                                {emp.full_name}
+                                                                {emp.id === chefId && <span className="ml-1 px-1 rounded bg-amber-100 text-amber-700 text-[7px] font-black align-middle">CHEF</span>}
+                                                            </span>
                                                             <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}</span>
                                                         </div>
                                                         {clipboard && (

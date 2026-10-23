@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\Employee;
+use App\Models\Equipe;
 use App\Models\Farm;
 use App\Models\Operation;
 use App\Models\Bloc;
@@ -138,23 +139,29 @@ class PointageController extends Controller
 
         // Two ways to pick who appears in the grid:
         //  - division (default): the quinzaine's own enterprise, as always;
-        //  - transport: everyone riding one transport vehicle, whatever their division. Each
+        //  - equipe: one chef d'équipe's team — or "none", the workers in no équipe — whatever
+        //    their division. This is the farm's first pointage step (the chefs' sheets); each
         //    person is pointed against THEIR OWN division's quinzaine for the same dates, so
         //    payroll/closing stay per division (see the per-employee quinzaine_id below).
-        $mode = $request->query('mode') === 'transport' ? 'transport' : 'division';
-        $transportId = $request->query('transport');
-        $transports = \App\Models\TransportVehicle::where('farm_id', $farmId)->where('is_active', true)
+        $mode = $request->query('mode') === 'equipe' ? 'equipe' : 'division';
+        $equipeId = $request->query('equipe');
+        $equipes = Equipe::with('chef:id,full_name')
+            ->where('farm_id', $farmId)->where('is_active', true)
             ->withCount(['employees' => fn ($q) => $q->where('is_active', true)])
-            ->orderBy('code')->get(['id', 'code']);
+            ->orderBy('name')->get(['id', 'name', 'chef_employee_id']);
 
-        if ($mode === 'transport') {
-            // No (or an unknown) transport chosen yet → an empty grid that asks the user to pick one.
-            $validTransport = $transportId && $transports->contains('id', (int) $transportId);
-            $employees = Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)
-                ->where('transport_vehicle_id', $validTransport ? $transportId : 0)
-                // An enterprise-scoped user never sees other divisions' people, same as elsewhere.
-                ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
-                ->orderBy('full_name')->get();
+        if ($mode === 'equipe') {
+            // No (or an unknown) équipe chosen yet → an empty grid that asks the user to pick one.
+            $equipe = $equipeId === 'none' ? null : $equipes->firstWhere('id', (int) $equipeId);
+            $employees = ($equipeId === 'none' || $equipe)
+                ? Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)
+                    ->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->whereNull('equipe_id'))
+                    // An enterprise-scoped user never sees other divisions' people, same as elsewhere.
+                    ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
+                    ->orderBy('full_name')->get()
+                    // The chef's own line first, like on the paper sheet.
+                    ->sortByDesc(fn ($e) => $equipe && $e->id === $equipe->chef_employee_id)->values()
+                : new \Illuminate\Database\Eloquent\Collection();
             $sameDates = Quinzaine::whereIn('enterprise_id', $employees->pluck('enterprise_id')->unique())
                 ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
                 ->get()->keyBy('enterprise_id');
@@ -197,8 +204,8 @@ class PointageController extends Controller
             'days' => $days,
             'existingRecords' => $records,
             'mode' => $mode,
-            'transportId' => $mode === 'transport' && $transportId ? (int) $transportId : null,
-            'transports' => $transports,
+            'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
+            'equipes' => $equipes,
         ]);
     }
 

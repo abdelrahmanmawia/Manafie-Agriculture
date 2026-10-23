@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, Link, useForm, router } from '@inertiajs/react';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
@@ -11,19 +11,15 @@ import InputError from '@/Components/InputError';
 const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', fixed_net_per_day: '' };
 
 // Farm-scoped list of transport vehicles (the "CODE"/matricule) — each belongs to one
-// TransportCompany and has its own driver. Riders are picked per-vehicle here (a multi-select
-// checklist, see syncEmployees()) rather than one at a time on Admin/Employees.jsx — much
-// faster when assigning a whole van's worth of people at once.
-export default function Vehicles({ auth, vehicles, companies, employees, locations }) {
+// TransportCompany and has its own driver. Its riders are the members of the équipes riding
+// it: they're assigned on the Équipes page (one équipe, one vehicle), and only summarised here.
+export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
     const [editingId, setEditingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
-    const [managingRidersId, setManagingRidersId] = useState(null);
-    const [riderSearch, setRiderSearch] = useState('');
 
     const createForm = useForm(emptyForm);
     const editForm = useForm(emptyForm);
     const deleteForm = useForm();
-    const ridersForm = useForm({ employee_ids: [] });
 
     const submitCreate = (e) => {
         e.preventDefault();
@@ -79,40 +75,7 @@ export default function Vehicles({ auth, vehicles, companies, employees, locatio
         });
     };
 
-    const openRiders = (vehicle) => {
-        setEditingId(null);
-        setConfirmingDeleteId(null);
-        setRiderSearch('');
-        ridersForm.clearErrors();
-        ridersForm.setData('employee_ids', employees.filter(e => e.transport_vehicle_id === vehicle.id).map(e => e.id));
-        setManagingRidersId(vehicle.id);
-    };
-
-    const closeRiders = () => {
-        setManagingRidersId(null);
-        ridersForm.reset();
-    };
-
-    const toggleRider = (employeeId) => {
-        const ids = ridersForm.data.employee_ids;
-        ridersForm.setData('employee_ids', ids.includes(employeeId) ? ids.filter(id => id !== employeeId) : [...ids, employeeId]);
-    };
-
-    const submitRiders = (e, vehicleId) => {
-        e.preventDefault();
-        ridersForm.put(route('transport.vehicles.employees', vehicleId), {
-            preserveScroll: true,
-            onSuccess: () => setManagingRidersId(null),
-        });
-    };
-
-    // Fires immediately on select — an employee with no residence can't be priced by
-    // TransportService, so fixing it right here (instead of a separate save step) matters.
-    const quickSetResidence = (employeeId, locationId) => {
-        router.put(route('transport.employees.residence', employeeId), {
-            residence_location_id: locationId || null,
-        }, { preserveScroll: true, preserveState: true });
-    };
+    const equipesOf = (vehicle) => equipes.filter(e => e.transport_vehicle_id === vehicle.id);
 
     const CompanySelect = ({ form }) => (
         <select
@@ -186,7 +149,7 @@ export default function Vehicles({ auth, vehicles, companies, employees, locatio
                                                             className="block w-full"
                                                             value={editForm.data.fixed_net_per_day}
                                                             onChange={(e) => editForm.setData('fixed_net_per_day', e.target.value)}
-                                                            placeholder={`Auto : ${vehicle.net_per_day} dh (somme des résidences des employés)`}
+                                                            placeholder={`Auto : ${vehicle.net_per_day} dh (somme des résidences des ouvriers de ses équipes)`}
                                                         />
                                                         {vehicle.fixed_net_per_day !== null && (
                                                             <button type="button" onClick={() => { editForm.setData('fixed_net_per_day', ''); resetToAutoPrice(vehicle); }} className="text-xs text-primary-600 hover:text-primary-700 shrink-0 whitespace-nowrap">
@@ -194,7 +157,7 @@ export default function Vehicles({ auth, vehicles, companies, employees, locatio
                                                             </button>
                                                         )}
                                                     </div>
-                                                    <p className="text-xs text-gray-400 mt-1">Laisser vide pour calculer automatiquement selon les résidences des employés assignés.</p>
+                                                    <p className="text-xs text-gray-400 mt-1">Laisser vide pour calculer automatiquement selon les résidences des ouvriers des équipes qui l'utilisent.</p>
                                                     <InputError message={editForm.errors.fixed_net_per_day} className="mt-1" />
                                                 </div>
                                             </div>
@@ -229,9 +192,9 @@ export default function Vehicles({ auth, vehicles, companies, employees, locatio
                                                 </div>
                                             ) : (
                                                 <div className="flex items-center gap-3 shrink-0">
-                                                    <button type="button" onClick={() => openRiders(vehicle)} className="text-xs font-bold text-primary-600 hover:text-primary-700 uppercase tracking-wide">
-                                                        {employees.filter(e => e.transport_vehicle_id === vehicle.id).length} employé(s)
-                                                    </button>
+                                                    <Link href={route('equipes.index')} title={equipesOf(vehicle).map(e => e.name).join(', ') || 'Aucune équipe'} className="text-xs font-bold text-primary-600 hover:text-primary-700 uppercase tracking-wide">
+                                                        {equipesOf(vehicle).length} équipe(s) · {equipesOf(vehicle).reduce((n, e) => n + e.employees_count, 0)} ouvrier(s)
+                                                    </Link>
                                                     <button type="button" onClick={() => toggleActive(vehicle)} className="text-xs font-medium text-gray-500 hover:text-gray-700">
                                                         {vehicle.is_active ? 'Actif' : 'Inactif'}
                                                     </button>
@@ -251,64 +214,6 @@ export default function Vehicles({ auth, vehicles, companies, employees, locatio
                                     )}
                                     {confirmingDeleteId === vehicle.id && (
                                         <InputError message={deleteForm.errors.transport_vehicle} className="mt-2" />
-                                    )}
-                                    {managingRidersId === vehicle.id && (
-                                        <form onSubmit={(e) => submitRiders(e, vehicle.id)} className="border-t mt-3 pt-3 space-y-3">
-                                            <TextInput
-                                                className="block w-full"
-                                                value={riderSearch}
-                                                onChange={(e) => setRiderSearch(e.target.value)}
-                                                placeholder="Rechercher un employé..."
-                                                autoFocus
-                                            />
-                                            <div className="max-h-56 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-50">
-                                                {employees
-                                                    .filter(emp => {
-                                                        const q = riderSearch.trim().toLowerCase();
-                                                        return !q || emp.full_name.toLowerCase().includes(q) || (emp.matricule || '').toLowerCase().includes(q);
-                                                    })
-                                                    .map(emp => {
-                                                        const checked = ridersForm.data.employee_ids.includes(emp.id);
-                                                        const elsewhere = emp.transport_vehicle_id && emp.transport_vehicle_id !== vehicle.id
-                                                            ? vehicles.find(v => v.id === emp.transport_vehicle_id)
-                                                            : null;
-                                                        return (
-                                                            <div key={emp.id} className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50">
-                                                                <label className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={checked}
-                                                                        onChange={() => toggleRider(emp.id)}
-                                                                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 shrink-0"
-                                                                    />
-                                                                    <span className="flex-1 min-w-0 truncate">{emp.full_name} <span className="text-gray-400">({emp.matricule})</span></span>
-                                                                </label>
-                                                                {elsewhere && !checked && (
-                                                                    <span className="text-xs text-amber-600 shrink-0">déjà sur {elsewhere.code}</span>
-                                                                )}
-                                                                {/* Quick residence picker — an employee with none set can't be priced by
-                                                                    TransportService, so it's flagged (amber) and fixable right here. */}
-                                                                <select
-                                                                    value={emp.residence_location_id || ''}
-                                                                    onChange={(e) => quickSetResidence(emp.id, e.target.value)}
-                                                                    onClick={(e) => e.stopPropagation()}
-                                                                    className={`text-xs rounded-md shrink-0 max-w-[9.5rem] py-1 ${emp.residence_location_id ? 'border-gray-200 text-gray-500' : 'border-amber-300 text-amber-700 bg-amber-50'}`}
-                                                                >
-                                                                    <option value="">résidence ?</option>
-                                                                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                                                                </select>
-                                                            </div>
-                                                        );
-                                                    })}
-                                            </div>
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-xs text-gray-500">{ridersForm.data.employee_ids.length} sélectionné(s)</span>
-                                                <div className="flex gap-2">
-                                                    <SecondaryButton type="button" onClick={closeRiders}>Annuler</SecondaryButton>
-                                                    <PrimaryButton disabled={ridersForm.processing}>Enregistrer</PrimaryButton>
-                                                </div>
-                                            </div>
-                                        </form>
                                     )}
                                 </div>
                             ))}

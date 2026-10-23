@@ -34,8 +34,7 @@ class CurrentDataSeeder extends Seeder
         'blocs',
         'sectors',
         'parcelles',
-        // Transport comes before employees: employees.transport_vehicle_id /
-        // residence_location_id point at these.
+        // Transport comes before employees: employees.residence_location_id points at these.
         'transport_companies',
         'transport_locations',
         'transport_vehicles',
@@ -50,18 +49,46 @@ class CurrentDataSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
+            DB::table('equipes')->delete();
             foreach (array_reverse(self::TABLES) as $table) {
                 DB::table($table)->delete();
             }
 
+            $ridersByVehicle = [];
             foreach (self::TABLES as $table) {
                 $rows = json_decode(file_get_contents(__DIR__ . "/data/{$table}.json"), true);
+
+                // The snapshot predates équipes (migration 000046): it still has each employee's
+                // transport_vehicle_id, a column that no longer exists.
+                if ($table === 'employees') {
+                    foreach ($rows as &$row) {
+                        if (! empty($row['transport_vehicle_id'])) {
+                            $ridersByVehicle[$row['transport_vehicle_id']][] = $row['id'];
+                        }
+                        unset($row['transport_vehicle_id']);
+                    }
+                    unset($row);
+                }
 
                 // One multi-row INSERT per chunk, not per table — pointage_records alone is
                 // 650+ rows and SQLite caps the number of bound parameters per statement.
                 foreach (array_chunk($rows, 100) as $chunk) {
                     DB::table($table)->insert($chunk);
                 }
+            }
+
+            // Same carry-over as migration 000046: one équipe per vehicle, named after it, riding
+            // it, with its riders as members.
+            foreach (DB::table('transport_vehicles')->whereIn('id', array_keys($ridersByVehicle))->get(['id', 'farm_id', 'code']) as $vehicle) {
+                $equipeId = DB::table('equipes')->insertGetId([
+                    'farm_id' => $vehicle->farm_id,
+                    'name' => $vehicle->code,
+                    'transport_vehicle_id' => $vehicle->id,
+                    'is_active' => true,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+                DB::table('employees')->whereIn('id', $ridersByVehicle[$vehicle->id])->update(['equipe_id' => $equipeId]);
             }
         });
     }

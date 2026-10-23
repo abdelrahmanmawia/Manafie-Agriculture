@@ -13,7 +13,7 @@ class Employee extends Model
         'farm_id', 'enterprise_id', 'matricule', 'full_name', 'last_name', 'first_name', 'complement', 'cin', 'cnss_number',
         'dob', 'hire_date', 'phone', 'address', 'bank_name', 'rib',
         'base_rate', 'is_active', 'badge_uuid', 'photo_path', 'cin_photo_path',
-        'residence_location_id', 'transport_vehicle_id'
+        'residence_location_id', 'equipe_id'
     ];
 
     protected $casts = [
@@ -45,8 +45,9 @@ class Employee extends Model
         return $this->belongsTo(TransportLocation::class, 'residence_location_id');
     }
 
-    public function transportVehicle()
+    /** The chef d'équipe's team this worker belongs to; how they travel is its vehicle. */
+    public function equipe()
     {
-        return $this->belongsTo(TransportVehicle::class);
+        return $this->belongsTo(Equipe::class);
     }
 }

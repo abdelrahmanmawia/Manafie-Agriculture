@@ -27,9 +27,15 @@ class TransportVehicle extends Model
         return $this->belongsTo(TransportCompany::class);
     }
 
+    public function equipes()
+    {
+        return $this->hasMany(Equipe::class);
+    }
+
+    /** Riders: the members of every équipe riding this vehicle. */
     public function employees()
     {
-        return $this->hasMany(Employee::class, 'transport_vehicle_id');
+        return $this->hasManyThrough(Employee::class, Equipe::class, 'transport_vehicle_id', 'equipe_id');
     }
 
     public function attendances()
@@ -40,8 +46,9 @@ class TransportVehicle extends Model
     /**
      * This vehicle's daily cost: fixed_net_per_day if a manager set one (a flat rate
      * negotiated with the transport company), otherwise the sum of every currently assigned
-     * rider's residence price. Call with employees/residenceLocation already eager-loaded to
-     * avoid N+1 queries when computing this across many vehicles (see TransportController::grid()).
+     * rider's residence price (riders = members of the équipes riding it). Call with
+     * employees/residenceLocation already eager-loaded to avoid N+1 queries when computing this
+     * across many vehicles (see TransportController::grid()).
      */
     public function netPerDay(): float
     {

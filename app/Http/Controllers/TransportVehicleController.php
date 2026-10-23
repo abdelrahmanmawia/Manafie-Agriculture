@@ -2,11 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Employee;
 use App\Models\TransportCompany;
 use App\Models\TransportVehicle;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -30,50 +28,14 @@ class TransportVehicleController extends Controller
                 ->where('is_active', true)
                 ->orderBy('name')
                 ->get(['id', 'name']),
-            // Riders are picked per-vehicle here (see syncEmployees()) rather than per-employee on
-            // Admin/Employees.jsx — much faster when assigning a whole van's worth of people at
-            // once. transport_vehicle_id is included so the page can show who's on THIS vehicle
-            // vs already riding another one.
-            'employees' => Employee::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
-                ->where('is_active', true)
-                ->orderBy('full_name')
-                ->get(['id', 'matricule', 'full_name', 'transport_vehicle_id', 'residence_location_id']),
-            // For the checklist's inline "quick-set residence" picker (see
-            // TransportLocationController::assignEmployeeResidence()) — an employee with no
-            // residence can't be priced in TransportService, so the page flags and fixes it
-            // right there instead of sending the manager to Admin/Employees.jsx.
-            'locations' => \App\Models\TransportLocation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
-                ->where('is_active', true)
+            // Riders are now the members of the équipes riding each vehicle (managed on the
+            // Équipes page); listed here read-only so the cost basis stays visible.
+            'equipes' => \App\Models\Equipe::where('farm_id', $farmId)
+                ->whereNotNull('transport_vehicle_id')
+                ->withCount('employees')
                 ->orderBy('name')
-                ->get(['id', 'name', 'price_per_person']),
+                ->get(['id', 'name', 'transport_vehicle_id', 'is_active']),
         ]);
-    }
-
-    /**
-     * Bulk-sets this vehicle's riders to exactly the given employee list — checked in the UI's
-     * multi-select, not accumulated one at a time. An employee already riding a different
-     * vehicle is silently moved to this one (an employee can only ride one vehicle), same as
-     * re-picking them individually on the employee form would have done.
-     */
-    public function syncEmployees(Request $request, TransportVehicle $transportVehicle)
-    {
-        $this->assertFarmScope($request, $transportVehicle->farm_id);
-
-        $validated = $request->validate([
-            'employee_ids' => 'array',
-            'employee_ids.*' => [Rule::exists('employees', 'id')->where('farm_id', $transportVehicle->farm_id)],
-        ]);
-        $employeeIds = $validated['employee_ids'] ?? [];
-
-        DB::transaction(function () use ($transportVehicle, $employeeIds) {
-            Employee::where('transport_vehicle_id', $transportVehicle->id)
-                ->whereNotIn('id', $employeeIds)
-                ->update(['transport_vehicle_id' => null]);
-
-            Employee::whereIn('id', $employeeIds)->update(['transport_vehicle_id' => $transportVehicle->id]);
-        });
-
-        return redirect()->back()->with('success', 'Employés du véhicule mis à jour.');
     }
 
     public function store(Request $request)
@@ -120,9 +82,9 @@ class TransportVehicleController extends Controller
         abort_unless($request->user()->canAccessPointage(), 403);
         $this->assertFarmScope($request, $transportVehicle->farm_id);
 
-        if ($transportVehicle->employees()->exists()) {
+        if ($transportVehicle->equipes()->exists()) {
             return redirect()->back()->withErrors([
-                'transport_vehicle' => 'Ce véhicule est assigné à au moins un employé et ne peut pas être supprimé. Désactivez-le plutôt.',
+                'transport_vehicle' => 'Au moins une équipe utilise ce véhicule : il ne peut pas être supprimé. Désactivez-le plutôt.',
             ]);
         }
 

@@ -223,7 +223,7 @@ class EmployeeController extends Controller
     {
         $this->assertEmployeeInScope($request, $employee);
 
-        $employee->load(['enterprise', 'residenceLocation', 'transportVehicle.transportCompany']);
+        $employee->load(['enterprise', 'residenceLocation', 'equipe.chef:id,full_name', 'equipe.transportVehicle.transportCompany']);
 
         $totalDays = PointageRecord::where('employee_id', $employee->id)->count();
         $totalNet = (float) PointageRecord::where('employee_id', $employee->id)->sum('net');

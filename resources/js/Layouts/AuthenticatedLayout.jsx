@@ -84,7 +84,10 @@ export default function Authenticated({ user, header, children }) {
         { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
         ...(needsFarmSelection
             ? []
-            : [{ label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees }]),
+            : [
+                { label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees },
+                { label: 'Équipes', href: 'equipes.index', match: 'equipes.*', icon: ICONS.employees },
+            ]),
         ...(needsFarmSelection
             ? []
             : [{
