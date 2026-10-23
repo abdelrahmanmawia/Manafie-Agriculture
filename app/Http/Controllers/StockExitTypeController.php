@@ -13,12 +13,6 @@ class StockExitTypeController extends Controller
     // Same convention as ProductController's categories: structural configuration a
     // farm_manager/super_admin sets up, not something data_entry manages day to day.
 
-    private function assertExitTypeInScope(Request $request, StockExitType $exitType): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $exitType->farm_id === $farmId, 403);
-    }
-
     // Guarantees a stable, unique-per-farm key even if two types are given the same label,
     // or a label slugifies to nothing (emoji-only, etc).
     private function uniqueKeyFor(string $label, int $farmId): string
@@ -63,7 +57,7 @@ class StockExitTypeController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertExitTypeInScope($request, $exitType);
+        $this->assertFarmScope($request, $exitType->farm_id);
 
         $validated = $request->validate([
             'label' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('stock_exit_types', 'label')->where('farm_id', $exitType->farm_id)->ignore($exitType->id)],
@@ -83,7 +77,7 @@ class StockExitTypeController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertExitTypeInScope($request, $exitType);
+        $this->assertFarmScope($request, $exitType->farm_id);
 
         if (ManualStockEntry::where('farm_id', $exitType->farm_id)->where('entry_type', $exitType->key)->exists()) {
             return redirect()->back()->withErrors([

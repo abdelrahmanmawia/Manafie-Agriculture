@@ -191,4 +191,80 @@ class Controller extends BaseController
 
         return (int) $enterpriseId;
     }
+
+    /*
+     * The record-level scope checks. Every controller goes through these instead of its own
+     * copy of the role branching — several hand-rolled copies drifted apart (one leaked another
+     * farm's employees, others let a division-locked user act on a sibling division).
+     *
+     * The rule, in one place: a record must belong to the requester's farm (scopedFarmId():
+     * the super_admin's active farm, everyone else's own farm_id), and a user locked to one
+     * division (users.enterprise_id) may only touch that division. Cross-tenant access is a 403.
+     */
+
+    /**
+     * The record's farm must be the requester's farm. Every route-bound or payload-supplied
+     * record goes through this (or one of the checks below) before it's shown or changed —
+     * Stock/Transport show/update/destroy methods originally trusted the bound model outright,
+     * letting anyone read or mutate another farm's records by walking IDs.
+     */
+    protected function assertFarmScope(Request $request, $farmId): void
+    {
+        $scopedFarmId = $this->scopedFarmId($request);
+
+        abort_unless($scopedFarmId && $farmId !== null && (int) $farmId === $scopedFarmId, 403);
+    }
+
+    /**
+     * The division must be in the requester's farm — and be their own if they're locked to one.
+     * Accepts the model or an id (e.g. straight from a request payload); returns the model.
+     */
+    protected function assertEnterpriseInScope(Request $request, $enterprise): \App\Models\Enterprise
+    {
+        if (! $enterprise instanceof \App\Models\Enterprise) {
+            $enterprise = \App\Models\Enterprise::find($enterprise);
+        }
+        abort_unless($enterprise, 403);
+
+        $this->assertFarmScope($request, $enterprise->farm_id);
+        $this->assertDivisionLock($request, $enterprise->id);
+
+        return $enterprise;
+    }
+
+    /** A quinzaine belongs to exactly one division — same rule as assertEnterpriseInScope(). */
+    protected function assertQuinzaineInScope(Request $request, \App\Models\Quinzaine $quinzaine): void
+    {
+        $this->assertEnterpriseInScope($request, $quinzaine->enterprise);
+    }
+
+    /**
+     * Employees are farm-scoped (the same worker can move between divisions), so the farm is the
+     * boundary — plus the division lock for a user confined to one division.
+     */
+    protected function assertEmployeeInScope(Request $request, \App\Models\Employee $employee): void
+    {
+        $this->assertFarmScope($request, $employee->farm_id);
+        $this->assertDivisionLock($request, $employee->enterprise_id);
+    }
+
+    private function assertDivisionLock(Request $request, $enterpriseId): void
+    {
+        $lockedTo = $request->user()->enterprise_id;
+
+        abort_if($lockedTo && (int) $enterpriseId !== (int) $lockedTo, 403);
+    }
+
+    /**
+     * Divisions offered in a page's division picker/filter: the requester's farm's divisions,
+     * or none for a user locked to one division (they have nothing to pick).
+     */
+    protected function selectableEnterprises(Request $request)
+    {
+        if ($request->user()->enterprise_id) {
+            return collect();
+        }
+
+        return \App\Models\Enterprise::where('farm_id', $this->scopedFarmId($request))->get();
+    }
 }

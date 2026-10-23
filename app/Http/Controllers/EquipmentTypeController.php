@@ -13,12 +13,6 @@ class EquipmentTypeController extends Controller
     // Same convention as VehicleTypeController/StockExitTypeController: structural
     // configuration a farm_manager/super_admin sets up, not something data_entry manages.
 
-    private function assertEquipmentTypeInScope(Request $request, EquipmentType $equipmentType): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $equipmentType->farm_id === $farmId, 403);
-    }
-
     private function uniqueKeyFor(string $label, int $farmId): string
     {
         $base = Str::slug($label, '_') ?: 'type';
@@ -59,7 +53,7 @@ class EquipmentTypeController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertEquipmentTypeInScope($request, $equipmentType);
+        $this->assertFarmScope($request, $equipmentType->farm_id);
 
         $validated = $request->validate([
             'label' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('equipment_types', 'label')->where('farm_id', $equipmentType->farm_id)->ignore($equipmentType->id)],
@@ -78,7 +72,7 @@ class EquipmentTypeController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertEquipmentTypeInScope($request, $equipmentType);
+        $this->assertFarmScope($request, $equipmentType->farm_id);
 
         if (Vehicle::where('farm_id', $equipmentType->farm_id)->where('asset_type', 'equipment')->where('type', $equipmentType->key)->exists()) {
             return redirect()->back()->withErrors([

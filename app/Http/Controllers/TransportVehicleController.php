@@ -12,12 +12,6 @@ use Inertia\Inertia;
 
 class TransportVehicleController extends Controller
 {
-    private function assertInScope(Request $request, TransportVehicle $vehicle): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $vehicle->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -63,7 +57,7 @@ class TransportVehicleController extends Controller
      */
     public function syncEmployees(Request $request, TransportVehicle $transportVehicle)
     {
-        $this->assertInScope($request, $transportVehicle);
+        $this->assertFarmScope($request, $transportVehicle->farm_id);
 
         $validated = $request->validate([
             'employee_ids' => 'array',
@@ -104,7 +98,7 @@ class TransportVehicleController extends Controller
 
     public function update(Request $request, TransportVehicle $transportVehicle)
     {
-        $this->assertInScope($request, $transportVehicle);
+        $this->assertFarmScope($request, $transportVehicle->farm_id);
 
         $validated = $request->validate([
             'transport_company_id' => ['sometimes', 'required', Rule::exists('transport_companies', 'id')->where('farm_id', $transportVehicle->farm_id)],
@@ -124,7 +118,7 @@ class TransportVehicleController extends Controller
     public function destroy(Request $request, TransportVehicle $transportVehicle)
     {
         abort_unless($request->user()->canAccessPointage(), 403);
-        $this->assertInScope($request, $transportVehicle);
+        $this->assertFarmScope($request, $transportVehicle->farm_id);
 
         if ($transportVehicle->employees()->exists()) {
             return redirect()->back()->withErrors([

@@ -53,8 +53,7 @@ class StockAlertController extends Controller
         }
         // Same gap as every other Stock show/update method audited — trusted the
         // route-bound $alert with no farm-ownership check at all.
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $alert->product->farm_id === $farmId, 403);
+        $this->assertFarmScope($request, $alert->product->farm_id);
 
         $alert->update([
             'is_resolved' => true,

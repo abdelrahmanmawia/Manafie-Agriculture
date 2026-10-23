@@ -20,15 +20,15 @@ class BadgeController extends Controller
      */
     private function scopedEmployees(Request $request)
     {
-        $user = $request->user();
-        $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
+        $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
 
         // Farm filter first, for every role — see EmployeeController::index for the
         // ?enterprise_id= cross-farm leak this closes (print() would also have minted
         // badge_uuids onto the other farm's employees).
         return Employee::with('enterprise')
             ->where('is_active', true)
-            ->where('farm_id', $this->scopedFarmId($request))
+            ->where('farm_id', $farmId)
             ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
             ->orderBy('full_name')
             ->get();
@@ -38,11 +38,7 @@ class BadgeController extends Controller
     {
         return Inertia::render('Pointage/Badges', [
             'employees' => $this->scopedEmployees($request),
-            'enterprises' => $request->user()->role === 'super_admin'
-                ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
-                : (($request->user()->role === 'farm_manager')
-                    ? \App\Models\Enterprise::where('farm_id', $request->user()->farm_id)->get()
-                    : []),
+            'enterprises' => $this->selectableEnterprises($request),
         ]);
     }
 
@@ -56,10 +52,12 @@ class BadgeController extends Controller
     {
         $employeeIds = $request->query('employee_ids');
         // Was unscoped by farm entirely — any authenticated user could print another
-        // farm's employee badges (names, matricules, QR codes) just by supplying its IDs.
+        // farm's employee badges (names, matricules, QR codes) just by supplying its IDs. Same
+        // division lock as everywhere else for a user confined to one division.
         $employees = $employeeIds
             ? Employee::whereIn('id', explode(',', $employeeIds))
                 ->where('farm_id', $this->scopedFarmId($request))
+                ->when($request->user()->enterprise_id, fn ($q, $enterpriseId) => $q->where('enterprise_id', $enterpriseId))
                 ->get()
             : $this->scopedEmployees($request);
 

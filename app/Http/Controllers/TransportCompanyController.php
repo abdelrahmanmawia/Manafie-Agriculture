@@ -9,12 +9,6 @@ use Inertia\Inertia;
 
 class TransportCompanyController extends Controller
 {
-    private function assertInScope(Request $request, TransportCompany $company): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $company->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -44,7 +38,7 @@ class TransportCompanyController extends Controller
 
     public function update(Request $request, TransportCompany $transportCompany)
     {
-        $this->assertInScope($request, $transportCompany);
+        $this->assertFarmScope($request, $transportCompany->farm_id);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('transport_companies', 'name')->where('farm_id', $transportCompany->farm_id)->ignore($transportCompany->id)],
@@ -60,7 +54,7 @@ class TransportCompanyController extends Controller
     public function destroy(Request $request, TransportCompany $transportCompany)
     {
         abort_unless($request->user()->canAccessPointage(), 403);
-        $this->assertInScope($request, $transportCompany);
+        $this->assertFarmScope($request, $transportCompany->farm_id);
 
         if ($transportCompany->vehicles()->exists()) {
             return redirect()->back()->withErrors([

@@ -29,17 +29,6 @@ class ManualStockEntryController extends Controller
      */
     private const LOCKED_MESSAGE = 'Cette sortie est vérifiée et verrouillée. Un responsable doit la déverrouiller avant toute modification.';
 
-    /**
-     * show/edit/update/destroy/verify all trusted the route-bound $entry with no
-     * ownership check — any authenticated user could view or mutate another farm's
-     * manual stock entry by walking IDs.
-     */
-    private function assertEntryInScope(Request $request, ManualStockEntry $entry): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $entry->farm_id === $farmId, 403);
-    }
-
     // Lets the "Intervention liée" select on the sortie form filter, client-side, to the
     // logs belonging to whichever vehicle is picked — one query, no per-vehicle round trip.
     private function maintenanceLogsFor(?int $farmId)
@@ -222,7 +211,7 @@ class ManualStockEntryController extends Controller
 
     public function show(Request $request, ManualStockEntry $manualStockEntry)
     {
-        $this->assertEntryInScope($request, $manualStockEntry);
+        $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
         $manualStockEntry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
 
@@ -233,7 +222,7 @@ class ManualStockEntryController extends Controller
 
     public function edit(Request $request, ManualStockEntry $manualStockEntry)
     {
-        $this->assertEntryInScope($request, $manualStockEntry);
+        $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
         if ($manualStockEntry->is_verified) {
             return redirect()->route('stock.manual-entries.show', $manualStockEntry)->with('error', self::LOCKED_MESSAGE);
@@ -273,7 +262,7 @@ class ManualStockEntryController extends Controller
     public function update(Request $request, ManualStockEntry $manualStockEntry)
     {
         // data_entry is intentionally allowed to update (see test_data_entry_can_update_manual_stock_entry).
-        $this->assertEntryInScope($request, $manualStockEntry);
+        $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
         $exitTypeKeys = $this->exitTypesFor($manualStockEntry->farm_id, $manualStockEntry->entry_type)->pluck('key');
 
@@ -412,10 +401,7 @@ class ManualStockEntryController extends Controller
             abort(404);
         }
 
-        $farmId = $this->scopedFarmId($request);
-        if ($entry->farm_id !== $farmId) {
-            abort(403);
-        }
+        $this->assertFarmScope($request, $entry->farm_id);
 
         return DB::transaction(function () use ($entry) {
             // Re-read under lock: a double-clicked delete would otherwise have both requests
@@ -452,7 +438,7 @@ class ManualStockEntryController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertEntryInScope($request, $manualStockEntry);
+        $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
         DB::transaction(function () use ($request, $manualStockEntry) {
             $entry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
@@ -479,7 +465,7 @@ class ManualStockEntryController extends Controller
     public function unverify(Request $request, ManualStockEntry $manualStockEntry)
     {
         abort_unless(in_array($request->user()->role, ['super_admin', 'farm_manager']), 403);
-        $this->assertEntryInScope($request, $manualStockEntry);
+        $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
         $manualStockEntry->update([
             'is_verified' => false,

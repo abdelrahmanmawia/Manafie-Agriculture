@@ -35,76 +35,22 @@ class EmployeeController extends Controller
     /**
      * Employees are Pointage-domain master data: farm_manager (or super_admin working the
      * active farm) may create/delete/toggle, as can a data_entry granted Pointage access
-     * (canAccessPointage()) — never a stock-only data_entry. Also locked to its own enterprise
-     * when it has one.
+     * (canAccessPointage()) — never a stock-only data_entry. Same farm/division boundary as
+     * viewing or editing the employee (Controller::assertEmployeeInScope()); it used to skip
+     * the division lock, so a division-locked user could delete or deactivate a sibling
+     * division's workers.
      */
-    private function assertEmployeeManagerAccess(Request $request, int $farmId): void
+    private function assertEmployeeManagerAccess(Request $request, Employee $employee): void
     {
-        $user = $request->user();
-        abort_unless($user->canAccessPointage(), 403);
-
-        if ($user->role === 'super_admin') {
-            abort_unless((int) session('active_farm_id') === $farmId, 403);
-            return;
-        }
-
-        abort_unless($user->farm_id === $farmId, 403);
-    }
-
-    /**
-     * Looser check used by update(), which data_entry is allowed to call: still requires
-     * the employee's farm to match the actor's scope, and further locks an enterprise-scoped
-     * data_entry to their own enterprise_id.
-     */
-    private function assertEmployeeInScope(Request $request, Employee $employee): void
-    {
-        $user = $request->user();
-        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
-
-        abort_unless($farmId && $employee->farm_id === (int) $farmId, 403);
-
-        if ($user->enterprise_id) {
-            abort_unless($employee->enterprise_id === $user->enterprise_id, 403);
-        }
-    }
-
-    /**
-     * Validates that $enterpriseId is one the current actor is allowed to assign an
-     * employee to (used by store()/update() to stop a cross-farm enterprise_id in the payload).
-     */
-    private function assertEnterpriseAssignable(Request $request, int $enterpriseId): void
-    {
-        $user = $request->user();
-        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
-
-        $enterprise = \App\Models\Enterprise::find($enterpriseId);
-        abort_unless($enterprise && $farmId && $enterprise->farm_id === (int) $farmId, 403);
-
-        if ($user->enterprise_id) {
-            abort_unless($enterpriseId === $user->enterprise_id, 403);
-        }
-    }
-
-    /**
-     * Divisions the current user is allowed to assign an employee to — same rule the
-     * EmployeeFormModal's "Assigner à une Division" select needs whether it's opened from the
-     * list (index()) or the detail page (show()).
-     */
-    private function assignableEnterprisesFor($user)
-    {
-        return $user->role === 'super_admin'
-            ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
-            : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
-                ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
-                : []);
+        abort_unless($request->user()->canAccessPointage(), 403);
+        $this->assertEmployeeInScope($request, $employee);
     }
 
     public function index(Request $request)
     {
-        $user = $request->user();
-        $enterpriseId = $user->enterprise_id ?? $request->query('enterprise_id');
         $searchQuery = $request->query('search');
         $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
 
         // Employee is farm-scoped (the same real person can have pointage under several
         // enterprises of the farm over time); enterprise_id here only narrows which division's
@@ -125,7 +71,7 @@ class EmployeeController extends Controller
             });
         }
 
-        $enterprises = $this->assignableEnterprisesFor($user);
+        $enterprises = $this->selectableEnterprises($request);
 
         return Inertia::render('Admin/Employees', [
             'employees' => $query->get(),
@@ -138,10 +84,8 @@ class EmployeeController extends Controller
 
     public function store(Request $request)
     {
-        $this->assertEnterpriseAssignable($request, (int) $request->enterprise_id);
         abort_unless($request->user()->canAccessPointage(), 403);
-
-        $farmId = \App\Models\Enterprise::findOrFail($request->enterprise_id)->farm_id;
+        $farmId = $this->assertEnterpriseInScope($request, (int) $request->enterprise_id)->farm_id;
 
         $validated = $request->validate([
             // matricule is not an input: it is generated below (sequential per farm) so nobody
@@ -226,7 +170,7 @@ class EmployeeController extends Controller
             $validated['is_active'] = $request->boolean('is_active');
         }
 
-        $this->assertEnterpriseAssignable($request, (int) $validated['enterprise_id']);
+        $this->assertEnterpriseInScope($request, (int) $validated['enterprise_id']);
 
         if ($request->hasFile('photo')) {
             if ($employee->photo_path) {
@@ -264,7 +208,7 @@ class EmployeeController extends Controller
 
     public function toggleActive(Request $request, Employee $employee)
     {
-        $this->assertEmployeeManagerAccess($request, $employee->farm_id);
+        $this->assertEmployeeManagerAccess($request, $employee);
 
         $employee->update(['is_active' => !$employee->is_active]);
         return redirect()->back();
@@ -319,7 +263,7 @@ class EmployeeController extends Controller
             'recentQuinzaines' => $recentQuinzaines,
             // For the Modifier/Générer Contrat/Supprimer actions on this page — same shared
             // EmployeeFormModal the list page uses, so it needs the same lookups.
-            'enterprises' => $this->assignableEnterprisesFor($request->user()),
+            'enterprises' => $this->selectableEnterprises($request),
             'transportLocations' => TransportLocation::where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'price_per_person']),
         ]);
     }
@@ -431,7 +375,7 @@ class EmployeeController extends Controller
 
     public function destroy(Request $request, Employee $employee)
     {
-        $this->assertEmployeeManagerAccess($request, $employee->farm_id);
+        $this->assertEmployeeManagerAccess($request, $employee);
 
         // pointage_records.employee_id is restrict (migration 000042) — deleting an employee
         // used to cascade away every pointage row they ever had, closed quinzaines included.

@@ -15,24 +15,6 @@ use Inertia\Inertia;
 class TransportController extends Controller
 {
     /**
-     * Same three-branch check as PointageController's private assertQuinzaineInScope() — kept
-     * as its own copy here rather than shared, matching how each controller in this codebase
-     * already owns its own scope-assertion methods rather than reaching into another one.
-     */
-    private function assertQuinzaineInScope($user, Quinzaine $quinzaine): void
-    {
-        if ($user->enterprise_id) {
-            abort_unless($quinzaine->enterprise_id === $user->enterprise_id, 403);
-        } elseif ($user->farm_id) {
-            abort_unless($quinzaine->enterprise->farm_id === $user->farm_id, 403);
-        } elseif ($user->role === 'super_admin') {
-            abort_unless($quinzaine->enterprise->farm_id === (int) session('active_farm_id'), 403);
-        } else {
-            abort(403);
-        }
-    }
-
-    /**
      * Day-by-day grid, rows = vehicles (farm-pooled, not enterprise-scoped — same reasoning
      * Transport/Vehicles.jsx already uses), columns = each day of this quinzaine. Marking a
      * cell records that the vehicle operated that day (TransportVehicleAttendance); a vehicle's
@@ -43,7 +25,7 @@ class TransportController extends Controller
     {
         $user = $request->user();
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
-        $this->assertQuinzaineInScope($user, $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         $farmId = $quinzaine->enterprise->farm_id;
 
@@ -100,7 +82,7 @@ class TransportController extends Controller
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         // Same reasoning as PointageController::updateCell(): exists:transport_vehicles,id only
         // proves the ID exists SOMEWHERE, not that it belongs to this farm.

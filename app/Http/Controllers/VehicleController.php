@@ -12,17 +12,6 @@ use Inertia\Inertia; // Import Inertia
 
 class VehicleController extends Controller
 {
-    /**
-     * show/update/toggleActive/destroy trusted the route-bound $vehicle with no
-     * ownership check — any authenticated user could view or mutate another farm's
-     * vehicle by walking IDs.
-     */
-    private function assertVehicleInScope(Request $request, Vehicle $vehicle): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $vehicle->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -145,7 +134,7 @@ class VehicleController extends Controller
 
     public function show(Request $request, Vehicle $vehicle)
     {
-        $this->assertVehicleInScope($request, $vehicle);
+        $this->assertFarmScope($request, $vehicle->farm_id);
 
         $vehicle->load([
             'defaultDriver',
@@ -184,7 +173,7 @@ class VehicleController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertVehicleInScope($request, $vehicle);
+        $this->assertFarmScope($request, $vehicle->farm_id);
 
         $vehicle->update(['is_active' => !$vehicle->is_active]);
 
@@ -194,7 +183,7 @@ class VehicleController extends Controller
     public function update(Request $request, Vehicle $vehicle)
     {
         // data_entry is intentionally allowed to update (see test_data_entry_can_update_vehicle).
-        $this->assertVehicleInScope($request, $vehicle);
+        $this->assertFarmScope($request, $vehicle->farm_id);
 
         $effectiveAssetType = $request->input('asset_type', $vehicle->asset_type);
 
@@ -241,7 +230,7 @@ class VehicleController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertVehicleInScope($request, $vehicle);
+        $this->assertFarmScope($request, $vehicle->farm_id);
 
         // Vehicle has no soft-deletes, and fuel_transactions/manual_stock_entries reference it
         // with no cascade — the DB would already reject this delete via a foreign key

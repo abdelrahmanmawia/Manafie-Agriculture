@@ -10,12 +10,6 @@ use Inertia\Inertia;
 
 class TransportLocationController extends Controller
 {
-    private function assertInScope(Request $request, TransportLocation $location): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $location->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -45,7 +39,7 @@ class TransportLocationController extends Controller
 
     public function update(Request $request, TransportLocation $transportLocation)
     {
-        $this->assertInScope($request, $transportLocation);
+        $this->assertFarmScope($request, $transportLocation->farm_id);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('transport_locations', 'name')->where('farm_id', $transportLocation->farm_id)->ignore($transportLocation->id)],
@@ -61,7 +55,7 @@ class TransportLocationController extends Controller
     public function destroy(Request $request, TransportLocation $transportLocation)
     {
         abort_unless($request->user()->canAccessPointage(), 403);
-        $this->assertInScope($request, $transportLocation);
+        $this->assertFarmScope($request, $transportLocation->farm_id);
 
         if ($transportLocation->employees()->exists()) {
             return redirect()->back()->withErrors([
@@ -81,8 +75,10 @@ class TransportLocationController extends Controller
      */
     public function assignEmployeeResidence(Request $request, Employee $employee)
     {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $employee->farm_id === $farmId, 403);
+        // Same boundary as editing the employee itself, division lock included (this used
+        // to check the farm only).
+        $this->assertEmployeeInScope($request, $employee);
+        $farmId = $employee->farm_id;
 
         $validated = $request->validate([
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],

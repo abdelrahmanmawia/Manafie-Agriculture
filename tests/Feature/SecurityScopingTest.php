@@ -553,10 +553,11 @@ class SecurityScopingTest extends TestCase
     {
         $this->employeeB->update(['cin' => 'CIN-OF-FARM-B']);
 
+        // Refused outright now (Controller::scopedEnterpriseId(), same as analytics/payroll),
+        // rather than an empty list.
         $this->actingAs($this->dataEntryA)
             ->get('/employees?enterprise_id=' . $this->enterpriseB->id)
-            ->assertOk()
-            ->assertDontSee('Employee B')
+            ->assertForbidden()
             ->assertDontSee('CIN-OF-FARM-B');
     }
 
@@ -572,7 +573,7 @@ class SecurityScopingTest extends TestCase
     {
         $this->actingAs($this->dataEntryA)
             ->get('/badges?enterprise_id=' . $this->enterpriseB->id)
-            ->assertOk()
+            ->assertForbidden()
             ->assertDontSee('Employee B');
     }
 

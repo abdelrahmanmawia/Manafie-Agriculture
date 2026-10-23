@@ -20,16 +20,6 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class StockInventoryController extends Controller
 {
-    /**
-     * show()/count() trusted the route-bound/validated product with no ownership check —
-     * any authenticated user could view or adjust another farm's inventory by walking IDs.
-     */
-    private function assertProductInScope(Request $request, Product $product): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $product->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -84,7 +74,7 @@ class StockInventoryController extends Controller
 
     public function show(Request $request, StockInventory $inventory)
     {
-        $this->assertProductInScope($request, $inventory->product);
+        $this->assertFarmScope($request, $inventory->product->farm_id);
 
         $this->loadMovementRelations($inventory);
 
@@ -117,9 +107,9 @@ class StockInventoryController extends Controller
             return null;
         }
 
-        $farmId = $this->scopedFarmId($request);
         $category = ProductCategory::find($request->category_id);
-        abort_unless($category && $farmId && $category->farm_id === $farmId, 403);
+        abort_unless($category, 403);
+        $this->assertFarmScope($request, $category->farm_id);
 
         return $category;
     }
@@ -154,7 +144,7 @@ class StockInventoryController extends Controller
 
     public function exportMovementsExcel(Request $request, StockInventory $inventory)
     {
-        $this->assertProductInScope($request, $inventory->product);
+        $this->assertFarmScope($request, $inventory->product->farm_id);
         $this->loadMovementRelations($inventory);
 
         $exitTypesByKey = $this->exitTypesFor($inventory->product->farm_id)->pluck('label', 'key')->toArray();
@@ -165,7 +155,7 @@ class StockInventoryController extends Controller
 
     public function exportMovementsPdf(Request $request, StockInventory $inventory)
     {
-        $this->assertProductInScope($request, $inventory->product);
+        $this->assertFarmScope($request, $inventory->product->farm_id);
         $this->loadMovementRelations($inventory);
 
         $pdf = Pdf::loadView('exports.stock_movements', [
@@ -202,7 +192,7 @@ class StockInventoryController extends Controller
 
         DB::transaction(function () use ($validated, $request) {
             $product = Product::findOrFail($validated['product_id']);
-            $this->assertProductInScope($request, $product);
+            $this->assertFarmScope($request, $product->farm_id);
 
             $inventory = $this->lockedInventoryFor($product->id);
 

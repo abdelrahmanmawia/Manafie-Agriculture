@@ -8,24 +8,12 @@ use Illuminate\Http\Request;
 
 class VehicleMaintenanceLogController extends Controller
 {
-    private function assertVehicleInScope(Request $request, Vehicle $vehicle): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $vehicle->farm_id === $farmId, 403);
-    }
-
-    private function assertLogInScope(Request $request, VehicleMaintenanceLog $log): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $log->farm_id === $farmId, 403);
-    }
-
     public function store(Request $request, Vehicle $vehicle)
     {
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertVehicleInScope($request, $vehicle);
+        $this->assertFarmScope($request, $vehicle->farm_id);
 
         $validated = $request->validate([
             'description' => 'required|string',
@@ -46,7 +34,7 @@ class VehicleMaintenanceLogController extends Controller
 
     public function update(Request $request, VehicleMaintenanceLog $maintenanceLog)
     {
-        $this->assertLogInScope($request, $maintenanceLog);
+        $this->assertFarmScope($request, $maintenanceLog->farm_id);
 
         $validated = $request->validate([
             'description' => 'sometimes|required|string',
@@ -66,7 +54,7 @@ class VehicleMaintenanceLogController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertLogInScope($request, $maintenanceLog);
+        $this->assertFarmScope($request, $maintenanceLog->farm_id);
 
         $maintenanceLog->delete();
 

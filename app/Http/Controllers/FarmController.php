@@ -28,14 +28,13 @@ class FarmController extends Controller
      */
     private function assertFarmManagerAccess(Request $request, int $farmId): void
     {
-        $user = $request->user();
-        abort_unless($user->canAccessPointage(), 403);
+        abort_unless($request->user()->canAccessPointage(), 403);
 
-        if ($user->role === 'super_admin') {
+        if ($request->user()->role === 'super_admin') {
             return;
         }
 
-        abort_unless($user->farm_id === $farmId, 403);
+        $this->assertFarmScope($request, $farmId);
     }
 
     public function index()

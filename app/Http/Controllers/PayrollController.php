@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Quinzaine;
 use App\Models\PointageRecord;
-use App\Models\Enterprise;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -20,25 +19,6 @@ class PayrollController extends Controller
     public function __construct(PayrollService $payrollService)
     {
         $this->payrollService = $payrollService;
-    }
-
-    /**
-     * A quinzaine belongs to exactly one enterprise; confirm the requesting user is actually
-     * scoped to it before handing back any of its payroll data — same check as
-     * PointageController::grid, since payslips are at least as sensitive as the grid itself.
-     */
-    private function assertQuinzaineInScope(Request $request, Quinzaine $quinzaine): void
-    {
-        $user = $request->user();
-        if ($user->enterprise_id) {
-            abort_unless($quinzaine->enterprise_id === $user->enterprise_id, 403);
-        } elseif ($user->farm_id) {
-            abort_unless($quinzaine->enterprise->farm_id === $user->farm_id, 403);
-        } elseif ($user->role === 'super_admin') {
-            abort_unless($quinzaine->enterprise->farm_id === (int) session('active_farm_id'), 403);
-        } else {
-            abort(403);
-        }
     }
 
     public function downloadGeneralPayslip(Request $request, $quinzaineId)
@@ -234,7 +214,7 @@ class PayrollController extends Controller
             'periods' => $periods,
             'history' => (object)$formattedHistory,
             'selectedEnterpriseId' => $enterpriseId,
-            'allEnterprises' => in_array($request->user()->role, ['super_admin', 'farm_manager']) ? Enterprise::where('farm_id', $farmId)->get() : []
+            'allEnterprises' => $this->selectableEnterprises($request),
         ]);
     }
 }

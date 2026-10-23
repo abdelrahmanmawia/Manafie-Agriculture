@@ -32,19 +32,25 @@ class EnterpriseController extends Controller
      * Day-to-day Pointage-domain operations within an EXISTING division (open/close/edit pay
      * periods, add/remove its operations/blocs) — that division's own farm_manager (or a
      * super_admin working within that farm), or a data_entry granted Pointage access
-     * (canAccessPointage()) — never a stock-only data_entry, and never another farm's manager.
+     * (canAccessPointage()) — never a stock-only data_entry, never another farm's manager, and
+     * never a sibling division for a user locked to one (Controller::assertEnterpriseInScope();
+     * this used to check the farm only, so such a user could create or close another
+     * division's quinzaines).
      */
-    private function assertEnterpriseManagerAccess(Request $request, int $farmId): void
+    private function assertEnterpriseManagerAccess(Request $request, Enterprise $enterprise): void
     {
-        $user = $request->user();
-        abort_unless($user->canAccessPointage(), 403);
+        abort_unless($request->user()->canAccessPointage(), 403);
+        $this->assertEnterpriseInScope($request, $enterprise);
+    }
 
-        if ($user->role === 'super_admin') {
-            abort_unless((int) session('active_farm_id') === $farmId, 403);
-            return;
-        }
-
-        abort_unless($user->farm_id === $farmId, 403);
+    /**
+     * Operations and blocs are farm-wide (every division points against them), so deleting one
+     * is checked against the farm, not a division.
+     */
+    private function assertFarmPointageAccess(Request $request, int $farmId): void
+    {
+        abort_unless($request->user()->canAccessPointage(), 403);
+        $this->assertFarmScope($request, $farmId);
     }
 
     /**
@@ -54,15 +60,8 @@ class EnterpriseController extends Controller
      */
     private function assertEnterpriseStructuralAccess(Request $request, int $farmId): void
     {
-        $user = $request->user();
-        abort_if($user->role === 'data_entry', 403);
-
-        if ($user->role === 'super_admin') {
-            abort_unless((int) session('active_farm_id') === $farmId, 403);
-            return;
-        }
-
-        abort_unless($user->farm_id === $farmId, 403);
+        abort_if($request->user()->role === 'data_entry', 403);
+        $this->assertFarmScope($request, $farmId);
     }
 
     public function index(Request $request)
@@ -263,7 +262,7 @@ class EnterpriseController extends Controller
         // Ensure farm_manager only accesses their own farm's enterprises, and super_admin only
         // the farm they've activated in session — the ?enterprise_id= query param otherwise
         // lets either read/manage any other farm's division settings.
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $enterprise);
 
         $quinzaines = Quinzaine::where('enterprise_id', $enterprise->id)->latest()->get();
 
@@ -340,7 +339,7 @@ class EnterpriseController extends Controller
 
     public function closeQuinzaine(Request $request, Quinzaine $quinzaine)
     {
-        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
 
         // A second close (e.g. a double-click, or this route ever getting hit again on an
         // already-closed period) must not silently regenerate the snapshot — its numbers are
@@ -373,7 +372,7 @@ class EnterpriseController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255', 'abbreviation' => 'nullable|string|max:50', 'enterprise_id' => 'required']);
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $enterprise);
 
         Operation::create([
             'name' => $request->name,
@@ -387,7 +386,7 @@ class EnterpriseController extends Controller
     {
         $request->validate(['name' => 'required|string|max:255', 'enterprise_id' => 'required']);
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $enterprise);
 
         Bloc::create([
             'name' => $request->name,
@@ -406,7 +405,7 @@ class EnterpriseController extends Controller
         ]);
 
         $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        $this->assertEnterpriseManagerAccess($request, $enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $enterprise);
 
         // Guard against a double-submit opening two overlapping pay periods for the same division.
         // start_date/end_date are stored with a time component (e.g. "2026-02-01 00:00:00"), so a
@@ -439,7 +438,7 @@ class EnterpriseController extends Controller
             'end_date' => 'required|date|after:start_date',
         ]);
 
-        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
 
         // Check for duplicate dates (excluding current quinzaine)
         $duplicate = Quinzaine::where('enterprise_id', $quinzaine->enterprise_id)
@@ -474,7 +473,7 @@ class EnterpriseController extends Controller
     {
         abort_if($quinzaine->is_closed, 403, 'Cannot delete a closed quinzaine.');
 
-        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise->farm_id);
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
 
         $quinzaine->delete();
 
@@ -483,7 +482,7 @@ class EnterpriseController extends Controller
 
     public function deleteOperation(Request $request, Operation $operation)
     {
-        $this->assertEnterpriseManagerAccess($request, $operation->farm_id);
+        $this->assertFarmPointageAccess($request, $operation->farm_id);
 
         // Same reasoning as destroy() above: an operation still referenced by pointage/stock
         // records (restrict FKs, see migration 000042) would otherwise throw an uncaught QueryException
@@ -502,7 +501,7 @@ class EnterpriseController extends Controller
 
     public function deleteBloc(Request $request, Bloc $bloc)
     {
-        $this->assertEnterpriseManagerAccess($request, $bloc->farm_id);
+        $this->assertFarmPointageAccess($request, $bloc->farm_id);
 
         try {
             $bloc->delete();

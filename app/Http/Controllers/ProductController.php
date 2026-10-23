@@ -24,23 +24,6 @@ use Inertia\Inertia; // Import Inertia
 
 class ProductController extends Controller
 {
-    /**
-     * show/update/toggleActive/destroy all trusted the route-bound $product with no
-     * ownership check — any authenticated user could view or silently mutate another
-     * farm's product by walking IDs. index()/store() were already properly scoped.
-     */
-    private function assertProductInScope(Request $request, Product $product): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $product->farm_id === $farmId, 403);
-    }
-
-    private function assertCategoryInScope(Request $request, ProductCategory $category): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $category->farm_id === $farmId, 403);
-    }
-
     private function categoriesFor(?int $farmId)
     {
         return ProductCategory::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
@@ -162,7 +145,7 @@ class ProductController extends Controller
 
     public function show(Request $request, Product $product)
     {
-        $this->assertProductInScope($request, $product);
+        $this->assertFarmScope($request, $product->farm_id);
 
         $product->load([
             'category',
@@ -190,7 +173,7 @@ class ProductController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertProductInScope($request, $product);
+        $this->assertFarmScope($request, $product->farm_id);
 
         $product->update(['is_active' => !$product->is_active]);
 
@@ -201,7 +184,7 @@ class ProductController extends Controller
     {
         // data_entry is intentionally allowed to update (see test_data_entry_can_update_product) —
         // only store/destroy/toggleActive are role-restricted. Farm-scoping still applies to everyone.
-        $this->assertProductInScope($request, $product);
+        $this->assertFarmScope($request, $product->farm_id);
 
         $validated = $request->validate([
             'name' => 'sometimes|required|string|max:255',
@@ -247,7 +230,7 @@ class ProductController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertProductInScope($request, $product);
+        $this->assertFarmScope($request, $product->farm_id);
 
         // Archiving the product makes any open low-stock alert for it moot — resolve so it
         // doesn't linger unactionable on the Alerts page.
@@ -288,7 +271,7 @@ class ProductController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertCategoryInScope($request, $category);
+        $this->assertFarmScope($request, $category->farm_id);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $category->farm_id)->ignore($category->id)],
@@ -306,7 +289,7 @@ class ProductController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertCategoryInScope($request, $category);
+        $this->assertFarmScope($request, $category->farm_id);
 
         // The FK is restrictOnDelete, so this would fail at the DB level anyway — checked here
         // first so the user gets an actionable message instead of a raw SQL error.

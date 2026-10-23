@@ -13,12 +13,6 @@ class SupplierController extends Controller
     // Same convention as ProductCategory/EquipmentType/StockExitType: structural configuration
     // a farm_manager/super_admin sets up, not something data_entry manages.
 
-    private function assertSupplierInScope(Request $request, Supplier $supplier): void
-    {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $supplier->farm_id === $farmId, 403);
-    }
-
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
@@ -32,7 +26,7 @@ class SupplierController extends Controller
 
     public function show(Request $request, Supplier $supplier)
     {
-        $this->assertSupplierInScope($request, $supplier);
+        $this->assertFarmScope($request, $supplier->farm_id);
 
         $supplier->load(['stockMovements' => fn ($q) => $q->orderByDesc('date')->with('product')]);
 
@@ -72,7 +66,7 @@ class SupplierController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertSupplierInScope($request, $supplier);
+        $this->assertFarmScope($request, $supplier->farm_id);
 
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('suppliers', 'name')->where('farm_id', $supplier->farm_id)->ignore($supplier->id)],
@@ -89,7 +83,7 @@ class SupplierController extends Controller
         if (! $request->user()->canAccessStock()) {
             abort(403);
         }
-        $this->assertSupplierInScope($request, $supplier);
+        $this->assertFarmScope($request, $supplier->farm_id);
 
         if (StockMovement::where('supplier_id', $supplier->id)->exists()) {
             return redirect()->back()->withErrors([

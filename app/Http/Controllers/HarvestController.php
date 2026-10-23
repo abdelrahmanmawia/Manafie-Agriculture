@@ -15,8 +15,7 @@ class HarvestController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
-        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
+        $farmId = $this->scopedFarmId($request);
 
         if (!$farmId) {
             return Inertia::render('Admin/Harvests', [
@@ -67,10 +66,7 @@ class HarvestController extends Controller
 
     public function store(Request $request)
     {
-        $user = $request->user();
-        $farmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
-
-        abort_unless($farmId, 403);
+        $farmId = $this->resolveWriteFarmId($request);
 
         $validated = $request->validate([
             'bloc_id' => 'required|exists:blocs,id',
@@ -126,8 +122,6 @@ class HarvestController extends Controller
 
     public function bulkWeigh(Request $request)
     {
-        $user = $request->user();
-
         try {
             $validated = $request->validate([
                 'harvest_ids' => 'required|array',
@@ -149,13 +143,8 @@ class HarvestController extends Controller
         // Security check - ensure all harvests belong to user's farm
         $harvests = Harvest::whereIn('id', $harvestIds)->get();
 
-        $userFarmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
-
         foreach ($harvests as $harvest) {
-            if ($userFarmId != $harvest->farm_id) {
-                Log::warning('Security check failed for harvest ID: ' . $harvest->id . ' by user ID: ' . $user->id);
-                abort(403);
-            }
+            $this->assertFarmScope($request, $harvest->farm_id);
         }
 
         // All or nothing: a failure part-way through used to leave the batch half weighed, with
@@ -209,11 +198,7 @@ class HarvestController extends Controller
 
     public function destroy(Harvest $harvest, Request $request)
     {
-        $user = $request->user();
-        $userFarmId = $user->role === 'super_admin' ? session('active_farm_id') : $user->farm_id;
-        if ($userFarmId != $harvest->farm_id) {
-            abort(403);
-        }
+        $this->assertFarmScope($request, $harvest->farm_id);
 
         $harvest->delete();
 

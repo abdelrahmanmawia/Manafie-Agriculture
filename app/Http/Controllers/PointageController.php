@@ -28,30 +28,10 @@ class PointageController extends Controller
         $this->payrollService = $payrollService;
     }
 
-    /**
-     * Same scoping rule grid() already used, extracted so every method that reads or
-     * writes a specific Quinzaine by ID enforces it — export/exportAllDivisions/summary/
-     * updateCell previously trusted the route/request-bound quinzaine with no ownership
-     * check at all, letting any authenticated user read or write another farm's payroll
-     * data just by walking quinzaine IDs.
-     */
-    private function assertQuinzaineInScope($user, Quinzaine $quinzaine): void
-    {
-        if ($user->enterprise_id) {
-            abort_unless($quinzaine->enterprise_id === $user->enterprise_id, 403);
-        } elseif ($user->farm_id) {
-            abort_unless($quinzaine->enterprise->farm_id === $user->farm_id, 403);
-        } elseif ($user->role === 'super_admin') {
-            abort_unless($quinzaine->enterprise->farm_id === (int) session('active_farm_id'), 403);
-        } else {
-            abort(403);
-        }
-    }
-
     public function export(Request $request, $quinzaineId)
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = $cleanLabel . '.xlsx';
@@ -62,20 +42,16 @@ class PointageController extends Controller
     // New method for exporting all divisions
     public function exportAllDivisions(Request $request, Quinzaine $quinzaine)
     {
-        $user = $request->user();
-
         // Unlike export() (one division's own quinzaine), this pulls payroll data for every
         // division on the farm at once — assertQuinzaineInScope() below only confirms the
-        // requester can see the ONE quinzaine passed in, which let an enterprise-scoped
-        // data_entry export every other division's payroll by passing their own quinzaine id.
-        // A farm-scoped (not locked to one division) data_entry with Pointage access is fine —
-        // assertQuinzaineInScope()'s own farm_id branch already bounds them to this farm, same
-        // as farm_manager; only an enterprise-scoped one must stay blocked.
-        $isFarmScopedPointageDataEntry = $user->role === 'data_entry' && $user->canAccessPointage() && !$user->enterprise_id;
-        abort_unless(in_array($user->role, ['super_admin', 'farm_manager']) || $isFarmScopedPointageDataEntry, 403);
+        // requester can see the ONE quinzaine passed in, which let a division-locked data_entry
+        // export every other division's payroll by passing their own quinzaine id. Anyone who
+        // sees the whole farm is fine (assertQuinzaineInScope() bounds them to it); Pointage
+        // access itself is enforced by the route group.
+        abort_if($request->user()->enterprise_id, 403);
 
         $quinzaine->loadMissing('enterprise');
-        $this->assertQuinzaineInScope($user, $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';
@@ -100,27 +76,16 @@ class PointageController extends Controller
             'quinzaines as open_quinzaines_count' => fn ($q) => $q->where('is_closed', false),
         ];
 
-        // Only super_admin/farm_manager (and a farm-scoped data_entry with no single enterprise)
-        // manage divisions at the farm level — mirrors assertEnterpriseManagerAccess() in
-        // EnterpriseController, which is what actually enforces this on the create endpoint.
-        $farmId = null;
-        if ($user->role === 'super_admin') {
-            $farmId = session('active_farm_id');
-            $enterprises = \App\Models\Enterprise::where('farm_id', $farmId)
-                ->withCount($withCounts)
-                ->get();
-        } elseif ($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id)) {
-            $farmId = $user->farm_id;
-            $enterprises = \App\Models\Enterprise::where('farm_id', $farmId)
-                ->withCount($withCounts)
-                ->get();
-        } elseif ($user->enterprise_id) {
-            // Single-enterprise user: still rendered as a (one-card) grid, for consistency.
-            $enterprises = \App\Models\Enterprise::where('id', $user->enterprise_id)
-                ->withCount($withCounts)
-                ->get();
-        } else {
-            $enterprises = collect();
+        // The farm's divisions — or, for a user locked to one division, just that one (still
+        // rendered as a one-card grid, for consistency); only farm-wide users get the farm
+        // header with its create-division action.
+        $farmId = $this->scopedFarmId($request);
+        $enterprises = \App\Models\Enterprise::where('farm_id', $farmId)
+            ->when($user->enterprise_id, fn ($q, $enterpriseId) => $q->where('id', $enterpriseId))
+            ->withCount($withCounts)
+            ->get();
+        if ($user->enterprise_id) {
+            $farmId = null;
         }
 
         $enterpriseIds = $enterprises->pluck('id');
@@ -143,54 +108,21 @@ class PointageController extends Controller
 
     public function quinzaines(Request $request)
     {
-        $user = $request->user();
-        $enterpriseId = $user->role === 'super_admin'
-            ? $request->query('enterprise_id')
-            : $user->enterprise_id;
+        // Farm first, then the division: the user's own if they're locked to one, else the
+        // ?enterprise_id= filter (validated to be in the farm). That filter used to be ignored
+        // for a farm_manager, whose page shows it all the same.
+        $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
 
-        $query = Quinzaine::with('enterprise')
-            ->latest();
-
-        if ($user->role === 'super_admin') {
-            $query->whereHas('enterprise', function ($q) {
-                $q->where('farm_id', session('active_farm_id'));
-            });
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } elseif ($user->role === 'farm_manager') {
-            $query->whereHas('enterprise', function($q) use ($user) {
-                $q->where('farm_id', $user->farm_id);
-            });
-            if ($enterpriseId) {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        } else {
-            // Data entry or others
-            if (!$enterpriseId) {
-                if ($user->farm_id) {
-                    $query->whereHas('enterprise', function($q) use ($user) {
-                        $q->where('farm_id', $user->farm_id);
-                    });
-                } else {
-                    return Inertia::render('Pointage/Quinzaines', [
-                        'quinzaines' => [],
-                        'enterprises' => [],
-                        'error' => 'Aucune division ne vous est assignée.'
-                    ]);
-                }
-            } else {
-                $query->where('enterprise_id', $enterpriseId);
-            }
-        }
+        $quinzaines = Quinzaine::with('enterprise')
+            ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
+            ->latest()
+            ->get();
 
         return Inertia::render('Pointage/Quinzaines', [
-            'quinzaines' => $query->get(),
-            'enterprises' => $user->role === 'super_admin'
-                ? \App\Models\Enterprise::where('farm_id', session('active_farm_id'))->get()
-                : (($user->role === 'farm_manager' || ($user->role === 'data_entry' && !$user->enterprise_id))
-                    ? \App\Models\Enterprise::where('farm_id', $user->farm_id)->get()
-                    : [])
+            'quinzaines' => $quinzaines,
+            'enterprises' => $this->selectableEnterprises($request),
         ]);
     }
 
@@ -198,7 +130,7 @@ class PointageController extends Controller
     {
         $user = $request->user();
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
-        $this->assertQuinzaineInScope($user, $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         $enterpriseId = $quinzaine->enterprise_id;
         $farmId = $quinzaine->enterprise->farm_id;
@@ -283,7 +215,7 @@ class PointageController extends Controller
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         // employee_id was only checked with exists:employees,id — an employee from a
         // completely different enterprise/farm could otherwise be written into this
@@ -500,7 +432,7 @@ class PointageController extends Controller
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         $employee = Employee::findOrFail($validated['employee_id']);
         abort_unless($employee->enterprise_id === $quinzaine->enterprise_id, 403);
@@ -577,7 +509,7 @@ class PointageController extends Controller
     public function summary(Request $request, $quinzaineId)
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
-        $this->assertQuinzaineInScope($request->user(), $quinzaine);
+        $this->assertQuinzaineInScope($request, $quinzaine);
 
         // Inner-joining operations/blocs would silently drop paid-holiday records that have no
         // operation/bloc (see PointageController::updateCell()) from dailyTotals — left join so

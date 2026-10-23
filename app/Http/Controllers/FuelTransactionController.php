@@ -51,8 +51,7 @@ class FuelTransactionController extends Controller
 
     public function show(Request $request, FuelTransaction $transaction)
     {
-        $farmId = $this->scopedFarmId($request);
-        abort_unless($farmId && $transaction->farm_id === $farmId, 403);
+        $this->assertFarmScope($request, $transaction->farm_id);
 
         $transaction->load('vehicle', 'product', 'driver', 'performedBy');
 
