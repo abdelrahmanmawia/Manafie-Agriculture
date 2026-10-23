@@ -227,6 +227,7 @@ class EnterpriseController extends Controller
             'contract_type' => 'required|in:avec_contrat,sans_contrat',
             'default_brut_rate' => 'required|numeric',
             'invoiced_to_client' => 'nullable|boolean',
+            'mo_declaree' => 'nullable|boolean',
         ]);
 
         $this->assertEnterpriseStructuralAccess($request, (int) $request->farm_id);
@@ -237,6 +238,7 @@ class EnterpriseController extends Controller
             'contract_type' => $request->contract_type,
             'default_brut_rate' => $request->default_brut_rate,
             'invoiced_to_client' => $request->boolean('invoiced_to_client'),
+            'mo_declaree' => $request->boolean('mo_declaree', true),
             'settings' => ['currency' => 'DH']
         ]);
 
@@ -281,6 +283,7 @@ class EnterpriseController extends Controller
             'default_brut_rate' => 'required|numeric',
             'contract_type' => 'required|in:avec_contrat,sans_contrat',
             'invoiced_to_client' => 'nullable|boolean',
+            'mo_declaree' => 'nullable|boolean',
         ]);
 
         $enterprise->update([
@@ -288,6 +291,7 @@ class EnterpriseController extends Controller
             'default_brut_rate' => $request->default_brut_rate,
             'contract_type' => $request->contract_type,
             'invoiced_to_client' => $request->boolean('invoiced_to_client'),
+            'mo_declaree' => $request->boolean('mo_declaree', true),
         ]);
 
         // Keep already-entered pointage in still-open quinzaines in sync with the new rate/contract

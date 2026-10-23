@@ -15,6 +15,7 @@ export default function Index({ auth, enterprises, farm, totals }) {
         contract_type: 'avec_contrat',
         default_brut_rate: 97.44,
         invoiced_to_client: false,
+        mo_declaree: true,
     });
 
     const submitEnt = (e) => {
@@ -168,6 +169,20 @@ export default function Index({ auth, enterprises, farm, totals }) {
                                             Cette division facture un client (ex: agence d'intérim) — à ne cocher que si elle émet une facture (net à facturer/TTC), pas juste le salaire des ouvriers
                                         </label>
                                     </div>
+                                    {!entForm.data.invoiced_to_client && (
+                                        <div className="md:col-span-3 flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="mo_non_declaree"
+                                                className="rounded border-gray-300"
+                                                checked={!entForm.data.mo_declaree}
+                                                onChange={e => entForm.setData('mo_declaree', !e.target.checked)}
+                                            />
+                                            <label htmlFor="mo_non_declaree" className="text-xs text-gray-600">
+                                                Main d'œuvre non déclarée — l'export Excel utilise la fiche « MO NON DECLARE » (sans RIB, total avec marge de 4%)
+                                            </label>
+                                        </div>
+                                    )}
                                     <div className="md:col-span-3">
                                         <button type="submit" disabled={entForm.processing} className="w-full bg-primary-600 hover:bg-primary-700 text-white py-4 rounded-xl font-black uppercase tracking-widest transition-colors shadow-md">
                                             Créer la Division

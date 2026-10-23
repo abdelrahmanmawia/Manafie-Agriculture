@@ -2,12 +2,13 @@
 
 namespace App\Exports;
 
-use App\Models\Quinzaine;
 use App\Models\Enterprise;
+use App\Models\Quinzaine;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 
-class DivisionsPointageExport implements WithMultipleSheets
+class DivisionsPointageExport implements WithMultipleSheets, WithPreCalculateFormulas
 {
     use Exportable;
 
@@ -19,40 +20,29 @@ class DivisionsPointageExport implements WithMultipleSheets
     }
 
     /**
-     * @return array
+     * One fiche per division of the farm for the reference quinzaine's dates (an empty fiche for
+     * a division with no quinzaine for them), plus the farm's vehicle usage.
      */
     public function sheets(): array
     {
-        $sheets = [];
-
-        // Get all enterprises associated with the farm of the selected reference quinzaine
         $farm = $this->referenceQuinzaine->enterprise->farm;
-        $enterprises = Enterprise::where('farm_id', $farm->id)->get();
+        $start = $this->referenceQuinzaine->start_date;
+        $end = $this->referenceQuinzaine->end_date;
 
-        foreach ($enterprises as $enterprise) {
-            // Try to find a quinzaine for the current enterprise that matches the period of the reference quinzaine
-            $quinzaineForEnterprise = Quinzaine::where('enterprise_id', $enterprise->id)
-                ->where('start_date', $this->referenceQuinzaine->start_date)
-                ->where('end_date', $this->referenceQuinzaine->end_date)
+        $sheets = [];
+        foreach (Enterprise::where('farm_id', $farm->id)->get() as $enterprise) {
+            $quinzaine = Quinzaine::where('enterprise_id', $enterprise->id)
+                ->whereDate('start_date', $start)
+                ->whereDate('end_date', $end)
                 ->first();
 
-            if ($quinzaineForEnterprise) {
-                // If a matching quinzaine is found, use PointageExport
-                $sheets[] = new PointageExport($quinzaineForEnterprise, $enterprise);
-            } else {
-                // If no matching quinzaine is found, use EmptyPointageExport
-                $sheets[] = new EmptyPointageExport(
-                    $enterprise,
-                    $this->referenceQuinzaine->start_date,
-                    $this->referenceQuinzaine->end_date
-                );
-            }
+            $sheets[] = new PointageExport($enterprise, $start, $end, $quinzaine);
         }
 
         // Vehicle usage (Stock domain) is farm-pooled, not enterprise-scoped like the sheets
         // above — added once per farm rather than once per enterprise, bridging the two domains
         // only at export time by matching vehicle-usage dates to this quinzaine's own range.
-        $sheets[] = new LocationExport($farm, $this->referenceQuinzaine->start_date, $this->referenceQuinzaine->end_date);
+        $sheets[] = new LocationExport($farm, $start, $end);
 
         return $sheets;
     }

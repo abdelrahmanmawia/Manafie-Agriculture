@@ -16,6 +16,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
         default_brut_rate: enterprise.default_brut_rate,
         contract_type: enterprise.contract_type,
         invoiced_to_client: enterprise.invoiced_to_client,
+        mo_declaree: enterprise.mo_declaree ?? true,
     });
 
     const qForm = useForm({ start_date: '', end_date: '', enterprise_id: enterprise.id });
@@ -145,6 +146,20 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     Cette division facture un client (ex: agence d'intérim) — à ne cocher que si elle émet une facture (net à facturer/TTC), pas juste le salaire des ouvriers
                                 </label>
                             </div>
+                            {!editForm.data.invoiced_to_client && (
+                                <div className="md:col-span-3 flex items-center gap-2">
+                                    <input
+                                        type="checkbox"
+                                        id="mo_non_declaree"
+                                        className="rounded border-gray-300"
+                                        checked={!editForm.data.mo_declaree}
+                                        onChange={e => editForm.setData('mo_declaree', !e.target.checked)}
+                                    />
+                                    <label htmlFor="mo_non_declaree" className="text-xs text-gray-600">
+                                        Main d'œuvre non déclarée — l'export Excel utilise la fiche « MO NON DECLARE » (sans RIB, total avec marge de 4%)
+                                    </label>
+                                </div>
+                            )}
                             <div className="md:col-span-3 flex flex-wrap items-center justify-between gap-4">
                                 <div>
                                     <button

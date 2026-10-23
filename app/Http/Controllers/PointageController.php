@@ -42,7 +42,7 @@ class PointageController extends Controller
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
         $fileName = $cleanLabel . '.xlsx';
 
-        return Excel::download(new PointageExport($quinzaine, $quinzaine->enterprise), $fileName); // Updated to pass Quinzaine and Enterprise objects
+        return Excel::download(new PointageExport($quinzaine->enterprise, $quinzaine->start_date, $quinzaine->end_date, $quinzaine), $fileName);
     }
 
     // New method for exporting all divisions
