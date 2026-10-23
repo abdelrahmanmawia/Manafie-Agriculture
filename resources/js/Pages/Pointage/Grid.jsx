@@ -1,11 +1,44 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm, router } from '@inertiajs/react';
+import { Head, useForm, router, usePage } from '@inertiajs/react';
 import { useState, useEffect, useRef } from 'react';
+import Modal from '@/Components/Modal';
+import PrimaryButton from '@/Components/PrimaryButton';
+import SecondaryButton from '@/Components/SecondaryButton';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 
 export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', transportId = null, transports = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
+    // Jour férié: the day whose header was clicked (action modal), and the per-division result
+    // the server flashes back (summary modal).
+    const { flash } = usePage().props;
+    const [jourFerieDay, setJourFerieDay] = useState(null);
+    // Keeps the modal's title on its day while it fades out (jourFerieDay is cleared first).
+    const lastJourFerieDay = useRef(null);
+    if (jourFerieDay) lastJourFerieDay.current = jourFerieDay;
+    const [jourFerieProcessing, setJourFerieProcessing] = useState(false);
+    const [jourFerieResult, setJourFerieResult] = useState(null);
+    const lastJourFerieResult = useRef(null);
+    if (jourFerieResult) lastJourFerieResult.current = jourFerieResult;
+    const shownResult = jourFerieResult ?? lastJourFerieResult.current;
+    useEffect(() => {
+        if (flash?.jourFerie) setJourFerieResult(flash.jourFerie);
+    }, [flash?.jourFerie]);
+    const dayIsJf = (day) => employees.some(e => existingRecords[e.id]?.[day]?.[0]?.is_jf);
+    const formatDay = (day) => day ? new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }) : '';
+    const applyJourFerie = (remove) => {
+        const payload = { quinzaine_id: quinzaine.id, date: jourFerieDay };
+        const options = {
+            preserveScroll: true,
+            onStart: () => setJourFerieProcessing(true),
+            onFinish: () => { setJourFerieProcessing(false); setJourFerieDay(null); },
+        };
+        if (remove) {
+            router.delete(route('pointage.jour-ferie.destroy'), { data: payload, ...options });
+        } else {
+            router.post(route('pointage.jour-ferie.store'), payload, options);
+        }
+    };
     const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {} });
     const [isMobile, setIsMobile] = useState(false);
     const [currentDate, setCurrentDate] = useState(days[0] || new Date().toISOString().split('T')[0]);
@@ -635,8 +668,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     <tr className="bg-gray-100">
                                         <th className="border border-gray-300 p-2 sticky left-0 z-20 bg-gray-100 min-w-[180px] shadow-md uppercase tracking-tighter">Personnel</th>
                                         {days.map(day => (
-                                            <th key={day} className="border border-gray-300 p-1 min-w-[38px] text-gray-600">
+                                            <th
+                                                key={day}
+                                                onClick={() => !quinzaine.is_closed && setJourFerieDay(day)}
+                                                title={quinzaine.is_closed ? undefined : 'Jour férié pour ce jour…'}
+                                                className={`border border-gray-300 p-1 min-w-[38px] ${dayIsJf(day) ? 'bg-purple-100 text-purple-700' : 'text-gray-600'} ${quinzaine.is_closed ? '' : 'cursor-pointer hover:bg-purple-50'}`}
+                                            >
                                                 {day.split('-')[2]}
+                                                {dayIsJf(day) && <div className="text-[6px] uppercase font-black">JF</div>}
                                             </th>
                                         ))}
                                         <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[225px] z-20 text-primary-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">NET/J</th>
@@ -948,6 +987,66 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     )}
                 </div>
             </div>
+
+            {/* Jour férié for a whole day (PointageController::markJourFerie / JourFerieService) */}
+            <Modal show={jourFerieDay !== null} onClose={() => !jourFerieProcessing && setJourFerieDay(null)} maxWidth="md">
+                <div className="p-6">
+                    <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Jour férié — {formatDay(jourFerieDay ?? lastJourFerieDay.current)}</h3>
+                    <p className="text-sm text-gray-600 mt-3">
+                        {auth.user.enterprise_id
+                            ? 'Appliquer à votre division pour ce jour.'
+                            : 'Appliquer à toutes les divisions ouvertes de la ferme pour ce jour.'}
+                    </p>
+                    <ul className="text-xs text-gray-500 mt-3 space-y-1 list-disc pl-5">
+                        <li>Ceux qui ont travaillé ce jour : jour férié travaillé (NET/J + NET/J).</li>
+                        <li>Les autres : un NET/J payé s'ils ont travaillé le dernier jour travaillé avant la fête, ou 13 jours sur les 30 jours précédents (Code du travail, art. 219).</li>
+                        <li>Le travail à la tâche est laissé à traiter manuellement (art. 220).</li>
+                    </ul>
+                    <div className="flex flex-wrap justify-end gap-2 mt-6">
+                        <SecondaryButton type="button" disabled={jourFerieProcessing} onClick={() => setJourFerieDay(null)}>Annuler</SecondaryButton>
+                        <SecondaryButton type="button" disabled={jourFerieProcessing} onClick={() => applyJourFerie(true)}>Retirer le jour férié</SecondaryButton>
+                        <PrimaryButton type="button" disabled={jourFerieProcessing} onClick={() => applyJourFerie(false)} className="!bg-purple-600 hover:!bg-purple-700">
+                            {jourFerieProcessing ? 'En cours…' : 'Marquer jour férié'}
+                        </PrimaryButton>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal show={jourFerieResult !== null} onClose={() => setJourFerieResult(null)} maxWidth="lg">
+                <div className="p-6">
+                    <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">
+                        {shownResult?.action === 'unmark' ? 'Jour férié retiré' : 'Jour férié enregistré'} — {formatDay(shownResult?.date)}
+                    </h3>
+                    {shownResult?.divisions?.length === 0 && (
+                        <p className="text-sm text-gray-600 mt-4">Aucune période ouverte ne couvre ce jour.</p>
+                    )}
+                    <div className="mt-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                        {shownResult?.divisions?.map(d => (
+                            <div key={d.division} className="border border-gray-200 rounded-xl p-3 text-sm">
+                                <div className="font-black text-gray-800 uppercase text-xs tracking-wide">{d.division}</div>
+                                {shownResult.action === 'unmark' ? (
+                                    <div className="text-gray-600 mt-1">{d.removed} jour(s) férié(s) non travaillé(s) supprimé(s), {d.reverted} jour(s) travaillé(s) remis en jour normal.</div>
+                                ) : (
+                                    <>
+                                        <div className="text-gray-600 mt-1">
+                                            {d.worked} travaillé(s) le jour férié · {d.paid} payé(s) sans travailler · {d.already} déjà marqué(s)
+                                        </div>
+                                        {d.not_eligible.length > 0 && (
+                                            <div className="text-amber-700 text-xs mt-2"><strong>Non éligibles ({d.not_eligible.length}) :</strong> {d.not_eligible.join(', ')}</div>
+                                        )}
+                                        {d.manual.length > 0 && (
+                                            <div className="text-purple-700 text-xs mt-1"><strong>À traiter manuellement — tâche ({d.manual.length}) :</strong> {d.manual.join(', ')}</div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    <div className="flex justify-end mt-6">
+                        <PrimaryButton type="button" onClick={() => setJourFerieResult(null)}>Fermer</PrimaryButton>
+                    </div>
+                </div>
+            </Modal>
         </AuthenticatedLayout>
     );
 }

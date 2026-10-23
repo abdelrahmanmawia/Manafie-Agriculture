@@ -51,6 +51,9 @@ class HandleInertiaRequests extends Middleware
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),
+                // Per-division result of marking/unmarking a jour férié (PointageController),
+                // shown by the Grid's summary modal.
+                'jourFerie' => $request->session()->get('jourFerie'),
             ],
         ];
     }

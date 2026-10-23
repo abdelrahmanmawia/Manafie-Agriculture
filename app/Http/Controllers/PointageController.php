@@ -9,6 +9,7 @@ use App\Models\Farm;
 use App\Models\Operation;
 use App\Models\Bloc;
 use App\Models\Parcelle;
+use App\Services\JourFerieService;
 use App\Services\PayrollService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -504,6 +505,49 @@ class PointageController extends Controller
         }
 
         return redirect()->back();
+    }
+
+    /**
+     * "Jour férié" on a Grid day header: marks the holiday for every open division of the farm
+     * covering that date (only the user's own division if they're locked to one). Who is owed
+     * what is JourFerieService's business; the result per division is flashed back for the
+     * Grid's summary modal.
+     */
+    public function markJourFerie(Request $request, JourFerieService $jourFerie)
+    {
+        return $this->applyJourFerie($request, fn ($farmId, $enterpriseId, $date) => $jourFerie->mark($farmId, $enterpriseId, $date), 'mark');
+    }
+
+    public function unmarkJourFerie(Request $request, JourFerieService $jourFerie)
+    {
+        return $this->applyJourFerie($request, fn ($farmId, $enterpriseId, $date) => $jourFerie->unmark($farmId, $enterpriseId, $date), 'unmark');
+    }
+
+    private function applyJourFerie(Request $request, \Closure $apply, string $action)
+    {
+        $validated = $request->validate([
+            'quinzaine_id' => 'required|exists:quinzaines,id',
+            'date' => 'required|date',
+        ]);
+
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
+        if ($quinzaine->is_closed) {
+            return redirect()->back()->withErrors(['date' => 'Cette période est clôturée et ne peut plus être modifiée.']);
+        }
+        if (! $this->dateInQuinzaine($validated['date'], $quinzaine)) {
+            return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
+        }
+
+        $date = Carbon::parse($validated['date']);
+        $divisions = $apply($quinzaine->enterprise->farm_id, $request->user()->enterprise_id, $date);
+
+        return redirect()->back()->with('jourFerie', [
+            'action' => $action,
+            'date' => $date->toDateString(),
+            'divisions' => $divisions,
+        ]);
     }
 
     public function summary(Request $request, $quinzaineId)

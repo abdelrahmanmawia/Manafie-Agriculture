@@ -87,6 +87,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions');
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
     Route::post('/pointage/cell-bulk', [PointageController::class, 'updateCellBulk'])->name('pointage.cell.bulk');
+    Route::post('/pointage/jour-ferie', [PointageController::class, 'markJourFerie'])->name('pointage.jour-ferie.store');
+    Route::delete('/pointage/jour-ferie', [PointageController::class, 'unmarkJourFerie'])->name('pointage.jour-ferie.destroy');
     Route::get('/pointage/summary/{quinzaine}', [PointageController::class, 'summary'])->name('pointage.summary');
 
     // Badge printing

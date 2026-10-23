@@ -80,6 +80,8 @@ The constants at the top of the class (`DEDUCTION_RATE`, `HS_HOURLY_RATE`, `CHAR
 
 Client invoicing (`net_factur_j`/`total_ttc`) is **dated**: `calculateInvoicing()` uses the October 2026 formula (from "P-15102026 PERSEALAND AGRI INTERIM.xlsx": comp × 1.0674, a JF day weighted like one H.S. hour, no separate JF bonus in TTC) for quinzaines starting on/after `OCTOBER_2026_INVOICING_FROM`, and the earlier formula before that, so re-exporting a past period never changes it. Always pass the quinzaine's `start_date`. Its inputs (TOTAL J = days actually worked, JF = every JF day worked or not, piece-rate excluded) are defined once in `invoicingForRecords()` — the closing snapshot and the Excel export both go through it; don't recount them elsewhere. Worker pay (`calculate()`) is not dated.
 
+Jours fériés: a worked JF day pays NET/J + NET/J; an unworked one is a record with no operation/bloc paying one NET/J. Marking a holiday for a whole day (Grid day header → `JourFerieService`) covers every open division of the farm (only their own for a division-locked user) and pays the unworked holiday only to workers eligible under Code du travail art. 219 §2: worked the division's last work day before it, or 13 days in the 30 days before it. Piece-rate workers are left for manual handling (art. 220's 1/26 rule isn't computed).
+
 `PayrollService::calculate()` is called per `PointageRecord` (per employee/day); `generateSnapshot()` aggregates a whole `Quinzaine` into a `QuinzaineSummary` (totals by employee/operation/bloc) — this is what powers payslips and history views.
 
 ### Stock movements always pair a `StockMovement` row with a `StockInventory` update
