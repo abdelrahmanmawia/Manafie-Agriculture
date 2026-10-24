@@ -314,6 +314,30 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART OPERATIONS'), 0.01);
     }
 
+    public function test_a_worker_who_moved_division_stays_on_the_fiche_and_grid_of_the_quinzaine_they_worked(): void
+    {
+        $division = $this->division();
+        $other = $this->division(['name' => 'NON DECLARE', 'mo_declaree' => false]);
+        $q = $this->quinzaine($division);
+        $stays = $this->worker($division, '001');
+        $moved = $this->worker($division, '002');
+        $this->work($stays, $q, '2026-10-01');
+        $this->work($moved, $q, '2026-10-01');
+        $this->work($moved, $q, '2026-10-02');
+        $moved->update(['enterprise_id' => $other->id]);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 5);
+        $this->assertSame('002', $ws->getCell('A7')->getValue());
+        $this->assertEquals(3, $this->value($ws, $col['TOTAL'].'8'));
+        $this->assertEqualsWithDelta((float) PointageRecord::sum('net'), $this->value($ws, 'B3'), 0.05);
+
+        // In the grid: listed with their days, read-only (a write needs the division).
+        $this->actingAs($this->manager)->get(route('pointage.grid', $q->id))
+            ->assertInertia(fn ($p) => $p->has('employees', 2)->has("existingRecords.{$moved->id}", 2)
+                ->where('employees', fn ($list) => collect($list)->firstWhere('id', $moved->id)['quinzaine_closed'] === true));
+    }
+
     public function test_all_divisions_export_has_one_fiche_per_division(): void
     {
         $persealand = $this->division();

@@ -187,7 +187,11 @@ class PointageController extends Controller
                 ->get()->keyBy('enterprise_id');
         } else {
             $mode = 'division';
-            $employees = Employee::where('enterprise_id', $enterpriseId)->where('is_active', true)->get();
+            // Plus anyone with days in this quinzaine who has since left the division (or been
+            // deactivated): their days stay here, shown read-only (writes require the division).
+            $employees = Employee::where(fn ($q) => $q->where('enterprise_id', $enterpriseId)->where('is_active', true))
+                ->orWhereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
+                ->get();
             $sameDates = collect([$enterpriseId => $quinzaine]);
         }
         $employees->each(function ($e) use ($sameDates) {

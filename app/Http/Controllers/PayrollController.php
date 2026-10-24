@@ -26,7 +26,10 @@ class PayrollController extends Controller
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
 
-        $employees = Employee::where('enterprise_id', $quinzaine->enterprise_id)->orderBy('full_name')->get();
+        // Including whoever worked in this quinzaine and has since moved to another division.
+        $employees = Employee::where('enterprise_id', $quinzaine->enterprise_id)
+            ->orWhereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
+            ->orderBy('full_name')->get();
 
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
             ->get()

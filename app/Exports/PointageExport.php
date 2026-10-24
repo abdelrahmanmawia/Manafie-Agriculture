@@ -149,8 +149,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             return [$days, []];
         }
 
+        // The quinzaine is the division's: everyone who worked in it, even someone who has since
+        // moved to another division, stays on its fiche.
         $records = PointageRecord::where('quinzaine_id', $this->quinzaine->id)
-            ->whereHas('employee', fn ($q) => $q->where('enterprise_id', $this->enterprise->id))
             ->with(['employee', 'operation', 'bloc'])
             ->get();
 
