@@ -12,7 +12,7 @@ class Employee extends Model
     protected $fillable = [
         'farm_id', 'enterprise_id', 'matricule', 'full_name', 'last_name', 'first_name', 'complement', 'salaire_mensuel', 'cin', 'cnss_number',
         'dob', 'hire_date', 'phone', 'address', 'bank_name', 'rib',
-        'base_rate', 'is_active', 'badge_uuid', 'photo_path', 'cin_photo_path',
+        'base_rate', 'is_active', 'desactive_avec_equipe', 'badge_uuid', 'photo_path', 'cin_photo_path',
         'residence_location_id', 'equipe_id'
     ];
 
@@ -23,6 +23,7 @@ class Employee extends Model
         'dob' => 'date:Y-m-d',
         'hire_date' => 'date:Y-m-d',
         'is_active' => 'boolean',
+        'desactive_avec_equipe' => 'boolean',
     ];
 
     public function farm()

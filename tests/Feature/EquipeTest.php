@@ -205,4 +205,55 @@ class EquipeTest extends TestCase
             ->assertInertia(fn ($p) => $p->where('employees', fn ($list) => collect($list)->pluck('full_name')->sort()->values()->all() === ['In dissolved', 'No team'])
                 ->where('equipes', fn ($list) => collect($list)->pluck('name')->all() === ['Active']));
     }
+
+    public function test_the_members_follow_their_equipe_on_and_off(): void
+    {
+        $equipe = $this->equipe('One');
+        $worker = $this->employee('Worker', $equipe);
+        $leftAlready = $this->employee('Left already', $equipe);
+        $leftAlready->update(['is_active' => false]);
+        $elsewhere = $this->employee('Elsewhere', $this->equipe('Two'));
+
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => false])
+            ->assertSessionHas('success', 'Équipe désactivée avec ses 1 ouvrier(s).');
+        $this->assertFalse($worker->fresh()->is_active);
+        $this->assertSame($equipe->id, $worker->fresh()->equipe_id);
+        $this->assertTrue($elsewhere->fresh()->is_active);
+
+        // Reactivating brings back the one it deactivated, not the one who had left on their own.
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => true]);
+        $this->assertTrue($worker->fresh()->is_active);
+        $this->assertFalse($worker->fresh()->desactive_avec_equipe);
+        $this->assertFalse($leftAlready->fresh()->is_active);
+    }
+
+    public function test_a_worker_switched_by_hand_no_longer_follows_the_equipe_back_on(): void
+    {
+        $equipe = $this->equipe('One');
+        $worker = $this->employee('Worker', $equipe);
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => false]);
+
+        // Reactivated, then deactivated again by hand while the équipe is off.
+        $this->actingAs($this->manager)->post(route('employees.toggle-active', $worker));
+        $this->actingAs($this->manager)->post(route('employees.toggle-active', $worker));
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => true]);
+
+        $this->assertFalse($worker->fresh()->is_active);
+    }
+
+    public function test_a_salaried_member_loses_and_regains_their_open_salary_with_the_equipe(): void
+    {
+        $quinzaine = \App\Models\Quinzaine::create(['enterprise_id' => $this->enterprise->id, 'label' => 'Q2', 'start_date' => '2026-10-16', 'end_date' => '2026-10-31', 'is_closed' => false]);
+        $equipe = $this->equipe('One');
+        $pointeur = $this->employee('Pointeur', $equipe);
+        $pointeur->update(['salaire_mensuel' => 3500]);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($pointeur);
+        $salary = fn () => \App\Models\PointageRecord::where('employee_id', $pointeur->id)->where('nature', 'salaire_mensuel')->count();
+        $this->assertSame(1, $salary());
+
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => false]);
+        $this->assertSame(0, $salary());
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => true]);
+        $this->assertSame(1, $salary());
+    }
 }

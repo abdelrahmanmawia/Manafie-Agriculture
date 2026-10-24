@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Equipe;
 use App\Models\TransportVehicle;
+use App\Services\SalaireFixeService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -73,12 +74,15 @@ class EquipeController extends Controller
             'is_active' => 'sometimes|boolean',
         ]);
 
-        DB::transaction(function () use ($equipe, $validated) {
+        $switched = DB::transaction(function () use ($equipe, $validated) {
             $equipe->update($validated);
             $this->chefJoins($equipe);
+
+            return $equipe->wasChanged('is_active') ? $this->switchMembers($equipe) : null;
         });
 
-        return redirect()->back()->with('success', 'Équipe mise à jour.');
+        return redirect()->back()->with('success', $switched === null ? 'Équipe mise à jour.'
+            : ($equipe->is_active ? "Équipe réactivée avec {$switched} ouvrier(s)." : "Équipe désactivée avec ses {$switched} ouvrier(s)."));
     }
 
     public function destroy(Request $request, Equipe $equipe)
@@ -133,6 +137,27 @@ class EquipeController extends Controller
             'chef_employee_id' => ['nullable', Rule::exists('employees', 'id')->where('farm_id', $farmId)],
             'transport_vehicle_id' => ['nullable', Rule::exists('transport_vehicles', 'id')->where('farm_id', $farmId)],
         ];
+    }
+
+    /**
+     * The members follow their équipe: deactivating it deactivates its active members (marked
+     * desactive_avec_equipe), reactivating it brings back exactly those — a member deactivated on
+     * their own stays so. Returns how many were switched.
+     */
+    private function switchMembers(Equipe $equipe): int
+    {
+        $members = $equipe->is_active
+            ? $equipe->employees()->where('is_active', false)->where('desactive_avec_equipe', true)->get()
+            : $equipe->employees()->where('is_active', true)->get();
+
+        foreach ($members as $employee) {
+            $employee->update(['is_active' => $equipe->is_active, 'desactive_avec_equipe' => ! $equipe->is_active]);
+            if ($employee->salaire_mensuel !== null) {
+                app(SalaireFixeService::class)->syncEmployee($employee);
+            }
+        }
+
+        return $members->count();
     }
 
     /** The chef is a member of their own équipe (leaving any other, and its chef role there). */

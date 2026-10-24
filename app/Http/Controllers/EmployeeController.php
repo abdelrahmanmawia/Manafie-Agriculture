@@ -171,6 +171,7 @@ class EmployeeController extends Controller
 
         if (array_key_exists('is_active', $validated)) {
             $validated['is_active'] = $request->boolean('is_active');
+            $validated['desactive_avec_equipe'] = false;
         }
 
         $this->assertEnterpriseInScope($request, (int) $validated['enterprise_id']);
@@ -216,7 +217,8 @@ class EmployeeController extends Controller
     {
         $this->assertEmployeeManagerAccess($request, $employee);
 
-        $employee->update(['is_active' => !$employee->is_active]);
+        // Switched by hand: no longer tied to their équipe's own on/off (EquipeController).
+        $employee->update(['is_active' => !$employee->is_active, 'desactive_avec_equipe' => false]);
         if ($employee->salaire_mensuel !== null) {
             app(SalaireFixeService::class)->syncEmployee($employee);
         }

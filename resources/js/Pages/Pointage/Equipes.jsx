@@ -53,12 +53,10 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
         editForm.put(route('equipes.update', equipeId), { preserveScroll: true, onSuccess: () => setEditingId(null) });
     };
 
-    // Deactivating keeps the members (reactivating brings the team back as it was); meanwhile
-    // they're listed under "Sans équipe" in the Grid and their new days ride no vehicle.
+    // The members follow their équipe (EquipeController::switchMembers()): deactivating it
+    // deactivates them, reactivating it brings back exactly those.
     const toggleActive = (equipe) => {
-        if (equipe.is_active && !window.confirm(`Désactiver l'équipe « ${equipe.name} » ?
-
-Ses ${equipe.employees_count} ouvrier(s) restent rattachés (la réactivation la rétablit telle quelle), mais en attendant ils apparaissent sous « Sans équipe » dans la grille et leurs nouveaux jours ne comptent plus dans le transport de son véhicule.`)) return;
+        if (equipe.is_active && !window.confirm(`Désactiver l'équipe « ${equipe.name} » ?\n\nSes ouvriers actifs seront désactivés avec elle (ils ne seront plus proposés au pointage). Leurs jours déjà pointés restent. Réactiver l'équipe réactive exactement ces ouvriers-là.`)) return;
         router.put(route('equipes.update', equipe.id), { is_active: !equipe.is_active }, { preserveScroll: true });
     };
 
