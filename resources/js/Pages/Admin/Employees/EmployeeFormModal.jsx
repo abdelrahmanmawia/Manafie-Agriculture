@@ -57,8 +57,9 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
         onClose();
     };
 
-    const submit = (e) => {
-        e.preventDefault();
+    // confirmer: after the "looks like an existing worker" warning, create anyway.
+    const submit = (e, confirmer = false) => {
+        e?.preventDefault();
         if (isEditing) {
             // PHP only auto-parses multipart/form-data bodies into $_POST/$_FILES for a genuine
             // POST request, never for PUT — a real PUT with a file attached arrives at Laravel
@@ -70,7 +71,7 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                 onSuccess: () => { reset(); onSaved?.(); onClose(); },
             });
         } else {
-            transform((formData) => formData);
+            transform((formData) => (confirmer ? { ...formData, confirmer_doublon: 1 } : formData));
             post(route('employees.store'), {
                 onSuccess: () => { reset(); onSaved?.(); onClose(); },
             });
@@ -310,8 +311,21 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                         )}
                     </div>
 
+                    {errors.doublon && (
+                        <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                            <p className="font-black mb-1">Cet ouvrier existe peut-être déjà</p>
+                            <p>{errors.doublon}</p>
+                        </div>
+                    )}
+
                     <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                         <SecondaryButton type="button" onClick={handleClose}>{t('cancel')}</SecondaryButton>
+                        {errors.doublon && !isEditing && (
+                            <button type="button" disabled={processing} onClick={(e) => submit(e, true)}
+                                className="px-4 py-2 rounded-md border-2 border-amber-400 text-amber-800 text-xs font-semibold uppercase tracking-widest hover:bg-amber-50 disabled:opacity-50">
+                                Créer quand même
+                            </button>
+                        )}
                         <PrimaryButton disabled={processing}>{isEditing ? 'Mettre à jour' : t('save_employee')}</PrimaryButton>
                     </div>
                 </form>

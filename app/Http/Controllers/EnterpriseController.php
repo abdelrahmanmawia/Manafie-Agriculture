@@ -74,7 +74,7 @@ class EnterpriseController extends Controller
         // neither) flag still lands on the normal Hub below.
         if ($user->role === 'data_entry' && $user->farm_id) {
             if ($user->canAccessPointage() && ! $user->canAccessStock()) {
-                return redirect()->route('pointage.index');
+                return redirect()->route('pointage.today');
             }
             if ($user->canAccessStock() && ! $user->canAccessPointage()) {
                 return redirect()->route('stock.dashboard');

@@ -130,13 +130,6 @@ class PayrollController extends Controller
             }
         }
 
-        // Get all employees
-        $employees = Employee::query()
-            ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
-            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
-            ->with('enterprise')
-            ->get();
-
         // Get total net per employee per quinzaine
         // Use snapshots for closed quinzaines if available
         $closedQuinzaineIds = Quinzaine::query()
@@ -206,6 +199,17 @@ class PayrollController extends Controller
             }
         }
 
+        // Whoever was paid in these quinzaines — including a worker who has since moved to another
+        // division, whose pay here still belongs to this division — plus the division's own
+        // current workers (shown at 0 if unpaid; the page hides them by default).
+        $employees = Employee::query()
+            ->where(fn ($q) => $q->whereIn('id', array_keys($periodHistoryData))
+                ->orWhere(fn ($q) => $q->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
+                    ->when(! $enterpriseId && $farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))))
+            ->with('enterprise:id,name')
+            ->orderBy('full_name')
+            ->get(['id', 'matricule', 'full_name', 'cin', 'enterprise_id', 'equipe_id', 'is_active']);
+
         // Convert to indexed arrays for frontend compatibility
         // Use string keys to force JSON object instead of array
         $formattedHistory = [];
@@ -219,6 +223,7 @@ class PayrollController extends Controller
             'history' => (object)$formattedHistory,
             'selectedEnterpriseId' => $enterpriseId,
             'allEnterprises' => $this->selectableEnterprises($request),
+            'equipes' => \App\Models\Equipe::where('farm_id', $farmId)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 }

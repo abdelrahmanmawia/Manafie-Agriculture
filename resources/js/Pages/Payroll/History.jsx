@@ -1,8 +1,22 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, router } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import { formatNumber } from '@/Helpers/formatNumber';
 
-export default function History({ auth, employees, periods, history, selectedEnterpriseId, allEnterprises }) {
+export default function History({ auth, employees, periods, history, selectedEnterpriseId, allEnterprises, equipes = [] }) {
+    // Client-side filters over the rows (the division one is server-side): a search on name /
+    // matricule / CIN, the équipe, and — on by default — only the workers paid at least once.
+    const [search, setSearch] = useState('');
+    const [equipeFilter, setEquipeFilter] = useState('');
+    const [paidOnly, setPaidOnly] = useState(true);
+    const totalOf = (emp) => (history[emp.id] || []).reduce((s, h) => s + parseFloat(h.total_net), 0);
+    const rows = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return employees.filter(emp =>
+            (!q || [emp.full_name, emp.matricule, emp.cin].some(v => (v || '').toLowerCase().includes(q)))
+            && (equipeFilter === '' || (equipeFilter === 'none' ? !emp.equipe_id : String(emp.equipe_id) === equipeFilter))
+            && (!paidOnly || totalOf(emp) > 0));
+    }, [employees, history, search, equipeFilter, paidOnly]);
 
     const handleEnterpriseChange = (e) => {
         router.get(route('payroll.history'), { enterprise_id: e.target.value });
@@ -23,7 +37,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                             value={selectedEnterpriseId || ''}
                             onChange={handleEnterpriseChange}
                         >
-                            <option value="">-- Toutes les Fermes --</option>
+                            <option value="">Toutes les divisions</option>
                             {allEnterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                         </select>
                     )}
@@ -43,13 +57,31 @@ export default function History({ auth, employees, periods, history, selectedEnt
                             <div className="text-left sm:text-right">
                                 <span className="text-[10px] font-black uppercase text-gray-400 block mb-1">Masse Salariale Cumulée</span>
                                 <span className="text-2xl sm:text-3xl font-black text-primary-700 leading-none">
-                                    {formatNumber(employees.reduce((acc, emp) => {
-                                        const empHistory = history[emp.id] || [];
-                                        return acc + empHistory.reduce((s, h) => s + parseFloat(h.total_net), 0);
-                                    }, 0))}
+                                    {formatNumber(rows.reduce((acc, emp) => acc + totalOf(emp), 0))}
                                     <small className="text-sm ml-1 font-bold">DH</small>
                                 </span>
                             </div>
+                        </div>
+
+                        <div className="px-4 sm:px-8 py-4 border-b bg-gray-50 flex flex-wrap items-center gap-3">
+                            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher (nom, matricule, CIN)…"
+                                className="rounded-xl border-gray-200 text-sm w-full sm:w-72" />
+                            {equipes.length > 0 && (
+                                <select value={equipeFilter} onChange={e => setEquipeFilter(e.target.value)} aria-label="Filtrer par équipe"
+                                    className={`rounded-xl text-sm ${equipeFilter ? 'border-primary-300 bg-primary-50 font-bold' : 'border-gray-200'}`}>
+                                    <option value="">Toutes les équipes</option>
+                                    {equipes.map(q => <option key={q.id} value={String(q.id)}>{q.name}</option>)}
+                                    <option value="none">Sans équipe</option>
+                                </select>
+                            )}
+                            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                                <input type="checkbox" className="rounded border-gray-300 text-primary-600" checked={paidOnly} onChange={e => setPaidOnly(e.target.checked)} />
+                                Seulement les salariés payés
+                            </label>
+                            <span className="text-xs font-bold text-gray-500 ml-auto">{rows.length} / {employees.length} salarié(s)</span>
+                            {(search || equipeFilter || !paidOnly) && (
+                                <button type="button" onClick={() => { setSearch(''); setEquipeFilter(''); setPaidOnly(true); }} className="text-xs font-bold text-gray-500 hover:text-red-600 underline underline-offset-2">Réinitialiser</button>
+                            )}
                         </div>
 
                         <div className="overflow-x-auto p-2">
@@ -71,7 +103,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {employees.map(emp => {
+                                    {rows.map(emp => {
                                         const empHistory = history[emp.id] || [];
                                         let cumulativeRowTotal = 0;
 
@@ -80,7 +112,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                                 <td className="border border-gray-100 p-4 sticky left-0 z-10 bg-white group-hover:bg-primary-50 shadow-sm">
                                                     <div className="flex flex-col">
                                                         <span className="font-black text-gray-900 uppercase leading-none mb-1">{emp.full_name}</span>
-                                                        <span className="text-[8px] font-bold text-gray-400 tracking-tighter">{emp.matricule} • {emp.cin || 'PAS DE CIN'}</span>
+                                                        <span className="text-[8px] font-bold text-gray-400 tracking-tighter">{emp.matricule} • {emp.cin || 'PAS DE CIN'}{emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}{!emp.is_active ? ' • inactif' : ''}</span>
                                                     </div>
                                                 </td>
                                                 {periods.map(period => {
@@ -104,10 +136,10 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                             </tr>
                                         );
                                     })}
-                                    {employees.length === 0 && (
+                                    {rows.length === 0 && (
                                         <tr>
                                             <td colSpan={periods.length + 2} className="p-20 text-center text-gray-400 italic">
-                                                Aucun salarié trouvé. Assurez-vous d'avoir ajouté des salariés dans la gestion du personnel.
+                                                {employees.length === 0 ? "Aucun salarié trouvé. Assurez-vous d'avoir ajouté des salariés dans la gestion du personnel." : 'Aucun salarié ne correspond à ces filtres.'}
                                             </td>
                                         </tr>
                                     )}
@@ -117,7 +149,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                                         <td className="p-4 sticky left-0 bg-gray-900 z-10 uppercase tracking-widest text-[9px] text-right border-t border-gray-800">TOTAL PÉRIODE</td>
                                         {periods.map(period => {
                                             let periodTotal = 0;
-                                            employees.forEach(emp => {
+                                            rows.forEach(emp => {
                                                 const pData = (history[emp.id] || []).find(h => h.period_key === period.key);
                                                 periodTotal += pData ? parseFloat(pData.total_net) : 0;
                                             });

@@ -79,33 +79,30 @@ export default function Authenticated({ user, header, children }) {
 
     const homeItem = { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home };
 
-    const pointageItems = [
-        // The day's work first: who's pointed per équipe, what's still "à préciser".
-        ...(needsFarmSelection ? [] : [{ label: "Aujourd'hui", href: 'pointage.today', match: 'pointage.today', icon: ICONS.inventory }]),
-        { label: 'Tableau de Bord', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
-        { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
-        ...(needsFarmSelection
-            ? []
-            : [
-                { label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees },
-                { label: 'Équipes', href: 'equipes.index', match: 'equipes.*', icon: ICONS.employees },
-            ]),
-        ...(needsFarmSelection
-            ? []
-            : [{
+    // In the order of the work: the day, the period, the people, transport, pay and reports,
+    // then setup (divisions, badges).
+    const pointageItems = needsFarmSelection
+        ? [{ label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock }]
+        : [
+            { label: "Aujourd'hui", href: 'pointage.today', match: 'pointage.today', icon: ICONS.inventory },
+            { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
+            { label: 'Équipes', href: 'equipes.index', match: 'equipes.*', icon: ICONS.employees },
+            { label: t('employees') || 'Employés', href: 'employees.index', match: 'employees.*', icon: ICONS.employees },
+            {
                 id: 'transport', label: 'Gestion Transport', icon: ICONS.truck, defaultOpen: isTransportZone,
                 children: [
                     { label: 'Résumé & Grille', href: 'transport.summary.index', match: ['transport.summary.*', 'transport.grid'], icon: ICONS.chart },
-                    { label: 'Emplacements', href: 'transport.locations.index', match: 'transport.locations.*', icon: ICONS.fuel },
-                    { label: 'Sociétés', href: 'transport.companies.index', match: 'transport.companies.*', icon: ICONS.shield },
                     { label: 'Véhicules', href: 'transport.vehicles.index', match: 'transport.vehicles.*', icon: ICONS.truck },
+                    { label: 'Sociétés', href: 'transport.companies.index', match: 'transport.companies.*', icon: ICONS.shield },
+                    { label: 'Emplacements', href: 'transport.locations.index', match: 'transport.locations.*', icon: ICONS.fuel },
                 ],
-            }]),
-        { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
-        { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
-        { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
-        { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
-    ];
+            },
+            { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
+            { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
+            { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
+            { label: 'Divisions', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
+            { label: 'Badges & Scan', href: 'badges.index', match: 'badges.*', icon: ICONS.grid },
+        ];
 
     const stockItems = [
         { label: 'Tableau de Bord', href: 'stock.dashboard', match: 'stock.dashboard', icon: ICONS.grid },

@@ -127,7 +127,6 @@ class PointageController extends Controller
         return Inertia::render('Pointage/Index', [
             'enterprises' => $enterprises,
             'farm' => $farmId ? Farm::find($farmId, ['id', 'name']) : null,
-            'totals' => ['employees' => $enterprises->sum('employees_count')] + $this->periodStats($enterpriseIds),
         ]);
     }
 

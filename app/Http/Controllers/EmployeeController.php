@@ -111,6 +111,17 @@ class EmployeeController extends Controller
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],
         ]);
 
+        // Someone who looks like an existing worker (a name or CIN a typo away) is only created
+        // once the user has seen them and confirmed it's another person (confirmer_doublon).
+        if (! $request->boolean('confirmer_doublon')) {
+            $similaires = app(\App\Services\DoublonEmployeService::class)->similaires($farmId, $validated['full_name'], $validated['cin'] ?? null);
+            if ($similaires->isNotEmpty()) {
+                return redirect()->back()->withErrors(['doublon' => 'Ressemble à : '.$similaires->take(5)->map(fn ($e) => "{$e->full_name} (mat. {$e->matricule}".($e->cin ? ", CIN {$e->cin}" : '').', '.($e->enterprise->name ?? '—').($e->is_active ? '' : ', inactif').')')->implode(' ; ')
+                    .". Si c'est bien une autre personne, cliquez « Créer quand même »."])->withInput();
+            }
+        }
+        unset($validated['confirmer_doublon']);
+
         DB::transaction(function () use ($validated, $farmId) {
             Employee::create(array_merge($validated, [
                 'farm_id' => $farmId,

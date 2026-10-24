@@ -115,8 +115,8 @@ class PresenceUniqueTest extends TestCase
     public function test_the_dashboards_count_a_period_once_for_all_its_divisions(): void
     {
         $this->travelTo(now()->setDate(2026, 11, 10));
-        $this->actingAs($this->manager)->get(route('pointage.index'))->assertInertia(fn ($p) => $p
-            ->where('totals.open_quinzaines', 1)->where('totals.overdue_quinzaines', 0)->where('totals.pointes_periode', 1));
+        $this->actingAs($this->manager)->get(route('dashboard'))->assertInertia(fn ($p) => $p
+            ->where('stats.open_quinzaines', 1)->where('stats.overdue_quinzaines', 0)->where('stats.pointes_periode', 1));
 
         // Past its end date, the one period (two divisions) is one to close.
         $this->travelTo(now()->setDate(2026, 11, 20));
