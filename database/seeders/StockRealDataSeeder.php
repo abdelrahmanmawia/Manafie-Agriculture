@@ -15,7 +15,7 @@ use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
 use App\Models\VehicleUsage;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 /**
  * Real Produits + Matériel data for Persealand, transcribed from the farm's own
@@ -33,6 +33,10 @@ use Illuminate\Support\Facades\DB;
  *  - plate_number "A RENSEIGNER" — the source had no real plate for this vehicle
  *    (3x Dacia Duster, 3x Quad), or listed the same plate twice for two different
  *    tractors/drivers (a second "5710"). Needs the real plate confirmed on-site.
+ *
+ * Each product's counted quantity is its opening stock: an "adjustment" StockMovement
+ * ("Inventaire initial") paired with its StockInventory row, like every other stock change.
+ * Runs on MySQL and SQLite alike (Schema::disableForeignKeyConstraints, not a PRAGMA).
  */
 class StockRealDataSeeder extends Seeder
 {
@@ -54,7 +58,7 @@ class StockRealDataSeeder extends Seeder
         $oldProductIds = Product::withTrashed()->where('farm_id', $farm->id)->pluck('id');
         $oldVehicleIds = Vehicle::where('farm_id', $farm->id)->pluck('id');
 
-        DB::statement('PRAGMA foreign_keys = OFF;');
+        Schema::disableForeignKeyConstraints();
         StockMovement::whereIn('product_id', $oldProductIds)->delete();
         FuelTransaction::whereIn('vehicle_id', $oldVehicleIds)->delete();
         ManualStockEntry::whereIn('product_id', $oldProductIds)->orWhereIn('vehicle_id', $oldVehicleIds)->delete();
@@ -64,7 +68,7 @@ class StockRealDataSeeder extends Seeder
         StockInventory::whereIn('product_id', $oldProductIds)->delete();
         Product::withTrashed()->where('farm_id', $farm->id)->forceDelete();
         Vehicle::where('farm_id', $farm->id)->delete();
-        DB::statement('PRAGMA foreign_keys = ON;');
+        Schema::enableForeignKeyConstraints();
 
         $productsData = [
             ['name' => 'BRIDE LIBRE 200', 'category' => 'tools', 'unit_type' => 'units', 'min_stock_level' => 0, 'quantity_on_hand' => 25],
@@ -218,6 +222,15 @@ class StockRealDataSeeder extends Seeder
                 'is_active' => true,
             ]);
 
+            if ($data['quantity_on_hand'] > 0) {
+                StockMovement::create([
+                    'product_id' => $product->id,
+                    'movement_type' => 'adjustment',
+                    'quantity' => $data['quantity_on_hand'],
+                    'date' => now()->toDateString(),
+                    'notes' => 'Inventaire initial (inventaire de magasin.xlsx)',
+                ]);
+            }
             StockInventory::create([
                 'product_id' => $product->id,
                 'quantity_on_hand' => $data['quantity_on_hand'],
@@ -258,10 +271,12 @@ class StockRealDataSeeder extends Seeder
             ['asset_type' => 'equipment', 'type' => 'pump', 'name' => 'POMPE DE SURPRESSION', 'model' => null, 'plate_number' => null, 'serial_number' => null, 'quantity' => 1, 'status' => 'operational', 'is_location' => false, 'driver_name' => null, 'capacity_liters' => null, 'fuel_type' => 'diesel', 'notes' => null],
         ];
 
+        // Drivers by name, spaces normalised ("EL GHRISSI  SAID" in the source).
+        $squash = fn ($name) => preg_replace('/\s+/', ' ', trim(mb_strtoupper((string) $name)));
+        $employeesByName = Employee::where('farm_id', $farm->id)->get(['id', 'full_name'])->keyBy(fn ($e) => $squash($e->full_name));
+
         foreach ($assetsData as $data) {
-            $driver = $data['driver_name']
-                ? Employee::where('farm_id', $farm->id)->where('full_name', $data['driver_name'])->first()
-                : null;
+            $driver = $data['driver_name'] ? $employeesByName->get($squash($data['driver_name'])) : null;
 
             Vehicle::create([
                 'farm_id' => $farm->id,
@@ -277,7 +292,8 @@ class StockRealDataSeeder extends Seeder
                 'default_driver_id' => $driver?->id,
                 'capacity_liters' => $data['capacity_liters'],
                 'fuel_type' => $data['fuel_type'],
-                'notes' => $data['notes'],
+                // A driver who isn't (or no longer is) a worker in the app keeps their name here.
+                'notes' => implode(' — ', array_filter([$data['notes'], $data['driver_name'] && ! $driver ? 'Chauffeur : '.$squash($data['driver_name']) : null])) ?: null,
                 'is_active' => true,
             ]);
         }
