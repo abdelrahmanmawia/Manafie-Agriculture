@@ -116,7 +116,7 @@ class JourFerieService
                     ->whereDate('date', $day)->where('is_jf', true)->whereNull('quantity')->get();
 
                 foreach ($records as $record) {
-                    if ($record->operation_id === null) {
+                    if (! $record->present) {
                         $record->delete();
                         $row['removed']++;
                     } else {
@@ -153,7 +153,7 @@ class JourFerieService
     private function lastWorkDay(int $enterpriseId, string $day): ?string
     {
         $date = PointageRecord::whereHas('quinzaine', fn ($q) => $q->where('enterprise_id', $enterpriseId))
-            ->whereNotNull('operation_id')
+            ->where('present', true)
             ->whereDate('date', '<', $day)
             ->max('date');
 
@@ -170,7 +170,7 @@ class JourFerieService
         $from = $lastWorkDay !== null && $lastWorkDay < $this->windowStart($day) ? $lastWorkDay : $this->windowStart($day);
 
         return PointageRecord::whereIn('employee_id', $employeeIds)
-            ->whereNotNull('operation_id')
+            ->where('present', true)
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<', $day)
             ->get(['employee_id', 'date', 'quantity'])
@@ -212,6 +212,7 @@ class JourFerieService
         );
 
         return [
+            'present' => false,
             'operation_id' => null,
             'bloc_id' => null,
             'hours' => 0,

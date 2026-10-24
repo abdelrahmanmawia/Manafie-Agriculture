@@ -197,6 +197,7 @@ class PointageScanController extends Controller
             );
 
             $attributes = [
+                'present' => true,
                 'operation_id' => $scan['operation_id'],
                 'bloc_id' => $scan['bloc_id'],
                 'hours' => 0,

@@ -65,6 +65,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const gridScrollRef = useRef(null);
     const scrollGridBy = (amount) => gridScrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
 
+    // Present with the operation still to enter — the équipe step (RepartitionService).
+    const isAPreciser = (record) => !!record && record.present && !record.operation_id;
+    const dayAPreciser = (day) => employees.filter(e => isAPreciser(existingRecords[e.id]?.[day]?.[0])).length;
+    const aPreciserTotal = days.reduce((n, day) => n + dayAPreciser(day), 0);
+    const { errors: pageErrors = {} } = usePage().props;
+    const [repartitionDay, setRepartitionDay] = useState(null);
+    const [lignes, setLignes] = useState([]);
+    const [repartitionProcessing, setRepartitionProcessing] = useState(false);
+
     // Total days pointé this quinzaine for one employee — the same count shown in the
     // desktop table's own JOURS column, factored out so both views and the filter agree.
     const dayCountFor = (empId) => Object.keys(existingRecords[empId] || {}).length;
@@ -382,8 +391,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         // are already disabled until both are chosen, so this is just a defensive backstop.
         const operationId = globalOperation || existingRecords[employeeId]?.[currentDate]?.[0]?.operation_id;
         const blocId = globalBloc || existingRecords[employeeId]?.[currentDate]?.[0]?.bloc_id;
+        // No Opération/Bloc chosen: present, operation "à préciser" (entered later, per division).
         if (!operationId || !blocId) {
-            alert('Veuillez d\'abord choisir une Opération et un Bloc en haut de la page.');
+            router.post(route('pointage.cell'), {
+                employee_id: employeeId,
+                quinzaine_id: qidFor(employeeId),
+                date: currentDate,
+                present: true,
+                hours: globalHours || 0,
+            }, { preserveScroll: true });
             return;
         }
 
@@ -398,6 +414,47 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         }, { preserveScroll: true });
     };
 
+    // "Tous présents": everyone listed (search/filters applied) with nothing that day yet.
+    const markAllPresent = (day) => {
+        const ids = filteredEmployees.filter(e => !closedFor(e.id) && e.quinzaine_id !== null && !existingRecords[e.id]?.[day]?.[0]).map(e => e.id);
+        if (!ids.length) return;
+        if (!window.confirm(`Marquer ${ids.length} ouvrier(s) présent(s) le ${day.split('-').reverse().join('/')} ? L'opération restera « à préciser ».`)) return;
+        router.post(route('pointage.presence'), { quinzaine_id: quinzaine.id, date: day, employee_ids: ids }, { preserveScroll: true, onSuccess: fetchSummary });
+    };
+
+    // The day's headcount per bloc/operation, from the workers already assigned.
+    const dayLignes = (day) => Object.values(employees.reduce((acc, e) => {
+        const r = existingRecords[e.id]?.[day]?.[0];
+        if (r?.operation_id && r?.bloc_id) {
+            const k = `${r.bloc_id}|${r.operation_id}`;
+            acc[k] ??= { bloc_id: r.bloc_id, operation_id: r.operation_id, effectif: 0 };
+            acc[k].effectif++;
+        }
+        return acc;
+    }, {}));
+    const dayPresent = (day) => employees.filter(e => existingRecords[e.id]?.[day]?.[0]?.present).length;
+
+    // Pre-filled with the day's own counts, else the last earlier day that has some.
+    const openRepartition = (day) => {
+        let start = dayLignes(day);
+        for (let i = days.indexOf(day) - 1; !start.length && i >= 0; i--) start = dayLignes(days[i]);
+        setLignes(start.length ? start : [{ bloc_id: '', operation_id: '', effectif: 1 }]);
+        setRepartitionDay(day);
+    };
+    const setLigne = (i, field, value) => setLignes(lignes.map((l, j) => (j === i ? { ...l, [field]: value } : l)));
+    const submitRepartition = () => {
+        router.post(route('pointage.repartition'), {
+            quinzaine_id: quinzaine.id,
+            date: repartitionDay,
+            lignes: lignes.filter(l => l.bloc_id && l.operation_id).map(l => ({ ...l, effectif: parseInt(l.effectif || 0, 10) })),
+        }, {
+            preserveScroll: true,
+            onStart: () => setRepartitionProcessing(true),
+            onFinish: () => setRepartitionProcessing(false),
+            onSuccess: () => { setRepartitionDay(null); fetchSummary(); },
+        });
+    };
+
     const fetchSummary = async () => {
         try {
             const response = await axios.get(route('pointage.summary', quinzaine.id));
@@ -407,6 +464,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 router.visit(route('pointage.quinzaines'));
             }
         }
+    };
+
+    const savePresent = () => {
+        router.post(route('pointage.cell'), { ...data, operation_id: '', bloc_id: '', quantity: '', present: true }, {
+            preserveScroll: true,
+            onSuccess: () => { setSelectedCell(null); fetchSummary(); },
+        });
     };
 
     const submit = (e) => {
@@ -495,8 +559,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 <input id="grid_global_hours" type="number" value={globalHours} onChange={(e) => setGlobalHours(e.target.value)} className="w-16 h-8 text-xs font-bold rounded-lg border-gray-100 bg-gray-50" min="0" />
                             </div>
                             {(!globalOperation || !globalBloc) && (
-                                <p className="mt-2 text-[10px] font-bold text-orange-500 uppercase tracking-wide">
-                                    ⚠ Choisissez une Opération et un Bloc avant de marquer des présences
+                                <p className="mt-2 text-[10px] font-bold text-amber-600 uppercase tracking-wide">
+                                    Sans Opération et Bloc, la présence est enregistrée « à préciser »
                                 </p>
                             )}
                         </div>
@@ -533,11 +597,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     <div key={emp.id} className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${isPresent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100 opacity-60'}`}>
                                         <div className="flex flex-col">
                                             <span className="font-black text-gray-900 uppercase leading-none mb-1 text-sm">{emp.full_name}</span>
-                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? `${record.hours}h HS` : 'Absent'}</span>
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? (isAPreciser(record) ? 'À préciser' : `${record.hours}h HS`) : 'Absent'}</span>
                                         </div>
                                         <button
                                             onClick={() => handleQuickSave(emp.id, !isPresent)}
-                                            disabled={!!emp.quinzaine_closed || (!isPresent && (!globalOperation || !globalBloc))}
+                                            disabled={!!emp.quinzaine_closed}
                                             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={isPresent ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} /></svg>
@@ -635,10 +699,16 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 <div className="flex gap-4 ml-2">
                                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-green-100 border border-green-300 rounded"></span> Présent</div>
                                     <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-purple-100 border border-purple-300 rounded"></span> Jour Férié</div>
+                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase"><span className="w-3 h-3 bg-amber-100 border border-amber-300 rounded"></span> À préciser</div>
                                 </div>
                             </div>
                         </div>
                         {(noQuinzaineNote || equipeEmptyNote) && <div className="px-6 pt-3">{noQuinzaineNote}{equipeEmptyNote}</div>}
+                        {aPreciserTotal > 0 && (
+                            <div className="mx-6 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-xs font-bold text-amber-800">
+                                {aPreciserTotal} jour(s) de présence « à préciser » : cliquez la case pour choisir l'opération{mode === 'division' ? ', ou « Répartir » sous le jour pour saisir les effectifs par opération' : ' (ou répartissez-les par effectif dans la grille de la division)'}. La clôture attend qu'ils soient complétés.
+                            </div>
+                        )}
                         {clipboard && (
                             <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
@@ -686,6 +756,30 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[100px] z-20 text-primary-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">Total H.S</th>
                                         <th className="border border-gray-300 p-2 bg-primary-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">Total Net</th>
                                     </tr>
+                                    {!quinzaine.is_closed && (
+                                        <tr className="bg-gray-50">
+                                            <th className="border border-gray-300 px-2 py-1 sticky left-0 z-20 bg-gray-50 text-[8px] font-black text-gray-400 uppercase tracking-widest text-left">
+                                                ✓ Présents{mode === 'division' ? ' · ≡ Répartir' : ''}
+                                            </th>
+                                            {days.map(day => (
+                                                <th key={day} className="border border-gray-300 p-0.5">
+                                                    <div className="flex items-center justify-center gap-0.5">
+                                                        <button type="button" onClick={() => markAllPresent(day)} title="Tous présents (opération à préciser)"
+                                                            className="w-4 h-4 rounded bg-green-100 hover:bg-green-200 text-green-700 text-[9px] font-black leading-none">✓</button>
+                                                        {mode === 'division' && (
+                                                            <button type="button" onClick={() => openRepartition(day)} title="Répartir par effectif"
+                                                                className="w-4 h-4 rounded bg-primary-100 hover:bg-primary-200 text-primary-700 text-[9px] font-black leading-none">≡</button>
+                                                        )}
+                                                    </div>
+                                                    {dayAPreciser(day) > 0 && <div className="text-[7px] font-black text-amber-700">{dayAPreciser(day)} P</div>}
+                                                </th>
+                                            ))}
+                                            <th className="border border-gray-300 bg-gray-50 sticky right-[225px] z-20 w-[70px] min-w-[70px] max-w-[70px]"></th>
+                                            <th className="border border-gray-300 bg-gray-50 sticky right-[170px] z-20 w-[55px] min-w-[55px] max-w-[55px]"></th>
+                                            <th className="border border-gray-300 bg-gray-50 sticky right-[100px] z-20 w-[70px] min-w-[70px] max-w-[70px]"></th>
+                                            <th className="border border-gray-300 bg-gray-50 sticky right-0 z-20 w-[100px] min-w-[100px] max-w-[100px]"></th>
+                                        </tr>
+                                    )}
                                 </thead>
                                 <tbody>
                                     {filteredEmployees.length === 0 && (
@@ -737,14 +831,18 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                             onClick={() => clipboard ? pasteToCell(emp.id, day) : openForm(emp.id, day)}
                                                             onMouseDown={() => startDrag(emp.id, day)}
                                                             onMouseEnter={() => extendDrag(emp.id, day)}
-                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell select-none ${record ? (record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-primary-400' : ''} ${isDragHighlighted ? 'ring-2 ring-inset ring-primary-600 bg-primary-200' : ''}`}
+                                                            className={`relative border border-gray-200 p-1 text-center cursor-pointer transition-all group/cell select-none ${record ? (isAPreciser(record) ? 'bg-amber-100 border-amber-300' : record.is_jf ? 'bg-purple-100 border-purple-200' : 'bg-green-100 border-green-200') : 'bg-white'} ${clipboard ? 'hover:ring-2 hover:ring-inset hover:ring-primary-400' : ''} ${isDragHighlighted ? 'ring-2 ring-inset ring-primary-600 bg-primary-200' : ''}`}
                                                         >
                                                             {record ? (
                                                                 <div className="font-black leading-tight">
                                                                     {record.is_jf && <div className="text-[6px] text-purple-700 uppercase mb-0.5">JF</div>}
-                                                                    <span className="text-gray-700 text-[8px] uppercase">
-                                                                        {operations.find(o => o.id === record.operation_id)?.abbreviation ||record.operation_id }
-                                                                    </span>
+                                                                    {isAPreciser(record) ? (
+                                                                        <span className="text-amber-700 text-[9px]" title="Présent — opération à préciser">P</span>
+                                                                    ) : (
+                                                                        <span className="text-gray-700 text-[8px] uppercase">
+                                                                            {operations.find(o => o.id === record.operation_id)?.abbreviation || record.operation_id}
+                                                                        </span>
+                                                                    )}
                                                                     <div className="text-[7px] text-gray-400">
                                                                         {blocs.find(b => b.id === record.bloc_id)?.name}
                                                                     </div>
@@ -983,6 +1081,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     </div>
 
                                     <div className="flex flex-col gap-4 pt-6">
+                                        {!isPieceRate && (
+                                            <button type="button" onClick={savePresent} disabled={processing} className="w-full bg-amber-50 hover:bg-amber-100 border-2 border-amber-200 text-amber-700 py-3 rounded-2xl font-black text-xs transition-all disabled:opacity-50 tracking-widest uppercase">
+                                                Présent — opération à préciser
+                                            </button>
+                                        )}
                                         <button type="submit" disabled={processing} className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary-100 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 tracking-[0.3em] uppercase">
                                             {processing ? 'Chargement...' : 'Enregistrer'}
                                         </button>
@@ -993,6 +1096,48 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     )}
                 </div>
             </div>
+
+            {/* Operations by headcount for one day (PointageController::repartir / RepartitionService) */}
+            <Modal show={repartitionDay !== null} onClose={() => !repartitionProcessing && setRepartitionDay(null)} maxWidth="lg">
+                {repartitionDay && (
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Répartir — {formatDay(repartitionDay)}</h3>
+                            <p className="text-xs text-gray-500 mt-1">
+                                {dayPresent(repartitionDay)} présent(s), dont {dayAPreciser(repartitionDay)} « à préciser ». Indiquez le nombre total d'ouvriers par opération :
+                                ceux déjà affectés restent, les « à préciser » sont répartis en gardant d'abord l'opération de leur dernier jour travaillé.
+                            </p>
+                        </div>
+                        {pageErrors.repartition && <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold rounded-xl p-3">{pageErrors.repartition}</div>}
+                        <div className="space-y-2">
+                            {lignes.map((l, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                    <select value={l.bloc_id} onChange={e => setLigne(i, 'bloc_id', e.target.value)} className="text-xs rounded-lg border-gray-200 w-24">
+                                        <option value="">Bloc</option>
+                                        {blocs.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
+                                    <select value={l.operation_id} onChange={e => setLigne(i, 'operation_id', e.target.value)} className="text-xs rounded-lg border-gray-200 flex-1">
+                                        <option value="">Opération</option>
+                                        {operations.filter(o => !o.unit_rate).map(o => <option key={o.id} value={o.id}>{o.name}{o.abbreviation ? ` (${o.abbreviation})` : ''}</option>)}
+                                    </select>
+                                    <input type="number" min="0" value={l.effectif} onChange={e => setLigne(i, 'effectif', e.target.value)} className="text-xs rounded-lg border-gray-200 w-20 text-center font-black" />
+                                    <button type="button" onClick={() => setLignes(lignes.filter((_, j) => j !== i))} className="text-gray-400 hover:text-red-600 text-lg leading-none px-1" title="Retirer">×</button>
+                                </div>
+                            ))}
+                            <button type="button" onClick={() => setLignes([...lignes, { bloc_id: '', operation_id: '', effectif: 1 }])} className="text-xs font-bold text-primary-600 hover:text-primary-700">+ Ajouter une opération</button>
+                        </div>
+                        <div className="flex items-center justify-between border-t pt-3">
+                            <span className="text-xs font-black text-gray-600">
+                                Total : {lignes.reduce((n, l) => n + (parseInt(l.effectif, 10) || 0), 0)} / {dayPresent(repartitionDay)} présents
+                            </span>
+                            <div className="flex gap-2">
+                                <SecondaryButton type="button" disabled={repartitionProcessing} onClick={() => setRepartitionDay(null)}>Annuler</SecondaryButton>
+                                <PrimaryButton type="button" disabled={repartitionProcessing} onClick={submitRepartition}>Répartir</PrimaryButton>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </Modal>
 
             {/* Jour férié for a whole day (PointageController::markJourFerie / JourFerieService) */}
             <Modal show={jourFerieDay !== null} onClose={() => !jourFerieProcessing && setJourFerieDay(null)} maxWidth="md">

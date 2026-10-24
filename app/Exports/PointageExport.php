@@ -54,6 +54,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
     private const TITLE_GREEN = '3B7D23';
 
+    /** Day cell of a present day whose operation hasn't been entered yet. */
+    private const A_PRECISER = 'P';
+
     private const MONTHS = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
     private PayrollService $payroll;
@@ -155,15 +158,19 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $contract = $this->enterprise->contract_type;
         $rows = [];
         foreach ($records->groupBy('employee_id') as $employeeRecords) {
-            $worked = $employeeRecords->filter(fn ($r) => $r->operation_id !== null && $r->bloc_id !== null);
+            $worked = $employeeRecords->where('present', true);
             if ($worked->isEmpty()) {
                 continue;
             }
             $employee = $employeeRecords->first()->employee;
 
+            // A present day whose operation is still "à préciser" shows P: it's paid and counted in
+            // TOTAL, but has no bloc/operation to sit in the bloc tables (closing waits for it).
             $codes = [];
             foreach ($worked as $record) {
-                $codes[$record->date->format('Y-m-d')] = $this->code($record->bloc->name, $this->abbreviation($record->operation));
+                $codes[$record->date->format('Y-m-d')] = $record->operation && $record->bloc
+                    ? $this->code($record->bloc->name, $this->abbreviation($record->operation))
+                    : self::A_PRECISER;
             }
 
             // NET/J as it was when the days were entered: the most common net of a plain day (no
@@ -181,12 +188,16 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
             // Each H.S. hour and worked J.F. day goes to the operation of the day it happened; an
             // unworked J.F. has no operation of its own and goes to the worker's main one.
-            $mainCode = collect($codes)->countBy()->sortDesc()->keys()->first();
+            $operationCodes = array_filter($codes, fn ($code) => $code !== self::A_PRECISER);
+            $mainCode = collect($operationCodes)->countBy()->sortDesc()->keys()->first();
             $hsByCode = [];
             $jfByCode = [];
             foreach ($employeeRecords as $record) {
-                $code = $codes[$record->date->format('Y-m-d')] ?? $mainCode;
-                if ((float) $record->hours > 0 && isset($codes[$record->date->format('Y-m-d')])) {
+                $code = $operationCodes[$record->date->format('Y-m-d')] ?? $mainCode;
+                if ($code === null) {
+                    continue;
+                }
+                if ($record->present && (float) $record->hours > 0) {
                     $hsByCode[$code] = ($hsByCode[$code] ?? 0) + (float) $record->hours;
                 }
                 if ($record->is_jf) {
@@ -531,6 +542,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $jfByCode = [];
         foreach ($rows as $row) {
             foreach ($row['codes'] as $code) {
+                if ($code === self::A_PRECISER) {
+                    continue;
+                }
                 [$bloc, $abbr] = explode('|', $code, 2);
                 $blocs[$bloc][$abbr] = true;
             }

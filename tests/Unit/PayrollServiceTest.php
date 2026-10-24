@@ -142,7 +142,8 @@ class PayrollServiceTest extends TestCase
     private function dayRecord(string $contract, float $rate, float $complement, array $attrs = []): object
     {
         $attrs += ['hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'quantity' => null];
-        $calc = $this->svc->calculate($contract, $rate, $attrs['hours'], $complement, $attrs['is_jf'], null, $attrs['operation_id'] !== null);
+        $attrs += ['present' => $attrs['operation_id'] !== null];
+        $calc = $this->svc->calculate($contract, $rate, $attrs['hours'], $complement, $attrs['is_jf'], null, $attrs['present']);
 
         return (object) ($attrs + ['rate' => $rate, 'net' => $calc['total_net']]);
     }
@@ -153,7 +154,7 @@ class PayrollServiceTest extends TestCase
             $this->dayRecord('avec_contrat', 100, 10, ['hours' => 2]),
             $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true]),                        // worked JF
             $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true, 'operation_id' => null]), // unworked JF
-            (object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'quantity' => 40, 'net' => 200], // piece-rate
+            (object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'present' => true, 'quantity' => 40, 'net' => 200], // piece-rate
         ]);
 
         $p = $this->svc->payslipBreakdown('avec_contrat', $records, 10);
@@ -244,11 +245,11 @@ class PayrollServiceTest extends TestCase
 
     public function test_invoicing_counts_worked_days_only_and_every_jf_day(): void
     {
-        $worked = fn (array $a = []) => (object) ($a + ['rate' => 97.44, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'quantity' => null]);
+        $worked = fn (array $a = []) => (object) ($a + ['rate' => 97.44, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'present' => true, 'quantity' => null]);
         $records = collect(array_merge(
             array_fill(0, 9, $worked()),                                      // 9 normal worked days
             [$worked(['is_jf' => true, 'hours' => 2])],                       // 1 worked JF day (+2 H.S.)
-            array_fill(0, 2, $worked(['is_jf' => true, 'operation_id' => null, 'bloc_id' => null])), // 2 unworked JF days
+            array_fill(0, 2, $worked(['is_jf' => true, 'operation_id' => null, 'bloc_id' => null, 'present' => false])), // 2 unworked JF days
             [$worked(['rate' => 5, 'quantity' => 40])],                       // piece-rate: ignored
         ));
 
@@ -264,7 +265,7 @@ class PayrollServiceTest extends TestCase
 
     public function test_invoicing_for_a_worker_with_only_piece_rate_days_is_zero(): void
     {
-        $records = collect([(object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'quantity' => 40]]);
+        $records = collect([(object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'bloc_id' => 1, 'present' => true, 'quantity' => 40]]);
 
         $inv = $this->svc->invoicingForRecords('avec_contrat', $records, 0, true);
 

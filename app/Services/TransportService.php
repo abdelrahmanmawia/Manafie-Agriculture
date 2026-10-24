@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Transport cost is computed from the pointage, never ticked by hand. On each day, a vehicle's
- * riders are the distinct workers who worked that day (a pointage record with an operation —
- * an unworked jour férié doesn't count, they didn't come) and whose record carries that vehicle
+ * riders are the distinct workers present that day (pointage_records.present — an unworked jour
+ * férié isn't, they didn't come; a day whose operation is still "à préciser" is) and whose record carries that vehicle
  * (stamped from their équipe when the record was written, see riderVehicleId()). Its cost that
  * day is riders × price_per_person, or its flat fixed_net_per_day when one is set, and 0 when
  * nobody rode it or when it's marked absent that day (TransportVehicleAbsence: the riders came on
@@ -59,7 +59,7 @@ class TransportService
 
         $riders = PointageRecord::query()
             ->whereIn('transport_vehicle_id', $vehicles->keys())
-            ->whereNotNull('operation_id')
+            ->where('present', true)
             ->whereDate('date', '>=', $from)
             ->whereDate('date', '<=', $to)
             ->groupBy('transport_vehicle_id', DB::raw('DATE(date)'))

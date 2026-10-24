@@ -10,13 +10,14 @@ class PointageRecord extends Model
     use HasFactory;
 
     protected $fillable = [
-        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'transport_vehicle_id', 'date',
+        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'transport_vehicle_id', 'date', 'present',
         'hours', 'quantity', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net', 'scan_uuid'
     ];
 
     protected $casts = [
         'date' => 'date',
         'is_jf' => 'boolean',
+        'present' => 'boolean',
     ];
 
     public function employee()

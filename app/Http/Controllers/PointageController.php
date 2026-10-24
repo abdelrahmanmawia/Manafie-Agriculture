@@ -12,6 +12,7 @@ use App\Models\Bloc;
 use App\Models\Parcelle;
 use App\Services\JourFerieService;
 use App\Services\PayrollService;
+use App\Services\RepartitionService;
 use App\Services\TransportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -224,7 +225,11 @@ class PointageController extends Controller
             'hours' => 'nullable|numeric|min:0',
             'quantity' => 'nullable|numeric|min:0',
             'is_jf' => 'nullable|boolean',
+            // Present, operation still to be entered ("à préciser") — the équipe step.
+            'present' => 'nullable|boolean',
         ]);
+
+        $validated += ['operation_id' => null, 'bloc_id' => null];
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
         $this->assertQuinzaineInScope($request, $quinzaine);
@@ -255,6 +260,80 @@ class PointageController extends Controller
         }
 
         return $this->writeWhileOpen($quinzaine, fn () => $this->writeCell($validated, $quinzaine, $employee, $operationRecord));
+    }
+
+    /**
+     * "Tous présents" of the équipe Grid: marks the given workers present that day, operation
+     * still to be entered (RepartitionService::markPresent()). Each lands in their own division's
+     * quinzaine for the same dates; a division-locked user only reaches their own division.
+     */
+    public function markPresence(Request $request, RepartitionService $repartition)
+    {
+        $validated = $request->validate([
+            'quinzaine_id' => 'required|exists:quinzaines,id',
+            'date' => 'required|date',
+            'employee_ids' => 'required|array|min:1',
+            'employee_ids.*' => 'integer',
+        ]);
+
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+        if (! $this->dateInQuinzaine($validated['date'], $quinzaine)) {
+            return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
+        }
+
+        $employees = Employee::whereIn('id', $validated['employee_ids'])
+            ->where('farm_id', $quinzaine->enterprise->farm_id)
+            ->where('is_active', true)
+            ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
+            ->get();
+
+        $added = $repartition->markPresent($quinzaine, Carbon::parse($validated['date'])->format('Y-m-d'), $employees);
+
+        return redirect()->back()->with('success', "{$added} ouvrier(s) marqué(s) présent(s).");
+    }
+
+    /**
+     * Enters a division's operations for one day by headcount ("B1 Irrigation 4") instead of
+     * worker by worker; RepartitionService::repartir() assigns the day's "à préciser" workers.
+     */
+    public function repartir(Request $request, RepartitionService $repartition)
+    {
+        $validated = $request->validate([
+            'quinzaine_id' => 'required|exists:quinzaines,id',
+            'date' => 'required|date',
+            'lignes' => 'required|array|min:1',
+            'lignes.*.bloc_id' => 'required|exists:blocs,id',
+            'lignes.*.operation_id' => 'required|exists:operations,id',
+            'lignes.*.effectif' => 'required|integer|min:0',
+        ]);
+
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+        if (! $this->dateInQuinzaine($validated['date'], $quinzaine)) {
+            return redirect()->back()->withErrors(['date' => 'Cette date est en dehors de la période de la quinzaine.']);
+        }
+
+        $farmId = $quinzaine->enterprise->farm_id;
+        $blocs = Bloc::where('farm_id', $farmId)->whereIn('id', array_column($validated['lignes'], 'bloc_id'))->get()->keyBy('id');
+        $operations = Operation::where('farm_id', $farmId)->whereIn('id', array_column($validated['lignes'], 'operation_id'))->get()->keyBy('id');
+
+        $lignes = [];
+        foreach ($validated['lignes'] as $ligne) {
+            $bloc = $blocs->get($ligne['bloc_id']);
+            $operation = $operations->get($ligne['operation_id']);
+            abort_unless($bloc && $operation, 403);
+            if ($operation->unit_rate) {
+                return redirect()->back()->withErrors(['repartition' => "{$operation->name} est payée à la quantité : saisissez-la ouvrier par ouvrier."]);
+            }
+            $lignes[] = $ligne + ['label' => "{$bloc->name} · {$operation->name}"];
+        }
+
+        return $this->writeWhileOpen($quinzaine, function () use ($repartition, $quinzaine, $validated, $lignes) {
+            [$assigned, $left] = $repartition->repartir($quinzaine, Carbon::parse($validated['date'])->format('Y-m-d'), $lignes);
+
+            return redirect()->back()->with('success', "{$assigned} ouvrier(s) affecté(s)".($left ? ", {$left} encore à préciser." : '.'));
+        });
     }
 
     /**
@@ -289,12 +368,14 @@ class PointageController extends Controller
 
     private function writeCell(array $validated, Quinzaine $quinzaine, Employee $employee, ?Operation $operationRecord)
     {
-        // No operation/bloc, and not a paid holiday either -> plain absence, no pay: delete
-        // the record. If is_jf IS set though, this is a public holiday the employee did NOT
-        // work — still owed one day's pay, just never the worked+JF double (see the branch
-        // below and PayrollService::calculate()'s $worked param) — so it falls through to be
-        // saved as a record instead of deleted.
-        if ((!$validated['operation_id'] || !$validated['bloc_id']) && empty($validated['is_jf'])) {
+        $hasOperation = $validated['operation_id'] && $validated['bloc_id'];
+        $present = $hasOperation || ! empty($validated['present']);
+
+        // Not present, and not a paid holiday either -> plain absence, no pay: delete the
+        // record. If is_jf IS set though, this is a public holiday the employee did NOT work —
+        // still owed one day's pay, just never the worked+JF double (see PayrollService::
+        // calculate()'s $worked param) — so it's saved as a record instead of deleted.
+        if (! $present && empty($validated['is_jf'])) {
             PointageRecord::where('employee_id', $validated['employee_id'])
                 ->where('quinzaine_id', $validated['quinzaine_id'])
                 ->whereDate('date', $validated['date'])
@@ -308,23 +389,29 @@ class PointageController extends Controller
             'date' => Carbon::parse($validated['date'])->format('Y-m-d'),
         ];
 
-        if (!$validated['operation_id'] || !$validated['bloc_id']) {
+        // No operation: either present with the operation still "à préciser" (paid as a worked
+        // day — the operation doesn't change a day's pay — H.S./J.F. included), or the unworked
+        // paid holiday (one NET/J, never anything else).
+        if (! $hasOperation) {
+            $hs = $present ? ($validated['hours'] ?? 0) : 0;
+            $isJf = $present ? (bool) ($validated['is_jf'] ?? false) : true;
             $calc = $this->payrollService->calculate(
                 $quinzaine->enterprise->contract_type,
                 $quinzaine->enterprise->default_brut_rate,
-                0,
+                $hs,
                 $employee->complement,
-                true,
+                $isJf,
                 $quinzaine->enterprise->invoiced_to_client,
-                false
+                $present
             );
 
             $this->upsertPointageRecord($identity, [
+                'present' => $present,
                 'operation_id' => null,
                 'bloc_id' => null,
-                'hours' => 0,
+                'hours' => $hs,
                 'quantity' => null,
-                'is_jf' => true,
+                'is_jf' => $isJf,
                 'rate' => $quinzaine->enterprise->default_brut_rate,
                 'brut' => $calc['brut'],
                 'net' => $calc['total_net'],
@@ -340,6 +427,7 @@ class PointageController extends Controller
             // Piece-rate: pay = quantity * the operation's own rate, independent of the
             // enterprise's rate/employee's complement — no HS/JF concept for piece-rate work.
             $this->upsertPointageRecord($identity, [
+                'present' => true,
                 'operation_id' => $validated['operation_id'],
                 'bloc_id' => $validated['bloc_id'],
                 'hours' => 0,
@@ -366,6 +454,7 @@ class PointageController extends Controller
         );
 
         $this->upsertPointageRecord($identity, [
+            'present' => true,
             'operation_id' => $validated['operation_id'],
             'bloc_id' => $validated['bloc_id'],
             'hours' => $hs,
@@ -508,6 +597,7 @@ class PointageController extends Controller
                     'date' => Carbon::parse($date)->format('Y-m-d'),
                 ],
                 [
+                    'present' => true,
                     'operation_id' => $validated['operation_id'],
                     'bloc_id' => $validated['bloc_id'],
                     'hours' => $hs,

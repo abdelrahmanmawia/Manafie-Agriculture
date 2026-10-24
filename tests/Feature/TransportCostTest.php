@@ -126,7 +126,7 @@ class TransportCostTest extends TestCase
         $b = $this->worker('B', $this->divA);
         // Unworked JF: a paid record with no operation — the worker didn't come.
         PointageRecord::create([
-            'employee_id' => $a->id, 'quinzaine_id' => $this->qa->id, 'date' => '2026-01-11', 'is_jf' => true,
+            'employee_id' => $a->id, 'quinzaine_id' => $this->qa->id, 'date' => '2026-01-11', 'is_jf' => true, 'present' => false,
             'transport_vehicle_id' => $this->bus->id, 'hours' => 0, 'rate' => 100, 'brut' => 100, 'net' => 90,
         ]);
         $this->work($b, '2026-01-11', ['is_jf' => true]);

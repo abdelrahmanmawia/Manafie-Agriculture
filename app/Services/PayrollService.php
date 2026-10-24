@@ -179,7 +179,7 @@ class PayrollService
         }
 
         $inputs = [
-            'days' => $dayRecords->filter(fn ($r) => $r->operation_id !== null && $r->bloc_id !== null)->count(),
+            'days' => $dayRecords->where('present', true)->count(),
             'jf' => $dayRecords->filter(fn ($r) => $r->is_jf)->count(),
             'hs' => (float) $dayRecords->sum('hours'),
             'rate' => $dayRecords->first()->rate,
@@ -212,7 +212,7 @@ class PayrollService
         $jfPay = 0;
         $jfDays = 0;
         foreach ($dayRecords as $record) {
-            $worked = $record->operation_id !== null;
+            $worked = $record->present;
             $calc = $this->calculate($contractType, $record->rate, $record->hours, $complement, $record->is_jf, null, $worked);
 
             $base += $calc['brut'];
@@ -280,7 +280,7 @@ class PayrollService
                         $record->employee->complement,
                         $record->is_jf,
                         null,
-                        $record->operation_id !== null
+                        $record->present
                     );
 
                     $record->update([
@@ -328,7 +328,7 @@ class PayrollService
                         $employee->complement,
                         $record->is_jf,
                         null,
-                        $record->operation_id !== null
+                        $record->present
                     );
 
                     $record->update([

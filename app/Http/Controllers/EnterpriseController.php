@@ -356,10 +356,17 @@ class EnterpriseController extends Controller
         // the close back instead of leaving a closed period with no summary, and in-flight cell
         // writes (which share-lock the same row, see PointageController::writeWhileOpen()) finish
         // before the snapshot reads the records.
-        DB::transaction(function () use ($quinzaine) {
+        $aPreciser = DB::transaction(function () use ($quinzaine) {
             $quinzaine = Quinzaine::lockForUpdate()->findOrFail($quinzaine->id);
             if ($quinzaine->is_closed) {
-                return;
+                return 0;
+            }
+
+            // A day marked present at the équipe step must have its operation before the period
+            // is frozen: the snapshot's bloc/operation costs and the Excel fiche need it.
+            $aPreciser = PointageRecord::where('quinzaine_id', $quinzaine->id)->where('present', true)->whereNull('operation_id')->count();
+            if ($aPreciser > 0) {
+                return $aPreciser;
             }
 
             $quinzaine->update(['is_closed' => true]);
@@ -367,7 +374,15 @@ class EnterpriseController extends Controller
             // Generate Snapshot for performance
             $this->payrollService->generateSnapshot($quinzaine);
             $this->transportService->generateSnapshot($quinzaine);
+
+            return 0;
         });
+
+        if ($aPreciser > 0) {
+            return redirect()->back()->withErrors([
+                'quinzaine' => "Clôture impossible : {$aPreciser} jour(s) de présence sans opération (« à préciser »). Complétez-les d'abord dans la grille.",
+            ]);
+        }
 
         return redirect()->back()->with('success', 'Quinzaine closed successfully.');
     }

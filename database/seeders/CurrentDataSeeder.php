@@ -76,6 +76,10 @@ class CurrentDataSeeder extends Seeder
                 }
             }
 
+            // Same as migration 000049: before it, a record without an operation was always an
+            // unworked jour férié.
+            DB::table('pointage_records')->whereNull('operation_id')->update(['present' => false]);
+
             // Same carry-over as migrations 000046/000047: one équipe per vehicle, named after it,
             // riding it, with its riders as members — and their pointage stamped with it.
             foreach (DB::table('transport_vehicles')->whereIn('id', array_keys($ridersByVehicle))->get(['id', 'farm_id', 'code']) as $vehicle) {

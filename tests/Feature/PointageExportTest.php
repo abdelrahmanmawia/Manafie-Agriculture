@@ -188,7 +188,7 @@ class PointageExportTest extends TestCase
         $this->work($worker, $q, '2026-10-04', ['bloc_id' => $this->b2->id, 'operation_id' => $this->irr->id, 'hours' => 3, 'is_jf' => true]);
         // An unworked J.F. has no operation: it goes to the worker's main one (B1 D.M).
         PointageRecord::create([
-            'employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => '2026-10-05', 'is_jf' => true,
+            'employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => '2026-10-05', 'is_jf' => true, 'present' => false,
             'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 90.87,
         ]);
 
@@ -213,6 +213,22 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta(3 * 11.36, $line('Irr')['hs'], 0.001);
         $this->assertEqualsWithDelta(90.87, $line('Irr')['jf'], 0.001);
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART'), 0.05);
+    }
+
+    public function test_a_day_still_a_preciser_shows_p_and_is_paid(): void
+    {
+        $division = $this->division();
+        $q = $this->quinzaine($division);
+        $worker = $this->worker($division, '001');
+        $this->work($worker, $q, '2026-10-01');
+        $this->work($worker, $q, '2026-10-02', ['operation_id' => null, 'bloc_id' => null, 'present' => true]);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 5);
+
+        $this->assertSame('P', $ws->getCell('G6')->getValue());
+        $this->assertEquals(2, $this->value($ws, $col['TOTAL'].'6'));
+        $this->assertEqualsWithDelta((float) PointageRecord::sum('net'), $this->value($ws, $col['TOTAL NET'].'6'), 0.05);
     }
 
     public function test_invoiced_fiche_bills_like_payroll_for_both_invoicing_formulas(): void
