@@ -74,6 +74,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
     private float $hsRate;
 
+    /** The period's fixed monthly salaries: in no bloc table, so the footer adds them itself. */
+    private float $salairesFixes = 0.0;
+
     public function __construct(
         private Enterprise $enterprise,
         private Carbon $start,
@@ -135,8 +138,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
     }
 
     /**
-     * The fiche's rows: every employee of the division who worked at least one day this period,
-     * by matricule, with what the system knows about their period.
+     * The fiche's rows: every employee of the division who worked at least one day this period
+     * or is paid a fixed monthly salary in it, by matricule, with what the system knows about
+     * their period.
      */
     private function rows(): array
     {
@@ -159,9 +163,13 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $rows = [];
         foreach ($records->groupBy('employee_id') as $employeeRecords) {
             $worked = $employeeRecords->where('present', true);
-            if ($worked->isEmpty()) {
+            // A fixed monthly salary (SalaireFixeService) is no day: its days are pointed at 0 DH
+            // and the salary reaches TOTAL NET through the adjustment below.
+            $salaried = $employeeRecords->contains('nature', PointageRecord::NATURE_SALAIRE);
+            if ($worked->isEmpty() && ! $salaried) {
                 continue;
             }
+            $this->salairesFixes += (float) $employeeRecords->where('nature', PointageRecord::NATURE_SALAIRE)->sum('net');
             $employee = $employeeRecords->first()->employee;
 
             // A present day whose operation is still "à préciser" shows P: it's paid and counted in
@@ -184,7 +192,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $mainCode = collect($operationCodes)->countBy()->sortDesc()->keys()->first();
             $hsByCode = [];
             $jfByCode = [];
-            foreach ($employeeRecords as $record) {
+            // A salaried worker's H.S. and J.F. are in the salary, not charged to an operation.
+            foreach ($salaried ? [] : $employeeRecords as $record) {
                 $code = $operationCodes[$record->date->format('Y-m-d')] ?? $mainCode;
                 if ($code === null) {
                     continue;
@@ -215,7 +224,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 'codes' => $codes,
                 'net_j' => $netJ,
                 // The day rate the records were priced at — what PayrollService::invoicingForRecords() invoices on.
-                'brut' => (float) ($employeeRecords->whereNull('quantity')->first()?->rate ?? $this->enterprise->default_brut_rate),
+                'brut' => (float) ($employeeRecords->whereNull('quantity')->where('nature', PointageRecord::NATURE_JOUR)->first()?->rate ?? $this->enterprise->default_brut_rate),
                 'hs' => $hs,
                 'jf' => $jf,
                 'hs_by_code' => $hsByCode,
@@ -639,6 +648,20 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $t = $this->theme;
         $blocSum = $blocTotals === [] ? '0' : implode('+', $blocTotals);
         $netOuvriers = $this->col($c['total_net']).$totalsRow;
+
+        // Fixed salaries are paid but sit in no bloc table: their own line, added to the
+        // operations total so ECART stays a real discrepancy (the invoice bills the days).
+        if ($this->salairesFixes > 0 && $this->fiche !== self::FICHE_FACTURE) {
+            $salaryCell = $this->cell($c['footer_value'][0], $r);
+            $this->text($this->cell($c['footer_label'][0], $r), 'SALAIRES FIXES');
+            $this->ws->mergeCells($this->range($c['footer_label'][0], $r, $c['footer_label'][1], $r));
+            $this->ws->setCellValue($salaryCell, $this->salairesFixes);
+            $this->ws->mergeCells($this->range($c['footer_value'][0], $r, $c['footer_value'][1], $r));
+            $this->style($this->range($c['footer_label'][0], $r, $c['footer_value'][1], $r), $this->font($t['font'], $this->fiche === self::FICHE_NON_DECLAREE ? 16 : 18, true), $this->fill($t['footer_fill']), $this->center(), $this->borders(Border::BORDER_THIN), $this->outline(Border::BORDER_MEDIUM), ['numberFormat' => ['formatCode' => '#,##0.00']]);
+            $this->ws->getRowDimension($r)->setRowHeight(52.05);
+            $blocSum .= '+'.$salaryCell;
+            $r++;
+        }
 
         $lines = match ($this->fiche) {
             self::FICHE_FACTURE => [['TOTAL FACTURE AVEC MARGE 4% ET 20% DE TVA', "={$blocSum}"]],

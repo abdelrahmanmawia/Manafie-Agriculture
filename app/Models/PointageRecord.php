@@ -9,8 +9,14 @@ class PointageRecord extends Model
 {
     use HasFactory;
 
+    /** A day of pointage (the default). */
+    public const NATURE_JOUR = 'jour';
+
+    /** A fixed monthly salary, paid in the month's second quinzaine (SalaireFixeService). */
+    public const NATURE_SALAIRE = 'salaire_mensuel';
+
     protected $fillable = [
-        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'transport_vehicle_id', 'date', 'present',
+        'employee_id', 'quinzaine_id', 'operation_id', 'bloc_id', 'sector_id', 'parcelle_id', 'transport_vehicle_id', 'date', 'present', 'nature',
         'hours', 'quantity', 'is_jf', 'rate', 'brut', 'cnss', 'amo', 'ir', 'net', 'scan_uuid'
     ];
 

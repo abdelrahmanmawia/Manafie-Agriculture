@@ -436,13 +436,15 @@ class EnterpriseController extends Controller
             ->exists();
         abort_if($duplicate, 422, 'Une période existe déjà pour ces dates dans cette division.');
 
-        Quinzaine::create([
+        $quinzaine = Quinzaine::create([
             'enterprise_id' => $request->enterprise_id,
             'label' => $request->label,
             'start_date' => $request->start_date,
             'end_date' => $request->end_date,
             'is_closed' => false
         ]);
+        // A month's second quinzaine pays the division's fixed monthly salaries.
+        app(\App\Services\SalaireFixeService::class)->syncQuinzaine($quinzaine->fresh());
 
         return redirect()->back();
     }

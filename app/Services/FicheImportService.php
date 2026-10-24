@@ -331,7 +331,7 @@ class FicheImportService
     /** The day's net, or null when the worker already has that day (listed twice). */
     private function writeRecord(Employee $employee, Quinzaine $quinzaine, string $date, ?int $operationId, ?int $blocId, float $hours, float $complement): ?float
     {
-        if (PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $quinzaine->id)->whereDate('date', $date)->exists()) {
+        if (PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $quinzaine->id)->where('nature', PointageRecord::NATURE_JOUR)->whereDate('date', $date)->exists()) {
             $this->report['warnings'][] = "Doublon ignoré : {$employee->full_name} le {$date} ({$quinzaine->enterprise->name})";
 
             return null;

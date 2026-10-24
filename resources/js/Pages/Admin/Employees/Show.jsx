@@ -163,6 +163,9 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                             <InfoRow label="Date d'Embauche" value={employee.hire_date} />
                             <InfoRow label="Taux Journalier (Brut)" value={`${formatNumber(employee.base_rate)} DH`} />
                             <InfoRow label="Complément / Prime" value={`${formatNumber(employee.complement || 0)} DH`} />
+                            {employee.salaire_mensuel !== null && employee.salaire_mensuel !== undefined && (
+                                <InfoRow label="Salaire mensuel fixe" value={`${formatNumber(employee.salaire_mensuel)} DH (2e quinzaine)`} />
+                            )}
                             <InfoRow label="Net / Jour" value={<span className="text-green-700 font-black">{formatNumber(salNetJ)} DH</span>} />
                         </div>
 

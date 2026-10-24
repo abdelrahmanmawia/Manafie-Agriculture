@@ -287,6 +287,33 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta((float) PointageRecord::sum('net'), $this->value($ws, $col['TOTAL NET'].'6'), 0.01);
     }
 
+    public function test_a_fixed_monthly_salary_is_the_workers_total_net_even_without_days(): void
+    {
+        $division = $this->division(['name' => 'PERSEALAND NON DECLARE', 'mo_declaree' => false]);
+        $q = $this->quinzaine($division, '2026-10-16', '2026-10-31');
+        $pointeur = $this->worker($division, '001');
+        $chef = $this->worker($division, '002');
+        $this->work($pointeur, $q, '2026-10-16');
+        $this->work($pointeur, $q, '2026-10-17', ['hours' => 2]);
+        $pointeur->update(['salaire_mensuel' => 3500]);
+        $chef->update(['salaire_mensuel' => 4000]);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($pointeur);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($chef);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 5);
+
+        $this->assertSame('001', $ws->getCell('A6')->getValue());
+        $this->assertEquals(2, $this->value($ws, $col['TOTAL'].'6'));
+        $this->assertEqualsWithDelta(3500, $this->value($ws, $col['TOTALNET'].'6'), 0.01);
+        $this->assertSame('002', $ws->getCell('A7')->getValue());
+        $this->assertEqualsWithDelta(4000, $this->value($ws, $col['TOTALNET'].'7'), 0.01);
+        $this->assertEqualsWithDelta(7500, $this->footer($ws, 'SALAIRES FIXES'), 0.01);
+        $this->assertEqualsWithDelta(7500, $this->footer($ws, 'MO NON DECLARE'), 0.01);
+        $this->assertEqualsWithDelta(7500 * 1.04, $this->value($ws, 'C3'), 0.01);
+        $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART OPERATIONS'), 0.01);
+    }
+
     public function test_all_divisions_export_has_one_fiche_per_division(): void
     {
         $persealand = $this->division();

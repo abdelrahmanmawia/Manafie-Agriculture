@@ -122,6 +122,17 @@
             </tr>
             @endif
 
+            {{-- Fixed monthly salary (SalaireFixeService), paid in the month's second quinzaine. --}}
+            @if(($payslip['salaire_fixe'] ?? 0) > 0)
+            <tr>
+                <td>Salaire mensuel fixe</td>
+                <td style="text-align: center;">{{ $payslip['days_present'] }} J</td>
+                <td></td>
+                <td style="text-align: right;">{{ number_format($payslip['salaire_fixe'], 2) }}</td>
+                <td></td>
+            </tr>
+            @endif
+
             {{-- 6. Deductions (CNSS / AMO) — together PayrollService::DEDUCTION_RATE of the base. --}}
             @if($payslip['total_retenues'] > 0)
                 <tr>

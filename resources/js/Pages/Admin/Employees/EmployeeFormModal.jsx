@@ -7,7 +7,7 @@ import { t } from '@/Helpers/i18n';
 
 const emptyForm = {
     matricule: '', full_name: '', cin: '', cnss_number: '', dob: '', hire_date: '', phone: '',
-    address: '', bank_name: '', rib: '', base_rate: '', complement: 0, enterprise_id: '',
+    address: '', bank_name: '', rib: '', base_rate: '', complement: 0, salaire_mensuel: '', enterprise_id: '',
     residence_location_id: '', is_active: true, photo: null, cin_photo: null,
     remove_photo: false, remove_cin_photo: false,
 };
@@ -36,6 +36,7 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                 rib: employee.rib || '',
                 base_rate: employee.base_rate,
                 complement: employee.complement || 0,
+                salaire_mensuel: employee.salaire_mensuel ?? '',
                 enterprise_id: employee.enterprise_id,
                 residence_location_id: employee.residence_location_id || '',
                 is_active: employee.is_active,
@@ -194,6 +195,14 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                             <input id="emp_complement" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-green-700" value={data.complement} onChange={e => setData('complement', e.target.value)} />
                             {errors.complement && <div className="text-red-500 text-xs mt-1">{errors.complement}</div>}
                         </div>
+                        {employee && (
+                            <div>
+                                <label htmlFor="emp_salaire_mensuel" className="block text-xs font-black uppercase text-gray-400 mb-1">Salaire mensuel fixe (DH)</label>
+                                <input id="emp_salaire_mensuel" type="number" step="0.01" min="0" className="w-full rounded-lg border-gray-200 font-bold" placeholder="Vide = payé à la journée" value={data.salaire_mensuel} onChange={e => setData('salaire_mensuel', e.target.value)} />
+                                <p className="text-[10px] text-gray-400 mt-1">Payé en entier dans la 2e quinzaine du mois ; ses jours restent pointés mais ne sont pas payés.</p>
+                                {errors.salaire_mensuel && <div className="text-red-500 text-xs mt-1">{errors.salaire_mensuel}</div>}
+                            </div>
+                        )}
 
                         {/* Status (Edit Only) */}
                         {isEditing && (

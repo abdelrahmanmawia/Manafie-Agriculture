@@ -7,6 +7,7 @@ use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\TransportLocation;
 use App\Services\PayrollService;
+use App\Services\SalaireFixeService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +150,8 @@ class EmployeeController extends Controller
             'rib' => 'nullable|string|max:100',
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
+            // A fixed monthly salary replaces the day pay (SalaireFixeService); empty = paid by the day.
+            'salaire_mensuel' => 'nullable|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $employee->farm_id)],
             // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
@@ -199,7 +202,10 @@ class EmployeeController extends Controller
         // Keep this employee's still-open pointage in sync with the new complement — otherwise
         // their stored net/brut stay priced at whatever complement was in effect when each cell
         // was entered, silently diverging from what a payslip would compute for the same day.
-        if ($employee->wasChanged('complement')) {
+        if ($employee->wasChanged(['salaire_mensuel', 'enterprise_id', 'is_active'])) {
+            // Moves/creates/removes the salary record and reprices the days (recalculation included).
+            app(SalaireFixeService::class)->syncEmployee($employee);
+        } elseif ($employee->wasChanged('complement')) {
             $this->payrollService->recalculateOpenRecordsForEmployee($employee);
         }
 
@@ -211,6 +217,9 @@ class EmployeeController extends Controller
         $this->assertEmployeeManagerAccess($request, $employee);
 
         $employee->update(['is_active' => !$employee->is_active]);
+        if ($employee->salaire_mensuel !== null) {
+            app(SalaireFixeService::class)->syncEmployee($employee);
+        }
         return redirect()->back();
     }
 

@@ -200,7 +200,7 @@ class PayrollService
      */
     public function invoicingForRecords($contractType, $records, $complement, $invoicedToClient = null, $periodStart = null): array
     {
-        $dayRecords = $records->whereNull('quantity');
+        $dayRecords = $records->whereNull('quantity')->filter(fn ($r) => ($r->nature ?? 'jour') === 'jour');
         if ($dayRecords->isEmpty()) {
             return ['net_factur_j' => 0, 'total_ttc' => 0, 'days' => 0, 'jf' => 0, 'hs' => 0, 'rate' => null];
         }
@@ -228,10 +228,13 @@ class PayrollService
      * records (quantity set) are a gain equal to their stored net, with no deduction.
      * total_net is the sum of the records' stored net, same as the Grid/Excel export.
      */
-    public function payslipBreakdown(string $contractType, $records, $complement): array
+    public function payslipBreakdown(string $contractType, $records, $complement, ?float $salaireMensuel = null): array
     {
         $isAvecContrat = $contractType === 'avec_contrat';
-        $dayRecords = $records->whereNull('quantity');
+        $salaire = $records->filter(fn ($r) => ($r->nature ?? 'jour') === 'salaire_mensuel');
+        $records = $records->reject(fn ($r) => ($r->nature ?? 'jour') === 'salaire_mensuel');
+        // On a fixed monthly salary the days pay nothing (PointageRecordObserver): the salary line is the pay.
+        $dayRecords = $salaireMensuel !== null ? collect() : $records->whereNull('quantity');
         $pieceRecords = $records->whereNotNull('quantity');
 
         $base = 0;
@@ -274,9 +277,11 @@ class PayrollService
             'piece_pay' => $piecePay,
             'cnss' => $cnss,
             'amo' => $amo,
-            'total_gains' => $base + $hsPay + $jfPay + $complementPay + $piecePay,
+            'salaire_fixe' => (float) $salaire->sum('net'),
+            'days_present' => $records->filter(fn ($r) => $r->present ?? true)->count(),
+            'total_gains' => $base + $hsPay + $jfPay + $complementPay + $piecePay + (float) $salaire->sum('net'),
             'total_retenues' => $cnss + $amo,
-            'total_net' => (float) $records->sum('net'),
+            'total_net' => (float) $records->sum('net') + (float) $salaire->sum('net'),
         ];
     }
 
@@ -299,7 +304,7 @@ class PayrollService
             );
 
             \App\Models\PointageRecord::whereIn('quinzaine_id', $openIds)
-                ->whereNull('quantity')->with('employee')->get()->each(function ($record) use ($enterprise) {
+                ->whereNull('quantity')->where('nature', \App\Models\PointageRecord::NATURE_JOUR)->with('employee')->get()->each(function ($record) use ($enterprise) {
                     $calc = $this->calculate(
                         $enterprise->contract_type,
                         $enterprise->default_brut_rate,
@@ -346,6 +351,7 @@ class PayrollService
             \App\Models\PointageRecord::where('employee_id', $employee->id)
                 ->whereIn('quinzaine_id', $openIds)
                 ->whereNull('quantity')
+                ->where('nature', \App\Models\PointageRecord::NATURE_JOUR)
                 ->get()
                 ->each(function ($record) use ($employee) {
                     $calc = $this->calculate(

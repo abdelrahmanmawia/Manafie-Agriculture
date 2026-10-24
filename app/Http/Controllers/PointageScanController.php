@@ -223,6 +223,7 @@ class PointageScanController extends Controller
                 // the DB compare just the date part, which is what makes retrying a batch safe.
                 $existing = PointageRecord::where('employee_id', $employee->id)
                     ->where('quinzaine_id', $quinzaine->id)
+                    ->where('nature', PointageRecord::NATURE_JOUR)
                     ->whereDate('date', $date)
                     ->first();
 

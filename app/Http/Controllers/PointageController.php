@@ -207,8 +207,16 @@ class PointageController extends Controller
         }
 
         // Fetch existing records for this quinzaine, filtering to only those within the date range
+        // A fixed monthly salary is a record too (SalaireFixeService) but not a day: it's left out
+        // of the day cells and passed apart, for the TOTAL NET column.
+        $salairesFixes = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
+            ->whereIn('employee_id', $employees->pluck('id'))
+            ->where('nature', PointageRecord::NATURE_SALAIRE)
+            ->pluck('net', 'employee_id');
+
         $records = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
             ->whereIn('employee_id', $employees->pluck('id'))
+            ->where('nature', PointageRecord::NATURE_JOUR)
             ->whereDate('date', '>=', $quinzaine->start_date)
             ->whereDate('date', '<=', $quinzaine->end_date)
             ->get()
@@ -226,6 +234,7 @@ class PointageController extends Controller
             'mode' => $mode,
             'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
             'equipes' => $equipes,
+            'salairesFixes' => $salairesFixes,
         ]);
     }
 
@@ -393,6 +402,7 @@ class PointageController extends Controller
         if (! $present && empty($validated['is_jf'])) {
             PointageRecord::where('employee_id', $validated['employee_id'])
                 ->where('quinzaine_id', $validated['quinzaine_id'])
+                ->where('nature', PointageRecord::NATURE_JOUR)
                 ->whereDate('date', $validated['date'])
                 ->delete();
             return redirect()->back();
@@ -510,6 +520,7 @@ class PointageController extends Controller
 
         $existing = fn () => PointageRecord::where('employee_id', $identity['employee_id'])
             ->where('quinzaine_id', $identity['quinzaine_id'])
+            ->where('nature', PointageRecord::NATURE_JOUR)
             ->whereDate('date', $identity['date']);
 
         try {
@@ -584,6 +595,7 @@ class PointageController extends Controller
             foreach ($validated['dates'] as $date) {
                 PointageRecord::where('employee_id', $employee->id)
                     ->where('quinzaine_id', $quinzaine->id)
+                    ->where('nature', PointageRecord::NATURE_JOUR)
                     ->whereDate('date', Carbon::parse($date)->format('Y-m-d'))
                     ->delete();
             }

@@ -65,7 +65,8 @@ class PayrollController extends Controller
         $payslip = $this->payrollService->payslipBreakdown(
             $quinzaine->enterprise->contract_type,
             $records,
-            $employee->complement
+            $employee->complement,
+            $employee->salaire_mensuel !== null ? (float) $employee->salaire_mensuel : null
         );
 
         $pdf = Pdf::loadView('exports.payslip', [

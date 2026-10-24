@@ -7,7 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [] }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
     const [selectedCell, setSelectedCell] = useState(null);
     // Jour férié: the day whose header was clicked (action modal), and the per-division result
     // the server flashes back (summary modal).
@@ -790,7 +790,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     {filteredEmployees.map(emp => {
                                         const employeeRecords = existingRecords[emp.id] || {};
                                         const totalJours = Object.keys(employeeRecords).length;
-                                        const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0);
+                                        // A fixed monthly salary (paid in the month's 2nd quinzaine) is not a day: it comes apart.
+                                        const salaireFixe = parseFloat(salairesFixes[emp.id] || 0);
+                                        const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0) + salaireFixe;
                                         const totalHs = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.hours || 0), 0);
                                         const salNetJ = entFor(emp).contract_type === 'avec_contrat'
                                             ? (parseFloat(entFor(emp).default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
@@ -868,6 +870,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <td className="border border-gray-200 p-2 text-center font-black text-primary-600 bg-primary-50 sticky right-[100px] z-10 shadow-sm w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">{totalHs > 0 ? formatNumber(totalHs, 2) : '-'}</td>
                                                 <td className="border border-gray-200 p-2 text-right font-black text-primary-900 bg-primary-100 sticky right-0 z-10 shadow-sm w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">
                                                     {formatNumber(totalNet)}
+                                                    {salaireFixe > 0 && <div className="text-[7px] font-black text-amber-700 uppercase" title="Salaire mensuel fixe">dont fixe {formatNumber(salaireFixe)}</div>}
                                             </td>
                                             </tr>
                                         );

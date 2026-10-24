@@ -27,6 +27,7 @@ class EventServiceProvider extends ServiceProvider
      */
     protected $observers = [
         \App\Models\Farm::class => [\App\Observers\FarmObserver::class],
+        \App\Models\PointageRecord::class => [\App\Observers\PointageRecordObserver::class],
     ];
 
     /**

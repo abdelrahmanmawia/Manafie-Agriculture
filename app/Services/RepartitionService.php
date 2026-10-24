@@ -52,7 +52,7 @@ class RepartitionService
                     continue;
                 }
                 $exists = PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $quinzaine->id)
-                    ->whereDate('date', $date)->exists();
+                    ->where('nature', PointageRecord::NATURE_JOUR)->whereDate('date', $date)->exists();
                 if ($exists) {
                     continue;
                 }
