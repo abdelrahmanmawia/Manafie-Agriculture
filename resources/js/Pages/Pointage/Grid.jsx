@@ -24,6 +24,16 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     useEffect(() => {
         if (flash?.jourFerie) setJourFerieResult(flash.jourFerie);
     }, [flash?.jourFerie]);
+
+    // The opened day's change history (PointageController::historique()): who did what, when.
+    const [historique, setHistorique] = useState(null);
+    useEffect(() => {
+        setHistorique(null);
+        if (!selectedCell) return;
+        const quinzaineId = employees.find(e => e.id === selectedCell.employeeId)?.quinzaine_id ?? quinzaine.id;
+        axios.get(route('pointage.history', { employee_id: selectedCell.employeeId, quinzaine_id: quinzaineId, date: selectedCell.date }))
+            .then(r => setHistorique(r.data)).catch(() => setHistorique([]));
+    }, [selectedCell?.employeeId, selectedCell?.date]);
     const dayIsJf = (day) => employees.some(e => existingRecords[e.id]?.[day]?.[0]?.is_jf);
     const formatDay = (day) => day ? new Date(day).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' }) : '';
     const applyJourFerie = (remove) => {
@@ -192,6 +202,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         hours: 0, // This is H.S
         quantity: '',
         is_jf: false,
+        // The day's presence, kept when saving without an operation: an "à préciser" day given
+        // its H.S. stays present. Clearing a day is the explicit "Marquer absent" button.
+        present: false,
     });
 
     // The selected Operation's unit_rate decides whether this cell asks for a quantity
@@ -215,6 +228,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             hours: record?.hours || 0,
             quantity: record?.quantity || '',
             is_jf: record?.is_jf || false,
+            present: !!record?.present,
         });
     };
 
@@ -471,6 +485,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 router.visit(route('pointage.quinzaines'));
             }
         }
+    };
+
+    const saveAbsent = () => {
+        if (!window.confirm("Marquer cet ouvrier absent ce jour-là ? Le jour sera effacé (il reste dans l'historique).")) return;
+        router.post(route('pointage.cell'), { ...data, operation_id: '', bloc_id: '', quantity: '', hours: 0, is_jf: false, present: false }, {
+            preserveScroll: true,
+            onSuccess: () => { setSelectedCell(null); fetchSummary(); },
+        });
     };
 
     const savePresent = () => {
@@ -1119,8 +1141,33 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         <button type="submit" disabled={processing} className="w-full bg-primary-600 hover:bg-primary-700 text-white py-5 rounded-2xl font-black text-sm shadow-xl shadow-primary-100 transition-all transform hover:-translate-y-1 active:scale-95 disabled:opacity-50 tracking-[0.3em] uppercase">
                                             {processing ? 'Chargement...' : 'Enregistrer'}
                                         </button>
+                                        {existingRecords[selectedCell.employeeId]?.[selectedCell.date]?.[0] && (
+                                            <button type="button" onClick={saveAbsent} disabled={processing} className="w-full border-2 border-red-200 text-red-600 hover:bg-red-50 py-3 rounded-2xl font-black text-xs tracking-widest uppercase disabled:opacity-50">
+                                                Marquer absent (effacer ce jour)
+                                            </button>
+                                        )}
                                     </div>
                                 </form>
+                                <div className="mt-8 border-t pt-4">
+                                    <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Historique de ce jour</div>
+                                    {historique === null ? (
+                                        <p className="text-xs text-gray-400">Chargement…</p>
+                                    ) : historique.length === 0 ? (
+                                        <p className="text-xs text-gray-400 italic">Aucune modification enregistrée.</p>
+                                    ) : (
+                                        <ul className="space-y-2 max-h-48 overflow-y-auto">
+                                            {historique.map((h, i) => (
+                                                <li key={i} className="text-xs">
+                                                    <span className="font-bold text-gray-700">{h.quand}</span>
+                                                    <span className="text-gray-500"> · {h.qui} · </span>
+                                                    <span className={`font-black ${h.action === 'Supprimé' ? 'text-red-600' : h.action === 'Saisi' ? 'text-green-700' : 'text-amber-700'}`}>{h.action}</span>
+                                                    {h.nature !== 'jour' && <span className="text-gray-400"> (salaire fixe)</span>}
+                                                    <div className="text-gray-600 ml-2">{h.lignes.join(' · ')}</div>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

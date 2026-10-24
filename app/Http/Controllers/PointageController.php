@@ -200,6 +200,63 @@ class PointageController extends Controller
         ]);
     }
 
+    /**
+     * One day's change history for a worker (PointageRecordObserver → pointage_changes), newest
+     * first, in words: who, when, and what changed. Fetched by the Grid's day dialog.
+     */
+    public function historique(Request $request)
+    {
+        $validated = $request->validate([
+            'employee_id' => 'required|integer',
+            'quinzaine_id' => 'required|exists:quinzaines,id',
+            'date' => 'required|date',
+        ]);
+        $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
+        $changes = \App\Models\PointageChange::with('user:id,name')
+            ->where('employee_id', $validated['employee_id'])->where('quinzaine_id', $quinzaine->id)
+            ->whereDate('date', $validated['date'])
+            ->latest('id')->get();
+
+        $farmId = $quinzaine->enterprise->farm_id;
+        $operations = Operation::where('farm_id', $farmId)->get()->mapWithKeys(fn ($o) => [$o->id => $o->abbreviation ?: $o->name]);
+        $blocs = Bloc::where('farm_id', $farmId)->pluck('name', 'id');
+        $labels = ['present' => 'Présence', 'operation_id' => 'Opération', 'bloc_id' => 'Bloc', 'hours' => 'H.S', 'quantity' => 'Quantité', 'is_jf' => 'Jour férié', 'net' => 'Net'];
+        $show = fn ($field, $value) => match (true) {
+            $value === null => '—',
+            in_array($field, ['present', 'is_jf'], true) => $value ? 'oui' : 'non',
+            $field === 'operation_id' => $operations[$value] ?? "#{$value}",
+            $field === 'bloc_id' => $blocs[$value] ?? "#{$value}",
+            $field === 'net' => number_format((float) $value, 2, ',', ' ').' DH',
+            default => rtrim(rtrim(number_format((float) $value, 2, '.', ''), '0'), '.'),
+        };
+
+        return response()->json($changes->map(function ($change) use ($labels, $show) {
+            $avant = $change->avant ?? [];
+            $apres = $change->apres ?? [];
+            $lignes = [];
+            foreach ($labels as $field => $label) {
+                if (! array_key_exists($field, $avant) && ! array_key_exists($field, $apres)) {
+                    continue;
+                }
+                $lignes[] = match ($change->action) {
+                    'created' => "{$label} : ".$show($field, $apres[$field] ?? null),
+                    'deleted' => "{$label} : ".$show($field, $avant[$field] ?? null),
+                    default => "{$label} : ".$show($field, $avant[$field] ?? null).' → '.$show($field, $apres[$field] ?? null),
+                };
+            }
+
+            return [
+                'quand' => $change->created_at->format('d/m/Y H:i'),
+                'qui' => $change->user?->name ?? 'Système',
+                'action' => ['created' => 'Saisi', 'updated' => 'Modifié', 'deleted' => 'Supprimé'][$change->action] ?? $change->action,
+                'nature' => $change->nature,
+                'lignes' => $lignes,
+            ];
+        }));
+    }
+
     public function quinzaines(Request $request)
     {
         // Farm first, then the division: the user's own if they're locked to one, else the
@@ -499,7 +556,7 @@ class PointageController extends Controller
                 ->where('quinzaine_id', $validated['quinzaine_id'])
                 ->where('nature', PointageRecord::NATURE_JOUR)
                 ->whereDate('date', $validated['date'])
-                ->delete();
+                ->get()->each->delete(); // one by one: each deletion goes to the change history
             return redirect()->back();
         }
 
@@ -696,7 +753,7 @@ class PointageController extends Controller
                     ->where('quinzaine_id', $quinzaine->id)
                     ->where('nature', PointageRecord::NATURE_JOUR)
                     ->whereDate('date', Carbon::parse($date)->format('Y-m-d'))
-                    ->delete();
+                    ->get()->each->delete(); // one by one, for the change history
             }
             return back();
         }

@@ -109,6 +109,11 @@ A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyon
 ### The Quinzaines page is per period, not per division
 `Pointage/Quinzaines.jsx` shows one card per pay period (its dates) with one line per division: its progress (`PointageController::quinzaines()` adds `stats` — ouvriers, jours, net, `a_preciser`), its grid/exports and edit/delete/close. A period is opened for several divisions at once (`EnterpriseController::createQuinzaine()` takes `enterprise_ids`; a division that already has the dates is skipped, all skipped → `errors.quinzaine`), with the next period's dates and label suggested; it is closed per division or for the whole period at once (`EnterpriseController::closePeriode()`, all or nothing: any division with days "à préciser" keeps them all open). Refusals (closing with days "à préciser", duplicates) come back as `errors.quinzaine`, shown in a banner on the page — `FlashToast` only shows `flash.success`/`flash.error`.
 
+### Change history and backups
+Every pointage day written through the model is traced in `pointage_changes` by `PointageRecordObserver` (created / updated / deleted, the pay-relevant fields before and after, the user — `null` for console/system) — so pointage code must create, update and delete records **through the model**, never `PointageRecord::where(...)->update()/delete()` (the import's wholesale wipe is the one exception). The Grid's day dialog shows it (`PointageController::historique()`, JSON). The dialog carries the day's `present`, so saving an "à préciser" day without an operation keeps it; clearing a day is its explicit "Marquer absent" button.
+
+`php artisan db:backup` writes a gzipped mysqldump to `config('backup.path')` (`.env` `BACKUP_PATH`, outside the project — the dumps hold CIN/RIB) and keeps the newest `BACKUP_KEEP`; it runs daily at 13:00 from the Kernel schedule and, on the office PC, from the Windows task "FarmManagement - sauvegarde quotidienne" (log: `storage/logs/backup.log`). Take one before any migration or data fix on the real database.
+
 ### Quinzaine locking
 A `Quinzaine` has `is_closed`. Once closed, `PointageController::updateCell` refuses further edits ("This period is closed and cannot be modified"). Any new mutation on pointage data for a given quinzaine should check this flag first.
 

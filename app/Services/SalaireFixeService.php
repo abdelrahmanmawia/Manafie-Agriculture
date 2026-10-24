@@ -32,7 +32,7 @@ class SalaireFixeService
             PointageRecord::where('employee_id', $employee->id)->where('nature', PointageRecord::NATURE_SALAIRE)
                 ->whereIn('quinzaine_id', $open->pluck('id'))
                 ->when($employee->salaire_mensuel !== null, fn ($q) => $q->whereNotIn('quinzaine_id', $open->filter(fn ($qz) => $this->paysSalary($qz, $employee))->pluck('id')))
-                ->delete();
+                ->get()->each->delete(); // one by one, for the change history
 
             if ($employee->salaire_mensuel !== null) {
                 foreach ($open->filter(fn ($qz) => $this->paysSalary($qz, $employee)) as $quinzaine) {

@@ -169,7 +169,8 @@ class RepartitionService
         foreach ($assigned as $recordId => $k) {
             [$blocId, $operationId] = explode('|', $k);
             // Pay doesn't depend on the operation of a day-rate day, so only the detail changes.
-            PointageRecord::whereKey($recordId)->update(['bloc_id' => $blocId, 'operation_id' => $operationId, 'scan_uuid' => null]);
+            // Through the model, so the change history records who assigned it.
+            PointageRecord::find($recordId)?->update(['bloc_id' => $blocId, 'operation_id' => $operationId, 'scan_uuid' => null]);
         }
 
         return [count($assigned), $pending->count() - count($assigned)];

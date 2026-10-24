@@ -14,6 +14,9 @@ class Kernel extends ConsoleKernel
     {
         // Scan-station tokens expire (PointageScanController::TOKEN_LIFETIME_DAYS); drop the dead rows.
         $schedule->command('sanctum:prune-expired --hours=24')->daily();
+        // Daily database backup (config/backup.php). On the office PC a Windows scheduled task
+        // runs `php artisan db:backup` itself, since nothing runs schedule:run there.
+        $schedule->command('db:backup')->dailyAt('13:00');
     }
 
     /**
