@@ -384,7 +384,7 @@ class EnterpriseController extends Controller
             ]);
         }
 
-        return redirect()->back()->with('success', 'Quinzaine closed successfully.');
+        return redirect()->back()->with('success', 'Période clôturée.');
     }
 
     public function addOperation(Request $request)
@@ -414,39 +414,64 @@ class EnterpriseController extends Controller
         return redirect()->back();
     }
 
+    /**
+     * Opens a pay period — for every division picked at once (enterprise_ids), the farm's usual
+     * case, or a single one (enterprise_id). A division that already has these dates is skipped;
+     * if all of them do, nothing is created and the page says so.
+     */
     public function createQuinzaine(Request $request)
     {
         $request->validate([
-            'enterprise_id' => 'required',
+            'enterprise_ids' => 'required_without:enterprise_id|array|min:1',
+            'enterprise_ids.*' => 'integer',
+            'enterprise_id' => 'required_without:enterprise_ids',
             'label' => 'nullable|string|max:255',
             'start_date' => 'required|date',
             'end_date' => 'required|date|after:start_date',
         ]);
 
-        $enterprise = Enterprise::findOrFail($request->enterprise_id);
-        $this->assertEnterpriseManagerAccess($request, $enterprise);
+        $enterprises = collect($request->input('enterprise_ids', [$request->enterprise_id]))->unique()
+            ->map(fn ($id) => Enterprise::findOrFail($id));
+        $enterprises->each(fn ($enterprise) => $this->assertEnterpriseManagerAccess($request, $enterprise));
 
-        // Guard against a double-submit opening two overlapping pay periods for the same division.
-        // start_date/end_date are stored with a time component (e.g. "2026-02-01 00:00:00"), so a
-        // plain string match against the submitted date-only value would never hit — whereDate()
-        // compares the date part only.
-        $duplicate = Quinzaine::where('enterprise_id', $request->enterprise_id)
-            ->whereDate('start_date', $request->start_date)
-            ->whereDate('end_date', $request->end_date)
-            ->exists();
-        abort_if($duplicate, 422, 'Une période existe déjà pour ces dates dans cette division.');
+        [$opened, $skipped] = DB::transaction(function () use ($request, $enterprises) {
+            $opened = [];
+            $skipped = [];
+            foreach ($enterprises as $enterprise) {
+                // Guard against a double-submit opening two overlapping pay periods for the same
+                // division. start_date/end_date are stored with a time component (e.g. "2026-02-01
+                // 00:00:00"), so whereDate() compares the date part only.
+                $duplicate = Quinzaine::where('enterprise_id', $enterprise->id)
+                    ->whereDate('start_date', $request->start_date)
+                    ->whereDate('end_date', $request->end_date)
+                    ->exists();
+                if ($duplicate) {
+                    $skipped[] = $enterprise->name;
 
-        $quinzaine = Quinzaine::create([
-            'enterprise_id' => $request->enterprise_id,
-            'label' => $request->label,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-            'is_closed' => false
-        ]);
-        // A month's second quinzaine pays the division's fixed monthly salaries.
-        app(\App\Services\SalaireFixeService::class)->syncQuinzaine($quinzaine->fresh());
+                    continue;
+                }
 
-        return redirect()->back();
+                $quinzaine = Quinzaine::create([
+                    'enterprise_id' => $enterprise->id,
+                    'label' => $request->label,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                    'is_closed' => false,
+                ]);
+                // A month's second quinzaine pays the division's fixed monthly salaries.
+                app(\App\Services\SalaireFixeService::class)->syncQuinzaine($quinzaine->fresh());
+                $opened[] = $enterprise->name;
+            }
+
+            return [$opened, $skipped];
+        });
+
+        if (! $opened) {
+            return redirect()->back()->withErrors(['quinzaine' => 'Une période existe déjà pour ces dates : '.implode(', ', $skipped).'.']);
+        }
+
+        return redirect()->back()->with('success', 'Période ouverte pour '.implode(', ', $opened).'.'
+            .($skipped ? ' Déjà ouverte : '.implode(', ', $skipped).'.' : ''));
     }
 
     public function updateQuinzaine(Request $request, Quinzaine $quinzaine)

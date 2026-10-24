@@ -1,156 +1,139 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, usePage, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
+import { formatNumber } from '@/Helpers/formatNumber';
 
+const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+// Dates arrive as "2026-10-16T00:00:00.000000Z"; only the calendar day matters, so it's read
+// from the string itself (never through a Date, which would shift it by the time zone).
+const day = (d) => (d || '').slice(0, 10);
+const ymd = (y, m, dd) => `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+const formatDate = (d) => {
+    const [y, m, dd] = day(d).split('-').map(Number);
+    return y ? `${String(dd).padStart(2, '0')} ${MONTHS[m - 1].slice(0, 4)}. ${y}` : '';
+};
+// The farm's own way of naming a period: "1ERE Qz octobre 2026" / "2EME Qz octobre 2026".
+const periodLabel = (start) => {
+    const [y, m, dd] = day(start).split('-').map(Number);
+    return `${dd <= 15 ? '1ERE' : '2EME'} Qz ${MONTHS[m - 1]} ${y}`;
+};
+// The period after the latest one: 1–15, then 16–end of month.
+const nextPeriod = (quinzaines) => {
+    const latest = quinzaines.map(q => day(q.end_date)).sort().pop();
+    if (!latest) return { start_date: '', end_date: '', label: '' };
+    let [y, m, dd] = latest.split('-').map(Number);
+    let start;
+    let end;
+    if (dd <= 15) {
+        start = ymd(y, m, 16);
+        end = ymd(y, m, new Date(y, m, 0).getDate());
+    } else {
+        if (++m > 12) { m = 1; y++; }
+        start = ymd(y, m, 1);
+        end = ymd(y, m, 15);
+    }
+    return { start_date: start, end_date: end, label: periodLabel(start) };
+};
+
+function Stat({ label, value, tone = 'gray' }) {
+    const tones = { gray: 'text-gray-800', green: 'text-green-700', red: 'text-red-600' };
+    return (
+        <div className="min-w-[64px]">
+            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</div>
+            <div className={`text-sm font-black ${tones[tone]}`}>{value}</div>
+        </div>
+    );
+}
+
+// One card per pay period (its dates), one line per division inside it: the farm points a
+// period for all divisions together — presence per équipe first (one Grid across divisions),
+// then the operations division by division — so that's how the page is laid out.
 export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const { props } = usePage();
+    const pageErrors = props.errors || {};
 
     // Mirrors PointageController::exportAllDivisions()'s $isFarmScopedPointageDataEntry check —
     // a data_entry locked to one division must stay blocked (it would leak sibling divisions'
     // payroll), but a farm-scoped one with Pointage access is exactly like a farm_manager here.
     const canExportAllDivisions = auth.user.role === 'super_admin' || auth.user.role === 'farm_manager'
         || (auth.user.role === 'data_entry' && auth.user.can_access_pointage && !auth.user.enterprise_id);
+    const canManage = auth.user.role !== 'data_entry' || auth.user.can_access_pointage;
+    // A division-locked user gets no list (selectableEnterprises()) and only ever opens their own.
+    const divisionChoices = enterprises || [];
+
     const [isCreating, setIsCreating] = useState(false);
-    const [isEditing, setIsEditing] = useState(false);
     const [editingQuinzaine, setEditingQuinzaine] = useState(null);
-
-    const { data, setData, post, processing, reset, errors } = useForm({
-        label: '',
-        start_date: '',
-        end_date: '',
-        enterprise_id: auth.user.enterprise_id || (enterprises?.[0]?.id || ''),
-    });
-
-    const { data: editData, setData: setEditData, put: put, processing: editProcessing, reset: editReset, errors: editErrors } = useForm({
-        label: '',
-        start_date: '',
-        end_date: '',
-    });
-
-    const [selectedGlobalQuinzaineId, setSelectedGlobalQuinzaineId] = useState(quinzaines.length > 0 ? quinzaines[0].id : '');
+    const [deleting, setDeleting] = useState(null);
+    const [closing, setClosing] = useState(null);
+    const [busy, setBusy] = useState(false);
     const [filterEnterpriseId, setFilterEnterpriseId] = useState(props.ziggy?.query?.enterprise_id || '');
+
+    const createForm = useForm({ label: '', start_date: '', end_date: '', enterprise_ids: [] });
+    const editForm = useForm({ label: '', start_date: '', end_date: '' });
 
     // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
     // JS-observable "download finished" event to hook into, so this just gives brief visual
-    // feedback that the click registered while the file generates server-side, rather than
-    // the button looking dead for a few seconds.
+    // feedback that the click registered while the file generates server-side.
     const [downloadingKey, setDownloadingKey] = useState(null);
     const triggerDownload = (key) => {
         setDownloadingKey(key);
         setTimeout(() => setDownloadingKey(prev => (prev === key ? null : prev)), 2500);
     };
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    // Group quinzaines by unique periods (start_date + end_date)
-    const getUniquePeriods = () => {
-        const periodMap = new Map();
-
+    const periods = useMemo(() => {
+        const map = new Map();
         quinzaines.forEach(q => {
-            const key = `${q.start_date}_${q.end_date}`;
-            if (!periodMap.has(key)) {
-                // Determine if it's 1QZ or 2QZ based on day of month
-                const startDate = new Date(q.start_date);
-                const day = startDate.getDate();
-                const month = startDate.toLocaleDateString('fr-FR', { month: 'long' });
-                const quinzaineNum = day <= 15 ? '1' : '2';
-                const periodLabel = `${quinzaineNum}QZ ${month.charAt(0).toUpperCase() + month.slice(1)}`;
-
-                periodMap.set(key, {
-                    key,
-                    start_date: q.start_date,
-                    end_date: q.end_date,
-                    label: periodLabel,
-                    quinzaines: []
-                });
-            }
-            periodMap.get(key).quinzaines.push(q);
+            const key = `${day(q.start_date)}_${day(q.end_date)}`;
+            if (!map.has(key)) map.set(key, { key, start_date: q.start_date, end_date: q.end_date, quinzaines: [] });
+            map.get(key).quinzaines.push(q);
         });
+        return [...map.values()]
+            .sort((a, b) => day(b.start_date).localeCompare(day(a.start_date)))
+            .map(p => ({ ...p, quinzaines: p.quinzaines.sort((a, b) => (a.enterprise?.name || '').localeCompare(b.enterprise?.name || '')) }));
+    }, [quinzaines]);
 
-        return Array.from(periodMap.values());
+    const openCreate = () => {
+        createForm.clearErrors();
+        createForm.setData({ ...nextPeriod(quinzaines), enterprise_ids: divisionChoices.length ? divisionChoices.map(e => e.id) : [auth.user.enterprise_id].filter(Boolean) });
+        setIsCreating(true);
     };
-
-    const uniquePeriods = getUniquePeriods();
-    const [selectedPeriodKey, setSelectedPeriodKey] = useState(uniquePeriods.length > 0 ? uniquePeriods[0].key : '');
-
-    const submit = (e) => {
+    const toggleDivision = (id) => createForm.setData('enterprise_ids', createForm.data.enterprise_ids.includes(id)
+        ? createForm.data.enterprise_ids.filter(x => x !== id)
+        : [...createForm.data.enterprise_ids, id]);
+    const submitCreate = (e) => {
         e.preventDefault();
-        post(route('settings.quinzaine'), {
-            onSuccess: () => {
-                reset();
-                setIsCreating(false);
-            },
-        });
+        createForm.post(route('settings.quinzaine'), { preserveScroll: true, onSuccess: () => setIsCreating(false) });
     };
 
-    const openEditModal = (quinzaine) => {
-        setEditingQuinzaine(quinzaine);
-        const formatDateForInput = (dateStr) => {
-            if (!dateStr) return '';
-            const date = new Date(dateStr);
-            return date.toISOString().split('T')[0];
-        };
-        setEditData({
-            label: quinzaine.label || '',
-            start_date: formatDateForInput(quinzaine.start_date),
-            end_date: formatDateForInput(quinzaine.end_date),
-        });
-        setIsEditing(true);
+    const openEdit = (q) => {
+        editForm.clearErrors();
+        editForm.setData({ label: q.label || '', start_date: day(q.start_date), end_date: day(q.end_date) });
+        setEditingQuinzaine(q);
     };
-
     const submitEdit = (e) => {
         e.preventDefault();
-        put(route('settings.quinzaine.update', editingQuinzaine.id), {
-            onSuccess: () => {
-                editReset();
-                setIsEditing(false);
-                setEditingQuinzaine(null);
-            },
-        });
+        editForm.put(route('settings.quinzaine.update', editingQuinzaine.id), { preserveScroll: true, onSuccess: () => setEditingQuinzaine(null) });
     };
 
-    const [confirmingQuinzaineDeletion, setConfirmingQuinzaineDeletion] = useState(null);
-    const [isDeletingQuinzaine, setIsDeletingQuinzaine] = useState(false);
-    const confirmQuinzaineDeletion = (quinzaine) => setConfirmingQuinzaineDeletion(quinzaine);
-    const closeDeleteModal = () => setConfirmingQuinzaineDeletion(null);
-    const executeQuinzaineDeletion = (e) => {
-        e.preventDefault();
-        setIsDeletingQuinzaine(true);
-        router.delete(route('settings.quinzaine.delete', confirmingQuinzaineDeletion.id), {
-            onFinish: () => {
-                setIsDeletingQuinzaine(false);
-                closeDeleteModal();
-            },
-        });
-    };
-
-    const [confirmingQuinzaineClosure, setConfirmingQuinzaineClosure] = useState(null);
-    const [isClosingQuinzaine, setIsClosingQuinzaine] = useState(false);
-    const confirmQuinzaineClosure = (quinzaine) => setConfirmingQuinzaineClosure(quinzaine);
-    const closeClosureModal = () => setConfirmingQuinzaineClosure(null);
-    const executeQuinzaineClosure = (e) => {
-        e.preventDefault();
-        setIsClosingQuinzaine(true);
-        router.post(route('settings.quinzaine.close', confirmingQuinzaineClosure.id), {}, {
-            onFinish: () => {
-                setIsClosingQuinzaine(false);
-                closeClosureModal();
-            },
-        });
+    // Delete / close: a refusal comes back as errors.quinzaine, shown in the banner above.
+    const run = (method, url, close) => {
+        setBusy(true);
+        const options = { preserveScroll: true, onFinish: () => { setBusy(false); close(); } };
+        if (method === 'delete') router.delete(url, options);
+        else router.post(url, {}, options);
     };
 
     const handleFilterChange = (e) => {
-        const newEnterpriseId = e.target.value;
-        setFilterEnterpriseId(newEnterpriseId);
-        router.get(route('pointage.quinzaines'), { enterprise_id: newEnterpriseId || undefined }, { preserveState: true, preserveScroll: true });
+        setFilterEnterpriseId(e.target.value);
+        router.get(route('pointage.quinzaines'), { enterprise_id: e.target.value || undefined }, { preserveState: true, preserveScroll: true });
     };
+
+    const nameOf = (q) => q.label || `${formatDate(q.start_date)} — ${formatDate(q.end_date)}`;
 
     return (
         <AuthenticatedLayout
@@ -158,11 +141,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
             header={
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines</h2>
-                    {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
-                        <button
-                            onClick={() => setIsCreating(true)}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2"
-                        >
+                    {canManage && (
+                        <button onClick={openCreate} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2">
                             <span>+</span> Ouvrir une Période
                         </button>
                     )}
@@ -173,358 +153,251 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
 
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {/* Global Export Multi-Divisions Section */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg p-6 border border-gray-200">
-                        <h3 className="font-bold text-xl mb-3 text-gray-800">Export Global Multi-Divisions</h3>
-                        <p className="text-gray-600 mb-6 text-sm">
-                            Sélectionnez une période de référence pour exporter un fichier Excel contenant les données de pointage de toutes les divisions de la ferme associée, chaque division sur une feuille séparée.
-                        </p>
-                        {canExportAllDivisions && (
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-4">
-                                <div className="flex-grow">
-                                    <label htmlFor="global_period_select" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Période de Référence
-                                    </label>
-                                    <select
-                                        id="global_period_select"
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
-                                        value={selectedPeriodKey}
-                                        onChange={(e) => setSelectedPeriodKey(e.target.value)}
-                                    >
-                                        <option value="">-- Sélectionner une période --</option>
-                                        {uniquePeriods.length === 0 ? (
-                                            <option value="" disabled>Aucune période disponible</option>
-                                        ) : (
-                                            uniquePeriods.map((period) => (
-                                                <option key={period.key} value={period.key}>
-                                                    {period.label} ({formatDate(period.start_date)} - {formatDate(period.end_date)})
-                                                </option>
-                                            ))
-                                        )}
-                                    </select>
-                                </div>
-                                <a
-                                    href={selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id ? route('pointage.exportAllDivisions', uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) : '#'}
-                                    target="_blank"
-                                    className={`inline-flex items-center px-5 py-2.5 border border-transparent rounded-md shadow-sm text-sm font-medium text-white transition-colors justify-center ${
-                                        selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id
-                                            ? 'bg-primary-600 hover:bg-primary-700'
-                                            : 'bg-gray-400 cursor-not-allowed opacity-75'
-                                    }`}
-                                    onClick={(e) => {
-                                        if (!selectedPeriodKey || !uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) { e.preventDefault(); return; }
-                                        triggerDownload('all-divisions');
-                                    }}
-                                >
-                                    {downloadingKey === 'all-divisions' ? (
-                                        <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                                        </svg>
-                                    )}
-                                    {downloadingKey === 'all-divisions' ? 'Génération...' : 'Exporter'}
-                                </a>
-                                {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport). */}
-                                <a
-                                    href={selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id ? route('pointage.paiementEquipes', uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) : '#'}
-                                    target="_blank"
-                                    className={`inline-flex items-center px-5 py-2.5 border rounded-md shadow-sm text-sm font-medium transition-colors justify-center ${
-                                        selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id
-                                            ? 'border-primary-600 text-primary-700 bg-white hover:bg-primary-50'
-                                            : 'border-gray-300 text-gray-400 bg-white cursor-not-allowed opacity-75'
-                                    }`}
-                                    onClick={(e) => {
-                                        if (!selectedPeriodKey || !uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) { e.preventDefault(); return; }
-                                        triggerDownload('paiement');
-                                    }}
-                                >
-                                    {downloadingKey === 'paiement' ? 'Génération...' : 'Paiement par équipe'}
-                                </a>
-                            </div>
-                        )}
-                        {!canExportAllDivisions && (
-                            <p className="text-gray-500 italic">Cette fonctionnalité est réservée aux Super Administrateurs, aux Responsables de Ferme et aux comptes ayant l'accès Pointage.</p>
-                        )}
-                    </div>
+                    {pageErrors.quinzaine && (
+                        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                            {pageErrors.quinzaine}
+                        </div>
+                    )}
 
-                    {/* Enterprise Filter Section (Compact) */}
-                    {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
-                        <div className="flex items-center justify-end gap-4 mb-4"> {/* Compact container, aligned right */}
-                            <label htmlFor="enterprise_filter_select" className="block text-sm font-medium text-gray-700 whitespace-nowrap">
-                                Filtrer par Division:
-                            </label>
-                            <select
-                                id="enterprise_filter_select"
-                                className="block w-auto min-w-[200px] pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md shadow-sm"
-                                value={filterEnterpriseId}
-                                onChange={handleFilterChange}
-                            >
+                    {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && divisionChoices.length > 1 && (
+                        <div className="flex items-center justify-end gap-3">
+                            <label htmlFor="enterprise_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Filtrer par Division :</label>
+                            <select id="enterprise_filter_select" className="w-auto min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>
                                 <option value="">Toutes les Divisions</option>
-                                {enterprises.map((ent) => (
-                                    <option key={ent.id} value={ent.id}>
-                                        {ent.name}
-                                    </option>
-                                ))}
+                                {divisionChoices.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                             </select>
                         </div>
                     )}
 
-                    {/* List of Quinzaines */}
-                    <div className="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                        <div className="p-6 text-gray-900">
-                            <h3 className="text-lg font-bold mb-6 border-b pb-2">Liste des Périodes de Pointage</h3>
+                    {periods.length === 0 && (
+                        <div className="text-center py-12 bg-white rounded-xl border-2 border-dashed border-gray-200">
+                            <p className="text-gray-500 italic">Aucune période. Cliquez sur « + Ouvrir une Période » pour commencer.</p>
+                        </div>
+                    )}
 
-                            {quinzaines.length === 0 ? (
-                                <div className="text-center py-12 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
-                                    <p className="text-gray-500 italic">Aucune quinzaine disponible. Cliquez sur "+ Ouvrir une Période" pour commencer.</p>
+                    {periods.map(period => {
+                        const open = period.quinzaines.filter(q => !q.is_closed);
+                        const ref = open[0] || period.quinzaines[0];
+                        const total = period.quinzaines.reduce((s, q) => ({
+                            jours: s.jours + q.stats.jours, net: s.net + q.stats.net, a_preciser: s.a_preciser + q.stats.a_preciser,
+                        }), { jours: 0, net: 0, a_preciser: 0 });
+
+                        return (
+                            <div key={period.key} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden ${open.length ? 'border-primary-100' : 'border-gray-100'}`}>
+                                <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100">
+                                    <div>
+                                        <div className="flex items-center gap-3">
+                                            <h3 className="text-2xl font-black uppercase tracking-tighter text-primary-600 leading-none">{periodLabel(period.start_date)}</h3>
+                                            {open.length ? (
+                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase">
+                                                    Ouverte{open.length < period.quinzaines.length && ` · ${period.quinzaines.length - open.length}/${period.quinzaines.length} clôturée(s)`}
+                                                </span>
+                                            ) : (
+                                                <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-[9px] font-black uppercase">Clôturée</span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm font-bold text-gray-400 mt-1">
+                                            {formatDate(period.start_date)} — {formatDate(period.end_date)}
+                                            {' · '}{total.jours} jour(s) · {formatNumber(total.net)} DH
+                                            {total.a_preciser > 0 && <span className="text-red-600"> · {total.a_preciser} à préciser</span>}
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {/* The farm's first step: presence per équipe, across all divisions (Grid "Par équipe"). */}
+                                        <Link href={route('pointage.grid', { quinzaine: ref.id, mode: 'equipe' })}
+                                            className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-black hover:bg-primary-700 shadow-sm">
+                                            Pointage par équipe
+                                        </Link>
+                                        {canExportAllDivisions && (
+                                            <>
+                                                <a href={route('pointage.exportAllDivisions', ref.id)} target="_blank" onClick={() => triggerDownload(`all-${period.key}`)}
+                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-green-300 bg-green-50 text-green-800 text-sm font-bold hover:bg-green-100">
+                                                    {downloadingKey === `all-${period.key}` ? 'Génération…' : 'Excel toutes divisions'}
+                                                </a>
+                                                {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport). */}
+                                                <a href={route('pointage.paiementEquipes', ref.id)} target="_blank" onClick={() => triggerDownload(`pay-${period.key}`)}
+                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
+                                                    {downloadingKey === `pay-${period.key}` ? 'Génération…' : 'Paiement par équipe'}
+                                                </a>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    {quinzaines.map((q) => (
-                                        <div key={q.id} className={`relative flex flex-col p-6 rounded-xl border-2 transition-all ${q.is_closed ? 'bg-gray-50 border-gray-100 opacity-75' : 'bg-white border-primary-50 hover:border-primary-300 shadow-sm'}`}>
-                                            <div className="flex justify-between items-start mb-4">
-                                                <div className="flex flex-col w-full">
-                                                    <h4 className="text-2xl font-black uppercase tracking-tighter text-primary-600 mb-1 leading-none">
-                                                        {q.label || 'Sans Nom'}
-                                                    </h4>
-                                                    <p className="text-sm font-bold text-gray-400">
-                                                        {formatDate(q.start_date)} — {formatDate(q.end_date)}
-                                                    </p>
+
+                                <div className="divide-y divide-gray-100">
+                                    {period.quinzaines.map(q => (
+                                        <div key={q.id} className={`px-6 py-4 flex flex-col xl:flex-row xl:items-center gap-4 ${q.is_closed ? 'bg-gray-50' : ''}`}>
+                                            <div className="xl:w-64 shrink-0">
+                                                <div className="flex items-center gap-2">
+                                                    <p className="font-black text-gray-800">{q.enterprise?.name}</p>
+                                                    {q.is_closed && <span className="bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">Clôturée</span>}
                                                 </div>
-                                                <div className="flex flex-col items-end gap-1">
-                                                    {q.is_closed ? (
-                                                        <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-[9px] font-black uppercase tracking-tighter">CLÔTURÉE</span>
-                                                    ) : (
-                                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase tracking-tighter animate-pulse">OUVERTE</span>
-                                                    )}
-                                                </div>
+                                                {q.label && q.label !== periodLabel(q.start_date) && <p className="text-xs text-gray-400">{q.label}</p>}
                                             </div>
 
-                                            <div className="mb-6">
-                                                <span className="text-[10px] font-bold text-gray-400 uppercase block mb-1">Ferme / Entreprise</span>
-                                                <p className="font-bold text-gray-700">{q.enterprise?.name}</p>
+                                            <div className="flex flex-wrap gap-x-6 gap-y-2 flex-1">
+                                                <Stat label="Ouvriers" value={q.stats.ouvriers} />
+                                                <Stat label="Jours" value={q.stats.jours} />
+                                                <Stat label="Net" value={`${formatNumber(q.stats.net)} DH`} tone="green" />
+                                                {q.stats.jours > 0 && (q.stats.a_preciser > 0
+                                                    ? <Stat label="À préciser" value={`${q.stats.a_preciser} jour(s)`} tone="red" />
+                                                    : <Stat label="Opérations" value="✓ complètes" tone="green" />)}
                                             </div>
 
-                                            <div className="mt-auto space-y-2">
-                                                <Link
-                                                    href={route('pointage.grid', q.id)}
-                                                    className={`w-full block text-center py-2.5 rounded-lg font-black text-sm shadow-sm transition-all ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-primary-600 text-white hover:bg-primary-700'}`}
-                                                >
-                                                    {q.is_closed ? 'VOIR LES DÉTAILS' : 'REMPLIR LE POINTAGE'}
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <Link href={route('pointage.grid', q.id)}
+                                                    className={`px-3 py-2 rounded-lg text-xs font-black ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100'}`}>
+                                                    {q.is_closed ? 'Voir' : q.stats.a_preciser > 0 ? 'Préciser les opérations' : 'Grille'}
                                                 </Link>
-
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {/* Individual Excel Export */}
-                                                    <a
-                                                        href={route('pointage.export', q.id)}
-                                                        target="_blank"
-                                                        onClick={() => triggerDownload(`excel-${q.id}`)}
-                                                        className="text-center py-2 bg-green-50 text-green-700 rounded-lg text-[9px] font-black border border-green-200 hover:bg-green-100 transition-colors"
-                                                    >
-                                                        {downloadingKey === `excel-${q.id}` ? 'GÉNÉRATION...' : 'EXCEL'}
-                                                    </a>
-
-                                                    <a
-                                                        href={route('payroll.general-payslip', q.id)}
-                                                        target="_blank"
-                                                        onClick={() => triggerDownload(`pdf-${q.id}`)}
-                                                        className="text-center py-2 bg-red-50 text-red-700 rounded-lg text-[9px] font-black border border-red-200 hover:bg-red-100 transition-colors"
-                                                    >
-                                                        {downloadingKey === `pdf-${q.id}` ? 'GÉNÉRATION...' : 'PDF GLOBAL'}
-                                                    </a>
-                                                </div>
-
-                                                {!q.is_closed && (auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEditModal(q)}
-                                                            title="Modifier"
-                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-primary-600 transition-colors"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                            </svg>
+                                                <a href={route('pointage.export', q.id)} target="_blank" onClick={() => triggerDownload(`excel-${q.id}`)}
+                                                    className="px-3 py-2 bg-green-50 text-green-700 rounded-lg text-[10px] font-black border border-green-200 hover:bg-green-100">
+                                                    {downloadingKey === `excel-${q.id}` ? '…' : 'EXCEL'}
+                                                </a>
+                                                <a href={route('payroll.general-payslip', q.id)} target="_blank" onClick={() => triggerDownload(`pdf-${q.id}`)}
+                                                    className="px-3 py-2 bg-red-50 text-red-700 rounded-lg text-[10px] font-black border border-red-200 hover:bg-red-100">
+                                                    {downloadingKey === `pdf-${q.id}` ? '…' : 'PDF'}
+                                                </a>
+                                                {!q.is_closed && canManage && (
+                                                    <>
+                                                        <button type="button" onClick={() => openEdit(q)} title="Modifier" className="p-2 text-gray-400 hover:text-primary-600">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => confirmQuinzaineDeletion(q)}
-                                                            title="Supprimer"
-                                                            className="w-full flex items-center justify-center py-2 text-gray-400 hover:text-red-600 transition-colors"
-                                                        >
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                            </svg>
+                                                        <button type="button" onClick={() => setDeleting(q)} title="Supprimer" className="p-2 text-gray-400 hover:text-red-600">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                                         </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => confirmQuinzaineClosure(q)}
-                                                            className="col-span-2 w-full flex items-center justify-center gap-2 py-2 text-[10px] font-bold text-red-500 hover:text-red-700 hover:underline"
-                                                        >
-                                                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                            </svg>
-                                                            CLÔTURER CETTE PÉRIODE
+                                                        <button type="button" onClick={() => setClosing(q)} className="px-2 py-2 text-[10px] font-black uppercase text-red-500 hover:text-red-700 hover:underline">
+                                                            Clôturer
                                                         </button>
-                                                    </div>
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            )}
-                        </div>
-                    </div>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* CREATE QUINZAINE MODAL */}
+            {/* OPEN A PERIOD — for all the checked divisions at once */}
             <Modal show={isCreating} onClose={() => setIsCreating(false)}>
-                <div className="p-8">
-                    <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Ouvrir une Nouvelle Quinzaine</h3>
-                    <form onSubmit={submit} className="space-y-6">
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé / Nom de la Période (Optionnel)</label>
-                                <input
-                                    type="text"
-                                    placeholder="Ex: Première Quinzaine Juin"
-                                    className="w-full rounded-lg border-gray-300"
-                                    value={data.label}
-                                    onChange={e => setData('label', e.target.value)}
-                                />
-                                {errors.label && <div className="text-red-500 text-xs mt-1">{errors.label}</div>}
-                            </div>
-
-                            {auth.user.role === 'super_admin' && (
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Ferme / Entreprise *</label>
-                                    <select
-                                        className="w-full rounded-lg border-gray-300"
-                                        value={data.enterprise_id}
-                                        onChange={e => setData('enterprise_id', e.target.value)}
-                                    >
-                                        {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
-                                    </select>
-                                    {errors.enterprise_id && <div className="text-red-500 text-xs mt-1">{errors.enterprise_id}</div>}
-                                </div>
-                            )}
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Début</label>
-                                    <input type="date" className="w-full rounded-lg border-gray-300" value={data.start_date} onChange={e => setData('start_date', e.target.value)} />
-                                    {errors.start_date && <div className="text-red-500 text-xs mt-1">{errors.start_date}</div>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Fin</label>
-                                    <input type="date" className="w-full rounded-lg border-gray-300" value={data.end_date} onChange={e => setData('end_date', e.target.value)} />
-                                    {errors.end_date && <div className="text-red-500 text-xs mt-1">{errors.end_date}</div>}
-                                </div>
-                            </div>
+                <form onSubmit={submitCreate} className="p-8 space-y-5">
+                    <h3 className="text-xl font-bold text-gray-800 border-b pb-4">Ouvrir une Période</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Date de début</label>
+                            <input type="date" className="w-full rounded-lg border-gray-300" value={createForm.data.start_date}
+                                onChange={e => createForm.setData(d => ({ ...d, start_date: e.target.value, label: e.target.value ? periodLabel(e.target.value) : d.label }))} />
+                            {createForm.errors.start_date && <div className="text-red-500 text-xs mt-1">{createForm.errors.start_date}</div>}
                         </div>
-
-                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
-                            <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
-                            <PrimaryButton disabled={processing}>Ouvrir la Période</PrimaryButton>
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-1">Date de fin</label>
+                            <input type="date" className="w-full rounded-lg border-gray-300" value={createForm.data.end_date} onChange={e => createForm.setData('end_date', e.target.value)} />
+                            {createForm.errors.end_date && <div className="text-red-500 text-xs mt-1">{createForm.errors.end_date}</div>}
                         </div>
-                    </form>
-                </div>
+                    </div>
+                    <div>
+                        <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé</label>
+                        <input type="text" className="w-full rounded-lg border-gray-300" value={createForm.data.label} onChange={e => createForm.setData('label', e.target.value)} placeholder="Ex : 1ERE Qz novembre 2026" />
+                    </div>
+                    {divisionChoices.length > 0 && (
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Divisions</label>
+                            <div className="space-y-2">
+                                {divisionChoices.map(ent => (
+                                    <label key={ent.id} className="flex items-center gap-3 text-sm cursor-pointer">
+                                        <input type="checkbox" className="rounded border-gray-300 text-primary-600" checked={createForm.data.enterprise_ids.includes(ent.id)} onChange={() => toggleDivision(ent.id)} />
+                                        {ent.name}
+                                    </label>
+                                ))}
+                            </div>
+                            {createForm.errors.enterprise_ids && <div className="text-red-500 text-xs mt-1">Cochez au moins une division.</div>}
+                        </div>
+                    )}
+                    {createForm.errors.quinzaine && <div className="rounded-lg bg-red-50 text-red-700 text-sm px-3 py-2">{createForm.errors.quinzaine}</div>}
+                    <div className="flex justify-end gap-3 pt-4 border-t">
+                        <SecondaryButton type="button" onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
+                        <PrimaryButton disabled={createForm.processing || createForm.data.enterprise_ids.length === 0}>Ouvrir la période</PrimaryButton>
+                    </div>
+                </form>
             </Modal>
 
-            {/* EDIT QUINZAINE MODAL */}
-            <Modal show={isEditing} onClose={() => setIsEditing(false)}>
-                <div className="p-8">
-                    <h3 className="text-xl font-bold mb-6 text-gray-800 border-b pb-4">Modifier la Quinzaine</h3>
-                    <form onSubmit={submitEdit} className="space-y-6">
-                        <div className="space-y-4">
+            <Modal show={editingQuinzaine !== null} onClose={() => setEditingQuinzaine(null)}>
+                {editingQuinzaine && (
+                    <form onSubmit={submitEdit} className="p-8 space-y-5">
+                        <h3 className="text-xl font-bold text-gray-800 border-b pb-4">Modifier — {editingQuinzaine.enterprise?.name}</h3>
+                        <div>
+                            <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé</label>
+                            <input type="text" className="w-full rounded-lg border-gray-300" value={editForm.data.label} onChange={e => editForm.setData('label', e.target.value)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé / Nom de la Période (Optionnel)</label>
-                                <input
-                                    type="text"
-                                    placeholder="Ex: Première Quinzaine Juin"
-                                    className="w-full rounded-lg border-gray-300"
-                                    value={editData.label}
-                                    onChange={e => setEditData('label', e.target.value)}
-                                />
-                                {editErrors.label && <div className="text-red-500 text-xs mt-1">{editErrors.label}</div>}
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Date de début</label>
+                                <input type="date" className="w-full rounded-lg border-gray-300" value={editForm.data.start_date} onChange={e => editForm.setData('start_date', e.target.value)} />
+                                {editForm.errors.start_date && <div className="text-red-500 text-xs mt-1">{editForm.errors.start_date}</div>}
                             </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Début</label>
-                                    <input type="date" className="w-full rounded-lg border-gray-300" value={editData.start_date} onChange={e => setEditData('start_date', e.target.value)} />
-                                    {editErrors.start_date && <div className="text-red-500 text-xs mt-1">{editErrors.start_date}</div>}
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Date de Fin</label>
-                                    <input type="date" className="w-full rounded-lg border-gray-300" value={editData.end_date} onChange={e => setEditData('end_date', e.target.value)} />
-                                    {editErrors.end_date && <div className="text-red-500 text-xs mt-1">{editErrors.end_date}</div>}
-                                </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-1">Date de fin</label>
+                                <input type="date" className="w-full rounded-lg border-gray-300" value={editForm.data.end_date} onChange={e => editForm.setData('end_date', e.target.value)} />
+                                {editForm.errors.end_date && <div className="text-red-500 text-xs mt-1">{editForm.errors.end_date}</div>}
                             </div>
                         </div>
-
-                        <div className="flex justify-end gap-4 pt-6 border-t mt-6">
-                            <SecondaryButton onClick={() => setIsEditing(false)}>Annuler</SecondaryButton>
-                            <PrimaryButton disabled={editProcessing}>Enregistrer</PrimaryButton>
-                        </div>
-                    </form>
-                </div>
-            </Modal>
-
-            <Modal show={confirmingQuinzaineDeletion !== null} onClose={closeDeleteModal}>
-                {confirmingQuinzaineDeletion && (
-                    <form onSubmit={executeQuinzaineDeletion} className="p-8">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
-                                <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-                                Supprimer la période
-                            </h2>
-                        </div>
-                        <p className="text-gray-600 mb-6">
-                            Êtes-vous sûr de vouloir supprimer la période <strong>{confirmingQuinzaineDeletion.label || `${formatDate(confirmingQuinzaineDeletion.start_date)} — ${formatDate(confirmingQuinzaineDeletion.end_date)}`}</strong> ? Cette action est irréversible.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <SecondaryButton type="button" onClick={closeDeleteModal}>Annuler</SecondaryButton>
-                            <DangerButton className="rounded-xl" disabled={isDeletingQuinzaine}>
-                                {isDeletingQuinzaine ? 'Suppression...' : 'Supprimer'}
-                            </DangerButton>
+                        <div className="flex justify-end gap-3 pt-4 border-t">
+                            <SecondaryButton type="button" onClick={() => setEditingQuinzaine(null)}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={editForm.processing}>Enregistrer</PrimaryButton>
                         </div>
                     </form>
                 )}
             </Modal>
 
-            <Modal show={confirmingQuinzaineClosure !== null} onClose={closeClosureModal}>
-                {confirmingQuinzaineClosure && (
-                    <form onSubmit={executeQuinzaineClosure} className="p-8">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
-                                <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-                                Clôturer la période
-                            </h2>
-                        </div>
+            <Modal show={deleting !== null} onClose={() => setDeleting(null)}>
+                {deleting && (
+                    <div className="p-8">
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-4">Supprimer la période</h2>
                         <p className="text-gray-600 mb-6">
-                            Clôturer la période <strong>{confirmingQuinzaineClosure.label || `${formatDate(confirmingQuinzaineClosure.start_date)} — ${formatDate(confirmingQuinzaineClosure.end_date)}`}</strong> ? Le pointage ne pourra plus être modifié une fois clôturée.
+                            Supprimer <strong>{nameOf(deleting)}</strong> de <strong>{deleting.enterprise?.name}</strong> ?
+                            {deleting.stats.jours > 0
+                                ? <> Ses <strong className="text-red-600">{deleting.stats.jours} jour(s) pointés ({formatNumber(deleting.stats.net)} DH)</strong> seront supprimés avec elle.</>
+                                : ' Elle ne contient aucun jour pointé.'} Cette action est irréversible.
                         </p>
                         <div className="flex justify-end gap-3">
-                            <SecondaryButton type="button" onClick={closeClosureModal}>Annuler</SecondaryButton>
-                            <PrimaryButton className="rounded-xl !bg-amber-600 hover:!bg-amber-700 focus:!bg-amber-700 active:!bg-amber-900" disabled={isClosingQuinzaine}>
-                                {isClosingQuinzaine ? 'Clôture...' : 'Clôturer'}
-                            </PrimaryButton>
+                            <SecondaryButton type="button" onClick={() => setDeleting(null)}>Annuler</SecondaryButton>
+                            <DangerButton disabled={busy} onClick={() => run('delete', route('settings.quinzaine.delete', deleting.id), () => setDeleting(null))}>
+                                {busy ? 'Suppression…' : 'Supprimer'}
+                            </DangerButton>
                         </div>
-                    </form>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal show={closing !== null} onClose={() => setClosing(null)}>
+                {closing && (
+                    <div className="p-8">
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-4">Clôturer la période</h2>
+                        {closing.stats.a_preciser > 0 ? (
+                            <p className="mb-6 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm">
+                                <strong>{closing.enterprise?.name}</strong> a encore <strong>{closing.stats.a_preciser} jour(s) de présence sans opération</strong> (« à préciser »).
+                                Complétez-les dans la grille (« ≡ Répartir » ou ouvrier par ouvrier) avant de clôturer.
+                            </p>
+                        ) : (
+                            <p className="text-gray-600 mb-6">
+                                Clôturer <strong>{nameOf(closing)}</strong> de <strong>{closing.enterprise?.name}</strong> ? Le pointage ne pourra plus être modifié.
+                            </p>
+                        )}
+                        <div className="flex justify-end gap-3">
+                            <SecondaryButton type="button" onClick={() => setClosing(null)}>Annuler</SecondaryButton>
+                            {closing.stats.a_preciser > 0 ? (
+                                <Link href={route('pointage.grid', closing.id)} className="inline-flex items-center px-4 py-2 rounded-md bg-primary-600 text-white text-xs font-semibold uppercase tracking-widest hover:bg-primary-700">
+                                    Ouvrir la grille
+                                </Link>
+                            ) : (
+                                <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy} onClick={() => run('post', route('settings.quinzaine.close', closing.id), () => setClosing(null))}>
+                                    {busy ? 'Clôture…' : 'Clôturer'}
+                                </PrimaryButton>
+                            )}
+                        </div>
+                    </div>
                 )}
             </Modal>
         </AuthenticatedLayout>

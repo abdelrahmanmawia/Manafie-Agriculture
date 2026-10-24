@@ -103,6 +103,9 @@ Every stock-affecting controller action (`StockMovementController::stockIn/stock
 
 A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyone with Stock access — the magasinier included — can verify it; once verified it is locked for everyone until a `farm_manager`/`super_admin` unlocks it (`ManualStockEntryController::unverify`). Réceptions (`stockIn`) and inventory counts have no edit/delete at all. Every stock write locks its `StockInventory` row through `Controller::lockedInventoryFor()` (one row per product, `unique(product_id)`).
 
+### The Quinzaines page is per period, not per division
+`Pointage/Quinzaines.jsx` shows one card per pay period (its dates) with one line per division: its progress (`PointageController::quinzaines()` adds `stats` — ouvriers, jours, net, `a_preciser`), its grid/exports and edit/delete/close. A period is opened for several divisions at once (`EnterpriseController::createQuinzaine()` takes `enterprise_ids`; a division that already has the dates is skipped, all skipped → `errors.quinzaine`), with the next period's dates and label suggested. Refusals (closing with days "à préciser", duplicates) come back as `errors.quinzaine`, shown in a banner on the page — `FlashToast` only shows `flash.success`/`flash.error`.
+
 ### Quinzaine locking
 A `Quinzaine` has `is_closed`. Once closed, `PointageController::updateCell` refuses further edits ("This period is closed and cannot be modified"). Any new mutation on pointage data for a given quinzaine should check this flag first.
 

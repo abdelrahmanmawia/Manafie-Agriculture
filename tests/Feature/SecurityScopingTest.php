@@ -249,13 +249,16 @@ class SecurityScopingTest extends TestCase
             'enterprise_id' => $this->enterpriseA->id,
             'label' => '1QZ Existing', 'start_date' => '2026-02-01', 'end_date' => '2026-02-15', 'is_closed' => false,
         ]);
+        $before = Quinzaine::count();
 
         $this->actingAs($this->managerA)
             ->post('/settings/quinzaine', [
                 'enterprise_id' => $this->enterpriseA->id,
                 'start_date' => '2026-02-01', 'end_date' => '2026-02-15',
             ])
-            ->assertStatus(422);
+            ->assertSessionHasErrors('quinzaine');
+
+        $this->assertSame($before, Quinzaine::count());
     }
 
     public function test_farm_manager_cannot_delete_another_farms_bloc(): void

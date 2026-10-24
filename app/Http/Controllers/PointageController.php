@@ -139,8 +139,23 @@ class PointageController extends Controller
         $quinzaines = Quinzaine::with('enterprise')
             ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
             ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
-            ->latest()
+            ->orderByDesc('start_date')
             ->get();
+
+        // Each division's progress in the period: who and how much is pointed, and how many
+        // present days still wait for their operation ("à préciser" — closing refuses them).
+        $stats = PointageRecord::whereIn('quinzaine_id', $quinzaines->pluck('id'))
+            ->selectRaw('quinzaine_id, COUNT(DISTINCT employee_id) as ouvriers, SUM(net) as net')
+            ->selectRaw('SUM(CASE WHEN present = ? AND nature = ? THEN 1 ELSE 0 END) as jours', [true, PointageRecord::NATURE_JOUR])
+            ->selectRaw('SUM(CASE WHEN present = ? AND nature = ? AND operation_id IS NULL THEN 1 ELSE 0 END) as a_preciser', [true, PointageRecord::NATURE_JOUR])
+            ->groupBy('quinzaine_id')
+            ->get()->keyBy('quinzaine_id');
+        $quinzaines->each(fn ($q) => $q->setAttribute('stats', [
+            'ouvriers' => (int) ($stats[$q->id]->ouvriers ?? 0),
+            'jours' => (int) ($stats[$q->id]->jours ?? 0),
+            'net' => round((float) ($stats[$q->id]->net ?? 0), 2),
+            'a_preciser' => (int) ($stats[$q->id]->a_preciser ?? 0),
+        ]));
 
         return Inertia::render('Pointage/Quinzaines', [
             'quinzaines' => $quinzaines,
