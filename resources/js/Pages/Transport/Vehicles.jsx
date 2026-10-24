@@ -7,6 +7,7 @@ import DangerButton from '@/Components/DangerButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 
 const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', price_per_person: '', fixed_net_per_day: '' };
 
@@ -64,7 +65,12 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
         });
     };
 
+    // A deactivated vehicle carries nobody from now on: the équipes riding it keep it, but their
+    // members' new days are stamped without transport. Days already pointed keep their cost.
     const toggleActive = (vehicle) => {
+        if (vehicle.is_active && !window.confirm(`Désactiver le véhicule « ${vehicle.code} » ?
+
+Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouveaux jours des ouvriers de ses équipes (${equipesOf(vehicle).map(e => e.name).join(', ') || 'aucune'}) ne compteront plus dans son transport.`)) return;
         router.put(route('transport.vehicles.update', vehicle.id), {
             is_active: !vehicle.is_active,
         }, { preserveScroll: true });
@@ -188,9 +194,10 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
                                                     <Link href={route('equipes.index')} title={equipesOf(vehicle).map(e => e.name).join(', ') || 'Aucune équipe'} className="text-xs font-bold text-primary-600 hover:text-primary-700 uppercase tracking-wide">
                                                         {equipesOf(vehicle).length} équipe(s) · {equipesOf(vehicle).reduce((n, e) => n + e.employees_count, 0)} ouvrier(s)
                                                     </Link>
-                                                    <button type="button" onClick={() => toggleActive(vehicle)} className="text-xs font-medium text-gray-500 hover:text-gray-700">
-                                                        {vehicle.is_active ? 'Actif' : 'Inactif'}
-                                                    </button>
+                                                    <span className="flex items-center gap-2" title={vehicle.is_active ? 'Désactiver le véhicule' : 'Réactiver le véhicule'}>
+                                                        <span className={`text-xs font-semibold ${vehicle.is_active ? 'text-green-700' : 'text-gray-400'}`}>{vehicle.is_active ? 'Actif' : 'Inactif'}</span>
+                                                        <ToggleSwitch checked={vehicle.is_active} onChange={() => toggleActive(vehicle)} />
+                                                    </span>
                                                     <button type="button" onClick={() => startEdit(vehicle)} className="text-gray-400 hover:text-gray-700 transition-colors" title="Modifier">
                                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />

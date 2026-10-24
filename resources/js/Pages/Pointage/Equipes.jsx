@@ -7,6 +7,7 @@ import DangerButton from '@/Components/DangerButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import ToggleSwitch from '@/Components/ToggleSwitch';
 
 const emptyForm = { name: '', chef_employee_id: '', transport_vehicle_id: '' };
 
@@ -27,7 +28,8 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
     const membersForm = useForm({ employee_ids: [] });
 
     const membersOf = (equipe) => employees.filter(e => e.equipe_id === equipe.id);
-    const withoutEquipe = employees.filter(e => !e.equipe_id).length;
+    // Members of a deactivated équipe are listed under "Sans équipe" in the Grid too.
+    const withoutEquipe = employees.filter(e => !equipes.some(q => q.is_active && q.id === e.equipe_id)).length;
 
     const submitCreate = (e) => {
         e.preventDefault();
@@ -51,7 +53,12 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
         editForm.put(route('equipes.update', equipeId), { preserveScroll: true, onSuccess: () => setEditingId(null) });
     };
 
+    // Deactivating keeps the members (reactivating brings the team back as it was); meanwhile
+    // they're listed under "Sans équipe" in the Grid and their new days ride no vehicle.
     const toggleActive = (equipe) => {
+        if (equipe.is_active && !window.confirm(`Désactiver l'équipe « ${equipe.name} » ?
+
+Ses ${equipe.employees_count} ouvrier(s) restent rattachés (la réactivation la rétablit telle quelle), mais en attendant ils apparaissent sous « Sans équipe » dans la grille et leurs nouveaux jours ne comptent plus dans le transport de son véhicule.`)) return;
         router.put(route('equipes.update', equipe.id), { is_active: !equipe.is_active }, { preserveScroll: true });
     };
 
@@ -142,11 +149,15 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
                                     ) : (
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="min-w-0">
-                                                <p className="font-bold text-gray-800 truncate">{equipe.name}</p>
+                                                <p className="font-bold text-gray-800 truncate">
+                                                    {equipe.name}
+                                                    {!equipe.is_active && <span className="ml-2 align-middle text-[10px] font-black uppercase tracking-wide bg-gray-200 text-gray-600 rounded px-1.5 py-0.5">Inactive</span>}
+                                                </p>
                                                 <p className="text-xs text-gray-500 mt-0.5">
                                                     Chef : {equipe.chef?.full_name || <span className="text-amber-600">non défini</span>}
                                                     {' · '}
                                                     {equipe.transport_vehicle ? `Véhicule : ${equipe.transport_vehicle.code}` : 'Sans véhicule'}
+                                                    {equipe.transport_vehicle && !equipe.transport_vehicle.is_active && <span className="text-amber-600 font-semibold"> (véhicule inactif — nouveaux jours sans transport)</span>}
                                                 </p>
                                             </div>
                                             {confirmingDeleteId === equipe.id ? (
@@ -162,9 +173,10 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
                                                     </button>
                                                     {canManage && (
                                                         <>
-                                                            <button type="button" onClick={() => toggleActive(equipe)} className="text-xs font-medium text-gray-500 hover:text-gray-700">
-                                                                {equipe.is_active ? 'Active' : 'Inactive'}
-                                                            </button>
+                                                            <span className="flex items-center gap-2" title={equipe.is_active ? "Désactiver l'équipe" : "Réactiver l'équipe"}>
+                                                                <span className={`text-xs font-semibold ${equipe.is_active ? 'text-green-700' : 'text-gray-400'}`}>{equipe.is_active ? 'Active' : 'Inactive'}</span>
+                                                                <ToggleSwitch checked={equipe.is_active} onChange={() => toggleActive(equipe)} />
+                                                            </span>
                                                             <button type="button" onClick={() => startEdit(equipe)} className="text-gray-400 hover:text-gray-700" title="Modifier">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                                                             </button>

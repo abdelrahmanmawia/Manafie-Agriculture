@@ -31,7 +31,7 @@ class EquipeController extends Controller
         $farmId = $this->scopedFarmId($request);
 
         return Inertia::render('Pointage/Equipes', [
-            'equipes' => Equipe::with(['chef:id,full_name', 'transportVehicle:id,code'])
+            'equipes' => Equipe::with(['chef:id,full_name', 'transportVehicle:id,code,is_active'])
                 ->withCount('employees')
                 ->where('farm_id', $farmId)
                 ->orderBy('name')

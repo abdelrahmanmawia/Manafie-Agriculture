@@ -175,7 +175,9 @@ class PointageController extends Controller
             $equipe = $equipeId === 'none' ? null : $equipes->firstWhere('id', (int) $equipeId);
             $employees = ($equipeId === 'none' || $equipe)
                 ? Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)
-                    ->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->whereNull('equipe_id'))
+                    // "Sans équipe" also lists the members of a deactivated équipe, so nobody drops out.
+                    ->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->where(fn ($q) => $q->whereNull('equipe_id')
+                        ->orWhereIn('equipe_id', Equipe::where('farm_id', $farmId)->where('is_active', false)->select('id'))))
                     // An enterprise-scoped user never sees other divisions' people, same as elsewhere.
                     ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
                     ->orderBy('full_name')->get()

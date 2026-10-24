@@ -26,11 +26,18 @@ use Illuminate\Support\Facades\DB;
  */
 class TransportService
 {
-    /** The vehicle a worker rides today: their équipe's, if it rides one. */
+    /**
+     * The vehicle a worker rides today: their équipe's, if it rides one — and only while both the
+     * équipe and the vehicle are active (a deactivated one no longer carries anyone; past days
+     * keep the vehicle they were stamped with).
+     */
     public function riderVehicleId(int $employeeId): ?int
     {
         return Employee::whereKey($employeeId)
             ->join('equipes', 'equipes.id', '=', 'employees.equipe_id')
+            ->join('transport_vehicles', 'transport_vehicles.id', '=', 'equipes.transport_vehicle_id')
+            ->where('equipes.is_active', true)
+            ->where('transport_vehicles.is_active', true)
             ->value('equipes.transport_vehicle_id');
     }
 

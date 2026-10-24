@@ -107,7 +107,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             || (dayFilter === 'zero' && days === 0)
             || (dayFilter === 'worked' && days > 0);
         const matchesEquipe = mode === 'equipe' || equipeFilter === 'all'
-            || (equipeFilter === 'none' ? !emp.equipe_id : String(emp.equipe_id) === equipeFilter);
+            // "Sans équipe" includes members of a deactivated équipe (only active ones are listed).
+            || (equipeFilter === 'none' ? !equipes.some(e => e.id === emp.equipe_id) : String(emp.equipe_id) === equipeFilter);
         return matchesSearch && matchesDayFilter && matchesEquipe;
     });
 

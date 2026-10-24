@@ -171,4 +171,38 @@ class EquipeTest extends TestCase
 
         $this->assertModelExists($van);
     }
+
+    public function test_a_deactivated_equipe_or_vehicle_carries_nobody_on_new_days(): void
+    {
+        $company = TransportCompany::create(['farm_id' => $this->farm->id, 'name' => 'Co']);
+        $van = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'T1']);
+        $equipe = $this->equipe('One', ['transport_vehicle_id' => $van->id]);
+        $worker = $this->employee('A', $equipe);
+        $transport = app(\App\Services\TransportService::class);
+        $this->assertSame($van->id, $transport->riderVehicleId($worker->id));
+
+        $this->actingAs($this->manager)->put(route('transport.vehicles.update', $van), ['is_active' => false])->assertSessionHasNoErrors();
+        $this->assertNull($transport->riderVehicleId($worker->id));
+
+        $this->actingAs($this->manager)->put(route('transport.vehicles.update', $van), ['is_active' => true]);
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => false])->assertSessionHasNoErrors();
+        $this->assertNull($transport->riderVehicleId($worker->id));
+        // The members stay, so reactivating brings the team back as it was.
+        $this->assertSame($equipe->id, $worker->fresh()->equipe_id);
+        $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => true]);
+        $this->assertSame($van->id, $transport->riderVehicleId($worker->id));
+    }
+
+    public function test_the_members_of_a_deactivated_equipe_are_listed_under_sans_equipe(): void
+    {
+        $quinzaine = \App\Models\Quinzaine::create(['enterprise_id' => $this->enterprise->id, 'label' => 'Q', 'start_date' => '2026-10-16', 'end_date' => '2026-10-31', 'is_closed' => false]);
+        $dissolved = $this->equipe('Dissolved', ['is_active' => false]);
+        $this->employee('In dissolved', $dissolved);
+        $this->employee('No team');
+        $this->employee('Active team', $this->equipe('Active'));
+
+        $this->actingAs($this->manager)->get(route('pointage.grid', ['quinzaine' => $quinzaine->id, 'mode' => 'equipe', 'equipe' => 'none']))
+            ->assertInertia(fn ($p) => $p->where('employees', fn ($list) => collect($list)->pluck('full_name')->sort()->values()->all() === ['In dissolved', 'No team'])
+                ->where('equipes', fn ($list) => collect($list)->pluck('name')->all() === ['Active']));
+    }
 }
