@@ -256,4 +256,14 @@ class EquipeTest extends TestCase
         $this->actingAs($this->manager)->put(route('equipes.update', $equipe), ['is_active' => true]);
         $this->assertSame(1, $salary());
     }
+
+    public function test_the_employees_page_gets_the_farms_equipes_for_its_filter(): void
+    {
+        $this->equipe('One');
+        $this->equipe('Off', ['is_active' => false]);
+        Equipe::create(['farm_id' => Farm::create(['name' => 'Other'])->id, 'name' => 'Foreign']);
+
+        $this->actingAs($this->manager)->get(route('employees.index'))
+            ->assertInertia(fn ($p) => $p->where('equipes', fn ($list) => collect($list)->pluck('name')->all() === ['Off', 'One']));
+    }
 }

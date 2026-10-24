@@ -80,6 +80,8 @@ class EmployeeController extends Controller
             'selectedEnterpriseId' => $enterpriseId,
             'searchQuery' => $searchQuery,
             'transportLocations' => TransportLocation::where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get(['id', 'name', 'price_per_person']),
+            // For the équipe filter (client-side, like the other filters on the page).
+            'equipes' => \App\Models\Equipe::where('farm_id', $farmId)->orderBy('name')->get(['id', 'name', 'is_active']),
         ]);
     }
 

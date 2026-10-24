@@ -42,7 +42,7 @@ function TriFilter({ def, value, onChange, counts }) {
     );
 }
 
-export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery, transportLocations }) {
+export default function Employees({ auth, employees, enterprises, selectedEnterpriseId, searchQuery, transportLocations, equipes = [] }) {
     const [isAddingEmployee, setIsAddingEmployee] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
     const [localSearch, setLocalSearch] = useState(searchQuery || '');
@@ -50,6 +50,10 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
     const [contractEmployee, setContractEmployee] = useState(null);
 
     const [filters, setFilters] = useState(emptyFilters);
+    // '' = toutes, 'none' = sans équipe, else an équipe id.
+    const [equipeFilter, setEquipeFilter] = useState('');
+    const equipeById = useMemo(() => Object.fromEntries(equipes.map(q => [q.id, q])), [equipes]);
+    const inEquipe = (e) => equipeFilter === '' || (equipeFilter === 'none' ? !e.equipe_id : String(e.equipe_id) === equipeFilter);
     const [incompleteOnly, setIncompleteOnly] = useState(false);
     const [sortBy, setSortBy] = useState('name');
     const [showFilters, setShowFilters] = useState(false);
@@ -60,7 +64,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
     const passes = (e, skipKey = null) => FILTERS.every(f => {
         if (f.key === skipKey || filters[f.key] === 'all') return true;
         return f.has(e) === (filters[f.key] === 'yes');
-    }) && (!incompleteOnly || isIncomplete(e));
+    }) && (!incompleteOnly || isIncomplete(e)) && inEquipe(e);
 
     // Count per option against the *other* active filters, so a click never lands on a dead end.
     const countsFor = (def) => {
@@ -74,10 +78,11 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
         return list.sort((a, b) => sortBy === 'matricule'
             ? collator.compare(a.matricule, b.matricule)
             : collator.compare(a.full_name, b.full_name));
-    }, [employees, filters, incompleteOnly, sortBy]);
+    }, [employees, filters, incompleteOnly, sortBy, equipeFilter]);
 
-    const activeFilterCount = FILTERS.filter(f => filters[f.key] !== 'all').length + (incompleteOnly ? 1 : 0);
-    const resetFilters = () => { setFilters(emptyFilters); setIncompleteOnly(false); };
+    const activeFilterCount = FILTERS.filter(f => filters[f.key] !== 'all').length + (incompleteOnly ? 1 : 0) + (equipeFilter !== '' ? 1 : 0);
+    const resetFilters = () => { setFilters(emptyFilters); setIncompleteOnly(false); setEquipeFilter(''); };
+    const equipeCount = (id) => employees.filter(e => id === 'none' ? !e.equipe_id : e.equipe_id === id).length;
     const incompleteCount = employees.filter(isIncomplete).length;
 
     const handleToggleActive = (employee) => {
@@ -141,6 +146,20 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     >
                                         <option value="">{t('all_fermes')}</option>
                                         {enterprises.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                                    </select>
+                                )}
+                                {equipes.length > 0 && (
+                                    <select
+                                        className={`rounded-xl border-gray-200 text-sm px-4 py-2 ${equipeFilter !== '' ? 'bg-primary-50 border-primary-300 font-bold' : 'bg-gray-50'}`}
+                                        value={equipeFilter}
+                                        onChange={(e) => setEquipeFilter(e.target.value)}
+                                        aria-label="Filtrer par équipe"
+                                    >
+                                        <option value="">Toutes les équipes</option>
+                                        {equipes.map(q => (
+                                            <option key={q.id} value={String(q.id)}>{q.name}{!q.is_active ? ' (inactive)' : ''} — {equipeCount(q.id)}</option>
+                                        ))}
+                                        <option value="none">Sans équipe — {equipeCount('none')}</option>
                                     </select>
                                 )}
                                 <form onSubmit={handleSearch} className="flex gap-2">
@@ -217,7 +236,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     <div key={emp.id} className={`p-4 rounded-2xl border border-gray-100 ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
                                         <div className="mb-2">
                                             <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
-                                            <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}</div>
+                                            <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}{equipeById[emp.equipe_id] ? ` • ${equipeById[emp.equipe_id].name}` : ''}</div>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 my-3 text-center">
                                             <div className="bg-gray-50 rounded-lg py-1.5">
@@ -319,6 +338,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             <td className="px-4 py-3 font-medium text-gray-900">{emp.matricule}</td>
                                             <td className="px-4 py-3">
                                                 <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
+                                                {equipeById[emp.equipe_id] && <div className="text-[10px] font-bold uppercase text-gray-400">{equipeById[emp.equipe_id].name}</div>}
                                             </td>
                                             {auth.user.role === 'super_admin' && (
                                                 <td className="px-4 py-3 font-bold text-primary-600 text-xs">{emp.enterprise?.name || 'N/A'}</td>
