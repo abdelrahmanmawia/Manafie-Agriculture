@@ -98,6 +98,14 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
             .map(p => ({ ...p, quinzaines: p.quinzaines.sort((a, b) => (a.enterprise?.name || '').localeCompare(b.enterprise?.name || '')) }));
     }, [quinzaines]);
 
+    // Which periods to show: '' all, 'open' / 'closed', or one period's key (client-side — the
+    // page already has them all; the division filter is the server-side one).
+    const [periodFilter, setPeriodFilter] = useState('');
+    const shownPeriods = periods.filter(p => periodFilter === ''
+        || (periodFilter === 'open' ? p.quinzaines.some(q => !q.is_closed)
+            : periodFilter === 'closed' ? p.quinzaines.every(q => q.is_closed)
+                : p.key === periodFilter));
+
     const openCreate = () => {
         createForm.clearErrors();
         createForm.setData({ ...nextPeriod(quinzaines), enterprise_ids: divisionChoices.length ? divisionChoices.map(e => e.id) : [auth.user.enterprise_id].filter(Boolean) });
@@ -160,13 +168,38 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         </div>
                     )}
 
-                    {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && divisionChoices.length > 1 && (
-                        <div className="flex items-center justify-end gap-3">
-                            <label htmlFor="enterprise_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Filtrer par Division :</label>
-                            <select id="enterprise_filter_select" className="w-auto min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>
-                                <option value="">Toutes les Divisions</option>
-                                {divisionChoices.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                    {periods.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-end gap-3">
+                            <span className="flex items-center gap-2">
+                            <label htmlFor="period_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Période :</label>
+                            <select id="period_filter_select" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}
+                                className={`w-auto min-w-[220px] text-sm rounded-md shadow-sm ${periodFilter ? 'border-primary-300 bg-primary-50 font-bold' : 'border-gray-300'}`}>
+                                <option value="">Toutes les périodes ({periods.length})</option>
+                                <option value="open">Ouvertes ({periods.filter(p => p.quinzaines.some(q => !q.is_closed)).length})</option>
+                                <option value="closed">Clôturées ({periods.filter(p => p.quinzaines.every(q => q.is_closed)).length})</option>
+                                <optgroup label="Une période">
+                                    {periods.map(p => <option key={p.key} value={p.key}>{periodLabel(p.start_date)}</option>)}
+                                </optgroup>
                             </select>
+                            </span>
+                            {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && divisionChoices.length > 1 && (
+                                <span className="flex items-center gap-2">
+                                    <label htmlFor="enterprise_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Division :</label>
+                                    <select id="enterprise_filter_select" className="w-auto min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>
+                                        <option value="">Toutes les Divisions</option>
+                                        {divisionChoices.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
+                                    </select>
+                                </span>
+                            )}
+                            {periodFilter && (
+                                <button type="button" onClick={() => setPeriodFilter('')} className="text-xs font-bold text-gray-500 hover:text-red-600 underline underline-offset-2">Réinitialiser</button>
+                            )}
+                        </div>
+                    )}
+
+                    {periods.length > 0 && shownPeriods.length === 0 && (
+                        <div className="text-center py-8 bg-white rounded-xl border-2 border-dashed border-gray-200">
+                            <p className="text-gray-500 italic">Aucune période ne correspond à ce filtre.</p>
                         </div>
                     )}
 
@@ -176,7 +209,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         </div>
                     )}
 
-                    {periods.map(period => {
+                    {shownPeriods.map(period => {
                         const open = period.quinzaines.filter(q => !q.is_closed);
                         const ref = open[0] || period.quinzaines[0];
                         const total = period.quinzaines.reduce((s, q) => ({
