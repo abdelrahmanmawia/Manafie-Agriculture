@@ -80,6 +80,8 @@ export default function Authenticated({ user, header, children }) {
     const homeItem = { label: t('dashboard') || 'Accueil', href: 'dashboard', match: 'dashboard', icon: ICONS.home };
 
     const pointageItems = [
+        // The day's work first: who's pointed per équipe, what's still "à préciser".
+        ...(needsFarmSelection ? [] : [{ label: "Aujourd'hui", href: 'pointage.today', match: 'pointage.today', icon: ICONS.inventory }]),
         { label: 'Tableau de Bord', href: 'pointage.index', match: 'pointage.index', icon: ICONS.grid },
         { label: 'Quinzaines', href: 'pointage.quinzaines', match: ['pointage.quinzaines', 'pointage.grid'], icon: ICONS.clock },
         ...(needsFarmSelection

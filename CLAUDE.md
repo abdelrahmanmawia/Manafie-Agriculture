@@ -103,6 +103,9 @@ Every stock-affecting controller action (`StockMovementController::stockIn/stock
 
 A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyone with Stock access — the magasinier included — can verify it; once verified it is locked for everyone until a `farm_manager`/`super_admin` unlocks it (`ManualStockEntryController::unverify`). Réceptions (`stockIn`) and inventory counts have no edit/delete at all. Every stock write locks its `StockInventory` row through `Controller::lockedInventoryFor()` (one row per product, `unique(product_id)`).
 
+### "Aujourd'hui" is the day's starting point
+`Pointage/Aujourdhui.jsx` (`PointageController::aujourdhui()`, `?date=`, default today; first item of the Pointage sidebar) shows the day's two steps: each active équipe's headcount / present / "à préciser" that day (plus "Sans équipe"), each card opening the équipe Grid on that day, then each division's days "à préciser" that day and over the period. The Grid opens on `?jour=` when it's in the period, else on today, else on the first day.
+
 ### The Quinzaines page is per period, not per division
 `Pointage/Quinzaines.jsx` shows one card per pay period (its dates) with one line per division: its progress (`PointageController::quinzaines()` adds `stats` — ouvriers, jours, net, `a_preciser`), its grid/exports and edit/delete/close. A period is opened for several divisions at once (`EnterpriseController::createQuinzaine()` takes `enterprise_ids`; a division that already has the dates is skipped, all skipped → `errors.quinzaine`), with the next period's dates and label suggested; it is closed per division or for the whole period at once (`EnterpriseController::closePeriode()`, all or nothing: any division with days "à préciser" keeps them all open). Refusals (closing with days "à préciser", duplicates) come back as `errors.quinzaine`, shown in a banner on the page — `FlashToast` only shows `flash.success`/`flash.error`.
 

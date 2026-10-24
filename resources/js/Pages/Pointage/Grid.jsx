@@ -44,7 +44,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // Opens on today when it falls in the period (the day being pointed), else its first day.
     // The local calendar day — toISOString() is UTC and gives yesterday's date before 1 a.m. here.
     const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-    const [currentDate, setCurrentDate] = useState(days.includes(today) ? today : (days[0] || today));
+    // ?jour= (from the "Aujourd'hui" page) picks the day to open on.
+    const asked = new URLSearchParams(window.location.search).get('jour');
+    const [currentDate, setCurrentDate] = useState(days.includes(asked) ? asked : days.includes(today) ? today : (days[0] || today));
     const [globalOperation, setGlobalOperation] = useState('');
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);

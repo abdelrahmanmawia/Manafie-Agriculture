@@ -82,6 +82,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware('access.domain:pointage')->group(function () {
     // Pointage
     Route::get('/pointage', [PointageController::class, 'dashboard'])->name('pointage.index');
+    Route::get('/pointage/aujourdhui', [PointageController::class, 'aujourdhui'])->name('pointage.today');
     Route::get('/pointage/quinzaines', [PointageController::class, 'quinzaines'])->name('pointage.quinzaines');
     Route::get('/pointage/grid/{quinzaine}', [PointageController::class, 'grid'])->name('pointage.grid');
     Route::get('/pointage/export/{quinzaine}', [PointageController::class, 'export'])->name('pointage.export');

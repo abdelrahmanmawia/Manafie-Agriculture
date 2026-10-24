@@ -131,6 +131,75 @@ class PointageController extends Controller
         ]);
     }
 
+    /**
+     * "Aujourd'hui" — the morning view of the farm's two pointage steps for one day (?date=,
+     * default today): each active équipe's presence (who's pointed, who's still to point) with a
+     * link into its Grid on that day, then each division's days still "à préciser" (the second
+     * step, by headcount or worker by worker). A division-locked user sees only their division.
+     */
+    public function aujourdhui(Request $request)
+    {
+        $user = $request->user();
+        $farmId = $this->scopedFarmId($request);
+        try {
+            $date = Carbon::parse($request->query('date', now()->toDateString()))->toDateString();
+        } catch (\Throwable) {
+            $date = now()->toDateString();
+        }
+
+        // The quinzaines covering that day, one per division (the period's).
+        $quinzaines = Quinzaine::with('enterprise')
+            ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->when($user->enterprise_id, fn ($q, $id) => $q->where('enterprise_id', $id))
+            ->whereDate('start_date', '<=', $date)->whereDate('end_date', '>=', $date)
+            ->get()->sortBy(fn ($q) => $q->enterprise->name)->values();
+
+        $dayRecords = PointageRecord::whereIn('quinzaine_id', $quinzaines->pluck('id'))
+            ->where('nature', PointageRecord::NATURE_JOUR)->where('present', true)->whereDate('date', $date)
+            ->get(['employee_id', 'quinzaine_id', 'operation_id']);
+        $present = $dayRecords->pluck('employee_id')->flip();
+        $aPreciser = $dayRecords->whereNull('operation_id')->pluck('employee_id')->flip();
+
+        $employees = Employee::where('farm_id', $farmId)->where('is_active', true)
+            ->when($user->enterprise_id, fn ($q, $id) => $q->where('enterprise_id', $id))
+            ->get(['id', 'equipe_id', 'enterprise_id']);
+        $equipes = Equipe::with(['chef:id,full_name', 'transportVehicle:id,code'])
+            ->where('farm_id', $farmId)->where('is_active', true)->orderBy('name')->get();
+
+        $count = fn ($members) => [
+            'effectif' => $members->count(),
+            'presents' => $members->filter(fn ($e) => $present->has($e->id))->count(),
+            'a_preciser' => $members->filter(fn ($e) => $aPreciser->has($e->id))->count(),
+        ];
+        $groups = $equipes->map(fn ($equipe) => [
+            'id' => $equipe->id, 'name' => $equipe->name, 'chef' => $equipe->chef?->full_name, 'vehicle' => $equipe->transportVehicle?->code,
+        ] + $count($employees->where('equipe_id', $equipe->id)))->filter(fn ($g) => $g['effectif'] > 0)->values();
+        $sansEquipe = $employees->whereNotIn('equipe_id', $equipes->pluck('id'));
+        if ($sansEquipe->isNotEmpty()) {
+            $groups->push(['id' => 'none', 'name' => 'Sans équipe', 'chef' => null, 'vehicle' => null] + $count($sansEquipe));
+        }
+
+        // The second step, per division: that day, and what's left over the whole period.
+        $periodAPreciser = PointageRecord::whereIn('quinzaine_id', $quinzaines->pluck('id'))
+            ->where('nature', PointageRecord::NATURE_JOUR)->where('present', true)->whereNull('operation_id')
+            ->selectRaw('quinzaine_id, COUNT(*) as n')->groupBy('quinzaine_id')->pluck('n', 'quinzaine_id');
+        $divisions = $quinzaines->map(fn ($q) => [
+            'quinzaine_id' => $q->id, 'name' => $q->enterprise->name, 'is_closed' => (bool) $q->is_closed,
+            'presents' => $dayRecords->where('quinzaine_id', $q->id)->count(),
+            'a_preciser' => $dayRecords->where('quinzaine_id', $q->id)->whereNull('operation_id')->count(),
+            'a_preciser_periode' => (int) ($periodAPreciser[$q->id] ?? 0),
+        ]);
+
+        return Inertia::render('Pointage/Aujourdhui', [
+            'date' => $date,
+            'today' => now()->toDateString(),
+            'reference' => ($quinzaines->firstWhere('is_closed', false) ?? $quinzaines->first())?->only(['id', 'label', 'start_date', 'end_date']),
+            'equipes' => $groups,
+            'divisions' => $divisions,
+            'totals' => ['effectif' => $employees->count(), 'presents' => $present->count(), 'a_preciser' => $aPreciser->count()],
+        ]);
+    }
+
     public function quinzaines(Request $request)
     {
         // Farm first, then the division: the user's own if they're locked to one, else the
