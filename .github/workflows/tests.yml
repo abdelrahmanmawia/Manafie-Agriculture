@@ -1,0 +1,87 @@
+# Runs the whole test suite on every push and pull request — on MySQL (the engine the farm
+# really runs on, which SQLite doesn't catch: decimal rounding, JSON key order, cascade order)
+# and on SQLite (what `php artisan test` uses locally). The frontend is built first: the pages
+# the tests render load it through @vite.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Tests (${{ matrix.db }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        db: [mysql, sqlite]
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: farm_management_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, pdo_sqlite, gd, zip, intl, bcmath, fileinfo
+          coverage: none
+
+      - name: Composer dependencies (cached)
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+
+      - run: composer install --no-interaction --no-progress --prefer-dist
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build the frontend
+        run: npm run build
+
+      - name: Prepare .env
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      # phpunit.xml's <env> values don't override variables already set here, so this switches
+      # the suite to the MySQL service; the sqlite leg keeps phpunit.xml's in-memory database.
+      - name: Run the tests (MySQL)
+        if: matrix.db == 'mysql'
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: farm_management_test
+          DB_USERNAME: root
+          DB_PASSWORD: root
+        run: php artisan test
+
+      - name: Run the tests (SQLite)
+        if: matrix.db == 'sqlite'
+        run: php artisan test

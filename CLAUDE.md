@@ -45,6 +45,8 @@ vendor/bin/pint          # Laravel Pint formatter
 
 Note: `phpunit.xml` sets `DB_CONNECTION=sqlite` / `DB_DATABASE=:memory:` under its `<php>` block, which overrides `.env` during `php artisan test` — the suite runs against an isolated in-memory SQLite DB regardless of the app's own MySQL connection, so it never touches real data and also nothing there validates MySQL-specific behavior. Verify anything DB-engine-specific (raw SQL, generated columns, FK behavior) against the real MySQL connection directly (e.g. `php artisan migrate:fresh` or a tinker query), not through the test suite.
 
+GitHub Actions (`.github/workflows/tests.yml`) runs the suite on every push and pull request twice — on a MySQL 8.4 service and on SQLite — after `npm run build` (pages render through `@vite`). Locally, the MySQL run is `DB_CONNECTION=mysql DB_DATABASE=<empty scratch db> php artisan test` (never the real `farm_management`: RefreshDatabase wipes it). Things that only fail on MySQL so far: money stored to the centime (compare with a 0.01 delta), JSON columns come back with sorted keys, and cascades run in no fixed order (delete restrict-keyed children explicitly, as `FarmController::destroy()` does).
+
 ## Architecture
 
 ### Domain hierarchy

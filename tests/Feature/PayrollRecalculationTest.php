@@ -123,7 +123,8 @@ class PayrollRecalculationTest extends TestCase
         $newCalc = $svc->calculate('avec_contrat', 97.44, 0, 15, false);
 
         $openRecord->refresh();
-        $this->assertEqualsWithDelta($newCalc['total_net'], $openRecord->net, 0.001);
+        // To the centime: MySQL stores net as decimal(…, 2), SQLite keeps every digit.
+        $this->assertEqualsWithDelta($newCalc['total_net'], $openRecord->net, 0.01);
         $this->assertNotEquals($oldCalc['total_net'], $openRecord->net);
     }
 }

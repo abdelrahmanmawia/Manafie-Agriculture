@@ -361,7 +361,7 @@ class PointageController extends Controller
         $salairesFixes = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
             ->whereIn('employee_id', $employees->pluck('id'))
             ->where('nature', PointageRecord::NATURE_SALAIRE)
-            ->pluck('net', 'employee_id');
+            ->pluck('net', 'employee_id')->map(fn ($net) => (float) $net); // a number, not MySQL's "3500.00"
 
         $records = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
             ->whereIn('employee_id', $employees->pluck('id'))

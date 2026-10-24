@@ -103,7 +103,7 @@ export default {
     print: 'Imprimer',
     view: 'Voir',
     edit: 'Modifier',
-    all_fermes: '-- Toutes les Fermes --',
+    all_fermes: 'Toutes les divisions',
     add_employee_btn: 'Ajouter un Employé',
     employees_list_title: 'Liste du Personnel',
     salaries_recorded: 'Salariés enregistrés',

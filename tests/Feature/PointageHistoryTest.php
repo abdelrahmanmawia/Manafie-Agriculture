@@ -93,7 +93,8 @@ class PointageHistoryTest extends TestCase
 
         $last = PointageChange::latest('id')->first();
         $this->assertSame('updated', $last->action);
-        $this->assertSame(['operation_id' => $this->irr->id, 'bloc_id' => $this->bloc->id], $last->apres);
+        // assertEquals: MySQL stores JSON with its keys sorted.
+        $this->assertEquals(['operation_id' => $this->irr->id, 'bloc_id' => $this->bloc->id], $last->apres);
 
         PointageRecord::sole()->update(['scan_uuid' => 'abc']);
         $this->assertSame(2, PointageChange::count());

@@ -289,8 +289,21 @@ class FarmController extends Controller
         // A farm with any pointage or stock history can't be deleted: its payroll rows restrict
         // employee deletes (migration 000042) and its stock movements restrict deleting the
         // users who performed them. Previously this surfaced as a raw 500.
+        //
+        // Everything else goes with the farm. The rows that point at the farm's blocs, products and
+        // vehicles are deleted first, explicitly: MySQL doesn't order the cascades, so deleting the
+        // farm straight away hit those restrict keys before their own farm cascade ran (SQLite
+        // happened to go in the right order). One transaction, so a refusal leaves it all intact.
         try {
-            $farm->delete();
+            \Illuminate\Support\Facades\DB::transaction(function () use ($farm) {
+                $products = \App\Models\Product::where('farm_id', $farm->id)->select('id');
+                \App\Models\ManualStockEntry::where('farm_id', $farm->id)->delete();
+                \App\Models\FuelTransaction::where('farm_id', $farm->id)->delete();
+                \App\Models\Harvest::where('farm_id', $farm->id)->delete();
+                \App\Models\StockAlert::whereIn('product_id', $products)->delete();
+                \App\Models\StockInventory::whereIn('product_id', $products)->delete();
+                $farm->delete();
+            });
         } catch (\Illuminate\Database\QueryException $e) {
             return redirect()->back()->with(
                 'error',
