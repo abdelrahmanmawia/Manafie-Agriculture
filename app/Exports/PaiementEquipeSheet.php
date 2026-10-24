@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
  * One équipe's payment sheet (see PaiementEquipesExport): N°, NOM, PRENOM, CIN, DIVISION, a 1 for
- * each day present, TOTAL JOURS, SAL. NET/J, PRIMES, NET À PAYER, RIB, PAIEMENT, AMO / CNSS,
+ * each day present, TOTAL JOURS, SAL. NET/J, PRIMES, SALAIRE FIXE, NET À PAYER, RIB, PAIEMENT, AMO / CNSS,
  * OBSERVATION and ÉMARGEMENT (signed by those paid cash), then the TOTAL line and the
  * per-payment-method summary. The RÉSUMÉ sheet reads its totals through the public positions.
  */
@@ -59,8 +59,8 @@ class PaiementEquipeSheet implements WithEvents, WithTitle
         $s = 6 + count($this->days);
 
         return [
-            'day' => 6, 'total' => $s, 'net_j' => $s + 1, 'primes' => $s + 2, 'net' => $s + 3, 'rib' => $s + 4,
-            'paiement' => $s + 5, 'couverture' => $s + 6, 'observation' => $s + 7, 'emargement' => $s + 8,
+            'day' => 6, 'total' => $s, 'net_j' => $s + 1, 'primes' => $s + 2, 'fixe' => $s + 3, 'net' => $s + 4, 'rib' => $s + 5,
+            'paiement' => $s + 6, 'couverture' => $s + 7, 'observation' => $s + 8, 'emargement' => $s + 9,
         ][$name];
     }
 
@@ -99,7 +99,7 @@ class PaiementEquipeSheet implements WithEvents, WithTitle
         }
         $headers += [
             $this->column('total') => "TOTAL\nJOURS", $this->column('net_j') => "SAL. NET\n/ J", $this->column('primes') => "PRIMES\n(H.S / J.F)",
-            $this->column('net') => "NET A\nPAYER", $this->column('rib') => 'RIB', $this->column('paiement') => 'PAIEMENT',
+            $this->column('fixe') => "SALAIRE\nFIXE", $this->column('net') => "NET A\nPAYER", $this->column('rib') => 'RIB', $this->column('paiement') => 'PAIEMENT',
             $this->column('couverture') => "AMO /\nCNSS", $this->column('observation') => 'OBSERVATION', $this->column('emargement') => 'ÉMARGEMENT',
         ];
         foreach ($headers as $col => $label) {
@@ -127,7 +127,10 @@ class PaiementEquipeSheet implements WithEvents, WithTitle
             if ($row['primes'] != 0) {
                 $this->ws->setCellValue($L('primes', $r), $row['primes']);
             }
-            $this->formula($L('net', $r), "={$L('total', $r)}*{$L('net_j', $r)}+{$L('primes', $r)}");
+            if ($row['salaire_fixe'] != 0) {
+                $this->ws->setCellValue($L('fixe', $r), $row['salaire_fixe']);
+            }
+            $this->formula($L('net', $r), "={$L('total', $r)}*{$L('net_j', $r)}+{$L('primes', $r)}+{$L('fixe', $r)}");
             if ($row['rib'] !== '') {
                 $this->text($L('rib', $r), $row['rib']);
             }
@@ -145,7 +148,7 @@ class PaiementEquipeSheet implements WithEvents, WithTitle
         }
 
         $this->text("B{$totals}", 'TOTAL');
-        $sumCols = array_merge(range(6, 5 + $n), [$this->column('total'), $this->column('primes'), $this->column('net')]);
+        $sumCols = array_merge(range(6, 5 + $n), [$this->column('total'), $this->column('primes'), $this->column('fixe'), $this->column('net')]);
         foreach ($sumCols as $col) {
             $letter = $this->col($col);
             $this->formula("{$letter}{$totals}", "=SUM({$letter}{$first}:{$letter}{$lastRow})");
@@ -189,7 +192,7 @@ class PaiementEquipeSheet implements WithEvents, WithTitle
         foreach (range(6, 5 + $n) as $col) {
             $ws->getColumnDimension($this->col($col))->setWidth(3.6);
         }
-        foreach (['total' => 7, 'net_j' => 8, 'primes' => 10, 'net' => 10.6, 'rib' => 26, 'paiement' => 14, 'couverture' => 8, 'observation' => 26, 'emargement' => 18] as $name => $width) {
+        foreach (['total' => 7, 'net_j' => 8, 'primes' => 10, 'fixe' => 10, 'net' => 10.6, 'rib' => 26, 'paiement' => 14, 'couverture' => 8, 'observation' => 26, 'emargement' => 18] as $name => $width) {
             $ws->getColumnDimension($this->col($this->column($name)))->setWidth($width);
         }
 

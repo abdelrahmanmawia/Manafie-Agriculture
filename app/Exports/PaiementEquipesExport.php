@@ -70,9 +70,13 @@ class PaiementEquipesExport implements WithMultipleSheets, WithPreCalculateFormu
                 continue;
             }
 
-            $netJ = $payroll->salNetJFromRecords($enterprise->contract_type, $present, $employee->complement, $enterprise->default_brut_rate);
+            // A salaried worker's days pay nothing (PointageRecordObserver): no day rate to show.
+            $netJ = $employee->salaire_mensuel !== null ? 0.0
+                : $payroll->salNetJFromRecords($enterprise->contract_type, $present, $employee->complement, $enterprise->default_brut_rate);
             $presentDays = $present->map(fn ($r) => $r->date->format('Y-m-d'))->filter(fn ($d) => in_array($d, $days, true))->unique()->values()->all();
             $aPreciser = $present->whereNull('operation_id')->count();
+            // A fixed monthly salary (SalaireFixeService) gets its own column, not PRIMES.
+            $salaireFixe = round((float) $employeeRecords->where('nature', PointageRecord::NATURE_SALAIRE)->sum('net'), 2);
 
             [$nom, $prenom] = $employee->last_name || $employee->first_name
                 ? [$employee->last_name ?? '', $employee->first_name ?? '']
@@ -87,7 +91,8 @@ class PaiementEquipesExport implements WithMultipleSheets, WithPreCalculateFormu
                 'division' => $enterprise->name,
                 'days' => $presentDays,
                 'net_j' => $netJ,
-                'primes' => round($net - count($presentDays) * $netJ, 2),
+                'primes' => round($net - count($presentDays) * $netJ - $salaireFixe, 2),
+                'salaire_fixe' => $salaireFixe,
                 'rib' => (string) $employee->rib,
                 'couverture' => $this->couverture($enterprise, (string) $employee->rib),
                 'a_preciser' => $aPreciser,

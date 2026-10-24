@@ -5,6 +5,8 @@ namespace App\Console\Commands;
 use App\Exports\PointageExport;
 use App\Models\Enterprise;
 use App\Models\Farm;
+use App\Models\PointageRecord;
+use App\Models\Quinzaine;
 use App\Services\FicheImportService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -15,10 +17,12 @@ use Illuminate\Support\Facades\DB;
  * Deletes the farm's quinzaines, pointage, summaries, transport costs and équipes — workers,
  * divisions, operations, blocs, stock and users are kept — then re-imports through
  * FicheImportService. Everything runs in one transaction; --dry-run rolls it back after the report.
+ * The farm has been pointing in the app since: without --dry-run it asks before wiping (or needs
+ * --force), so it can't erase that by being run again by mistake.
  */
 class ImportFichesPointage extends Command
 {
-    protected $signature = 'pointage:import-fiches {dir : the extracted "Pointage" folder} {--farm= : farm id (default: the only farm)} {--dry-run}';
+    protected $signature = 'pointage:import-fiches {dir : the extracted "Pointage" folder} {--farm= : farm id (default: the only farm)} {--dry-run} {--force : wipe without asking}';
 
     protected $description = 'Re-import the farm\'s pointage from its Excel fiches (Sept–Oct 2026)';
 
@@ -50,6 +54,17 @@ class ImportFichesPointage extends Command
     {
         $dir = rtrim($this->argument('dir'), '/\\');
         $farm = $this->option('farm') ? Farm::findOrFail($this->option('farm')) : Farm::sole();
+
+        if (! $this->option('dry-run') && ! $this->option('force')) {
+            $quinzaines = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farm->id));
+            $records = PointageRecord::whereIn('quinzaine_id', (clone $quinzaines)->select('id'))->count();
+            $this->warn("Cet import SUPPRIME toutes les quinzaines de « {$farm->name} » ({$quinzaines->count()}), leurs {$records} jour(s) pointés et les équipes, puis remet septembre–octobre 2026 tels que dans les fichiers.");
+            if (! $this->confirm('Tout supprimer et réimporter ?', false)) {
+                $this->info("Annulé : rien n'a été modifié. (--dry-run pour voir le résultat sans rien enregistrer.)");
+
+                return self::FAILURE;
+            }
+        }
 
         $divisions = [];
         foreach (Enterprise::where('farm_id', $farm->id)->get() as $enterprise) {

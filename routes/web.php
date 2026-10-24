@@ -163,6 +163,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'updateQuinzaine'])->name('settings.quinzaine.update');
     Route::delete('/settings/quinzaine/{quinzaine}', [EnterpriseController::class, 'deleteQuinzaine'])->name('settings.quinzaine.delete');
     Route::post('/settings/quinzaine/{quinzaine}/close', [EnterpriseController::class, 'closeQuinzaine'])->name('settings.quinzaine.close');
+    Route::post('/settings/quinzaine/{quinzaine}/close-periode', [EnterpriseController::class, 'closePeriode'])->name('settings.quinzaine.close-periode');
     }); // end access.domain:pointage group
 
     Route::middleware('access.domain:stock')->group(function () {

@@ -242,7 +242,7 @@ class EnterpriseController extends Controller
             'settings' => ['currency' => 'DH']
         ]);
 
-        return redirect()->back()->with('success', 'Enterprise created successfully.');
+        return redirect()->back()->with('success', 'Division créée.');
     }
 
     public function settings(Request $request)
@@ -345,6 +345,54 @@ class EnterpriseController extends Controller
     {
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
 
+        $aPreciser = $this->closeOne($quinzaine);
+        if ($aPreciser > 0) {
+            return redirect()->back()->withErrors([
+                'quinzaine' => "Clôture impossible : {$aPreciser} jour(s) de présence sans opération (« à préciser »). Complétez-les d'abord dans la grille.",
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Période clôturée.');
+    }
+
+    /**
+     * Closes the period for every division the user manages (the quinzaines of the farm with the
+     * same dates as $quinzaine) — all or nothing: if any still has days "à préciser", none closes
+     * and the page lists them.
+     */
+    public function closePeriode(Request $request, Quinzaine $quinzaine)
+    {
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
+
+        $period = Quinzaine::with('enterprise')
+            ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $quinzaine->enterprise->farm_id))
+            ->when($request->user()->enterprise_id, fn ($q, $id) => $q->where('enterprise_id', $id))
+            ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
+            ->where('is_closed', false)
+            ->get();
+
+        $pending = $period->map(fn ($q) => [$q->enterprise->name, PointageRecord::where('quinzaine_id', $q->id)->where('present', true)->whereNull('operation_id')->count()])
+            ->filter(fn ($row) => $row[1] > 0);
+        if ($pending->isNotEmpty()) {
+            return redirect()->back()->withErrors([
+                'quinzaine' => 'Clôture impossible, jours de présence sans opération (« à préciser ») : '
+                    .$pending->map(fn ($row) => "{$row[0]} {$row[1]}")->implode(', ').". Complétez-les d'abord dans la grille.",
+            ]);
+        }
+
+        // Each one closes on its own lock and snapshot, exactly like a single close; a day turned
+        // "à préciser" meanwhile leaves that division open, and the page says which.
+        $leftOpen = $period->filter(fn ($q) => $this->closeOne($q) > 0)->map(fn ($q) => $q->enterprise->name);
+        if ($leftOpen->isNotEmpty()) {
+            return redirect()->back()->withErrors(['quinzaine' => 'Restée(s) ouverte(s), des jours « à préciser » y ont été ajoutés : '.$leftOpen->implode(', ').'.']);
+        }
+
+        return redirect()->back()->with('success', 'Période clôturée pour '.$period->map(fn ($q) => $q->enterprise->name)->implode(', ').'.');
+    }
+
+    /** Closes one quinzaine; returns its number of days "à préciser" (0 = closed, or already was). */
+    private function closeOne(Quinzaine $quinzaine): int
+    {
         // A second close (e.g. a double-click, or this route ever getting hit again on an
         // already-closed period) must not silently regenerate the snapshot — its numbers are
         // supposed to be historically frozen the moment the quinzaine first closes, and
@@ -356,7 +404,7 @@ class EnterpriseController extends Controller
         // the close back instead of leaving a closed period with no summary, and in-flight cell
         // writes (which share-lock the same row, see PointageController::writeWhileOpen()) finish
         // before the snapshot reads the records.
-        $aPreciser = DB::transaction(function () use ($quinzaine) {
+        return DB::transaction(function () use ($quinzaine) {
             $quinzaine = Quinzaine::lockForUpdate()->findOrFail($quinzaine->id);
             if ($quinzaine->is_closed) {
                 return 0;
@@ -377,14 +425,6 @@ class EnterpriseController extends Controller
 
             return 0;
         });
-
-        if ($aPreciser > 0) {
-            return redirect()->back()->withErrors([
-                'quinzaine' => "Clôture impossible : {$aPreciser} jour(s) de présence sans opération (« à préciser »). Complétez-les d'abord dans la grille.",
-            ]);
-        }
-
-        return redirect()->back()->with('success', 'Période clôturée.');
     }
 
     public function addOperation(Request $request)
@@ -492,7 +532,9 @@ class EnterpriseController extends Controller
             ->whereDate('start_date', $request->start_date)
             ->whereDate('end_date', $request->end_date)
             ->exists();
-        abort_if($duplicate, 422, 'Une période existe déjà pour ces dates dans cette division.');
+        if ($duplicate) {
+            return redirect()->back()->withErrors(['start_date' => 'Une période existe déjà pour ces dates dans cette division.']);
+        }
 
         // Check if there are pointage records that would fall outside the new date range
         $hasRecordsOutsideRange = PointageRecord::where('quinzaine_id', $quinzaine->id)
@@ -503,7 +545,7 @@ class EnterpriseController extends Controller
             ->exists();
 
         if ($hasRecordsOutsideRange) {
-            abort(422, 'Impossible de modifier les dates : il existe des enregistrements de pointage en dehors de la nouvelle période. Veuillez supprimer ces enregistrements ou choisir une période qui les inclut.');
+            return redirect()->back()->withErrors(['start_date' => 'Des jours sont déjà pointés en dehors de ces dates : choisissez une période qui les inclut.']);
         }
 
         $quinzaine->update([
@@ -512,7 +554,7 @@ class EnterpriseController extends Controller
             'end_date' => $request->end_date,
         ]);
 
-        return redirect()->back()->with('success', 'Quinzaine updated successfully.');
+        return redirect()->back()->with('success', 'Période modifiée.');
     }
 
     public function deleteQuinzaine(Request $request, Quinzaine $quinzaine)
@@ -523,7 +565,7 @@ class EnterpriseController extends Controller
 
         $quinzaine->delete();
 
-        return redirect()->back()->with('success', 'Quinzaine deleted successfully.');
+        return redirect()->back()->with('success', 'Période supprimée.');
     }
 
     public function deleteOperation(Request $request, Operation $operation)

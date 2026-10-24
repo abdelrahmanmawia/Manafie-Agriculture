@@ -53,7 +53,7 @@ class UserController extends Controller
             'password' => Hash::make($validated['password']),
         ]);
 
-        return redirect()->back()->with('success', 'User created successfully.');
+        return redirect()->back()->with('success', 'Utilisateur créé.');
     }
 
     /**
@@ -144,7 +144,7 @@ class UserController extends Controller
         abort_unless($request->user()->role === 'super_admin', 403);
 
         if ($user->role === 'super_admin') {
-            return redirect()->back()->with('error', 'Cannot delete super admin.');
+            return redirect()->back()->with('error', 'Impossible de supprimer un super administrateur.');
         }
 
         // Stock movements/sorties keep a restrict FK to the user who entered or verified them
@@ -156,6 +156,6 @@ class UserController extends Controller
             return redirect()->back()->with('error', 'Impossible de supprimer cet utilisateur : il a un historique de mouvements de stock.');
         }
 
-        return redirect()->back()->with('success', 'User deleted successfully.');
+        return redirect()->back()->with('success', 'Utilisateur supprimé.');
     }
 }

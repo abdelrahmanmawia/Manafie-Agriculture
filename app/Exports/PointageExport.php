@@ -182,7 +182,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                     : self::A_PRECISER;
             }
 
-            $netJ = $this->payroll->salNetJFromRecords($contract, $worked, $employee->complement, $this->enterprise->default_brut_rate);
+            // A salaried worker's days pay nothing (PointageRecordObserver): no day rate to show.
+            $netJ = $employee->salaire_mensuel !== null ? 0.0
+                : $this->payroll->salNetJFromRecords($contract, $worked, $employee->complement, $this->enterprise->default_brut_rate);
 
             $hs = (float) $worked->sum('hours');
             $jf = $employeeRecords->where('is_jf', true)->count();

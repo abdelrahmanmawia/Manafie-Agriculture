@@ -70,6 +70,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
     const [editingQuinzaine, setEditingQuinzaine] = useState(null);
     const [deleting, setDeleting] = useState(null);
     const [closing, setClosing] = useState(null);
+    const [closingPeriod, setClosingPeriod] = useState(null);
     const [busy, setBusy] = useState(false);
     const [filterEnterpriseId, setFilterEnterpriseId] = useState(props.ziggy?.query?.enterprise_id || '');
 
@@ -221,6 +222,12 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                 </a>
                                             </>
                                         )}
+                                        {canManage && open.length > 1 && (
+                                            <button type="button" onClick={() => setClosingPeriod({ ...period, open })}
+                                                className="inline-flex items-center px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-bold hover:bg-amber-100">
+                                                Clôturer la période
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -369,6 +376,40 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                         </div>
                     </div>
                 )}
+            </Modal>
+
+            {/* Close every open division of the period at once — all or nothing (closePeriode()). */}
+            <Modal show={closingPeriod !== null} onClose={() => setClosingPeriod(null)}>
+                {closingPeriod && (() => {
+                    const pending = closingPeriod.open.filter(q => q.stats.a_preciser > 0);
+                    return (
+                        <div className="p-8">
+                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-4">Clôturer {periodLabel(closingPeriod.start_date)}</h2>
+                            {pending.length > 0 ? (
+                                <div className="mb-6 rounded-lg bg-red-50 text-red-700 px-4 py-3 text-sm space-y-1">
+                                    <p>Des jours de présence n'ont pas encore leur opération (« à préciser ») :</p>
+                                    <ul className="list-disc ml-5 font-bold">
+                                        {pending.map(q => <li key={q.id}>{q.enterprise?.name} : {q.stats.a_preciser} jour(s)</li>)}
+                                    </ul>
+                                    <p>Complétez-les dans la grille avant de clôturer.</p>
+                                </div>
+                            ) : (
+                                <p className="text-gray-600 mb-6">
+                                    Clôturer la période pour <strong>{closingPeriod.open.map(q => q.enterprise?.name).join(', ')}</strong> ? Le pointage ne pourra plus être modifié.
+                                </p>
+                            )}
+                            <div className="flex justify-end gap-3">
+                                <SecondaryButton type="button" onClick={() => setClosingPeriod(null)}>Annuler</SecondaryButton>
+                                {pending.length === 0 && (
+                                    <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy}
+                                        onClick={() => run('post', route('settings.quinzaine.close-periode', closingPeriod.open[0].id), () => setClosingPeriod(null))}>
+                                        {busy ? 'Clôture…' : 'Tout clôturer'}
+                                    </PrimaryButton>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
             </Modal>
 
             <Modal show={closing !== null} onClose={() => setClosing(null)}>

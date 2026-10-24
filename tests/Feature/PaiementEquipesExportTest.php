@@ -157,6 +157,26 @@ class PaiementEquipesExportTest extends TestCase
         $this->assertStringContainsString('1 j. opération à préciser', $ws->getCell($col['OBSERVATION'].$r)->getValue());
     }
 
+    public function test_a_fixed_monthly_salary_has_its_own_column_not_primes(): void
+    {
+        $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'E1']);
+        $pointeur = $this->worker('POINTEUR', $this->nonDeclaree, $equipe);
+        $pointeur->update(['salaire_mensuel' => 3500]);
+        $this->cell($pointeur, '2026-10-01', ['hours' => 2]);
+        $quinzaine = Quinzaine::where('enterprise_id', $this->nonDeclaree->id)->sole();
+        PointageRecord::create(['employee_id' => $pointeur->id, 'quinzaine_id' => $quinzaine->id, 'date' => '2026-10-15', 'nature' => PointageRecord::NATURE_SALAIRE,
+            'present' => false, 'hours' => 0, 'is_jf' => false, 'rate' => 3500, 'brut' => 0, 'net' => 3500]);
+
+        $ws = $this->book()->getSheetByName('E1');
+        $col = $this->columns($ws);
+        $r = $this->row($ws, 'POINTEUR');
+
+        $this->assertEquals(1, $this->value($ws, $col['TOTAL JOURS'].$r));
+        $this->assertEquals(3500, $ws->getCell($col['SALAIRE FIXE'].$r)->getValue());
+        $this->assertNull($ws->getCell($col['PRIMES (H.S / J.F)'].$r)->getValue());
+        $this->assertEqualsWithDelta(3500, $this->value($ws, $col['NET A PAYER'].$r), 0.01);
+    }
+
     public function test_payment_method_and_coverage(): void
     {
         $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'E1']);

@@ -96,4 +96,51 @@ class QuinzainesPageTest extends TestCase
             ->assertSessionHasErrors('quinzaine');
         $this->assertFalse($q->fresh()->is_closed);
     }
+
+    private function day(Quinzaine $q, string $m, bool $withOperation): void
+    {
+        $worker = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $q->enterprise_id, 'matricule' => $m, 'full_name' => "W{$m}", 'base_rate' => 97.44, 'is_active' => true]);
+        $op = Operation::firstOrCreate(['farm_id' => $this->farm->id, 'name' => 'Irrigation'], ['abbreviation' => 'Irr']);
+        $bloc = Bloc::firstOrCreate(['farm_id' => $this->farm->id, 'name' => 'B1']);
+        PointageRecord::create(['employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => '2026-11-02', 'present' => true,
+            'operation_id' => $withOperation ? $op->id : null, 'bloc_id' => $withOperation ? $bloc->id : null, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 100]);
+    }
+
+    public function test_closing_the_period_closes_every_division_or_none(): void
+    {
+        $this->open([$this->a->id, $this->b->id]);
+        [$qa, $qb] = [Quinzaine::where('enterprise_id', $this->a->id)->sole(), Quinzaine::where('enterprise_id', $this->b->id)->sole()];
+        $this->day($qa, '001', true);
+        $this->day($qb, '002', false);
+
+        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa))->assertSessionHasErrors('quinzaine');
+        $this->assertFalse($qa->fresh()->is_closed);
+        $this->assertFalse($qb->fresh()->is_closed);
+
+        PointageRecord::whereNull('operation_id')->update(['operation_id' => Operation::sole()->id, 'bloc_id' => Bloc::sole()->id]);
+        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa))
+            ->assertSessionHas('success', 'Période clôturée pour A, B.');
+        $this->assertTrue($qa->fresh()->is_closed);
+        $this->assertTrue($qb->fresh()->is_closed);
+    }
+
+    public function test_a_division_locked_user_closes_only_their_own_division_of_the_period(): void
+    {
+        $this->open([$this->a->id, $this->b->id]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'can_access_pointage' => true]);
+        $qa = Quinzaine::where('enterprise_id', $this->a->id)->sole();
+
+        $this->actingAs($pointeur)->post(route('settings.quinzaine.close-periode', $qa))->assertSessionHas('success', 'Période clôturée pour A.');
+        $this->assertFalse(Quinzaine::where('enterprise_id', $this->b->id)->sole()->is_closed);
+    }
+
+    public function test_editing_a_period_onto_existing_dates_is_a_form_error_not_an_error_page(): void
+    {
+        $q = Quinzaine::create(['enterprise_id' => $this->a->id, 'label' => 'Q1', 'start_date' => '2026-11-01', 'end_date' => '2026-11-15', 'is_closed' => false]);
+        $other = Quinzaine::create(['enterprise_id' => $this->a->id, 'label' => 'Q2', 'start_date' => '2026-11-16', 'end_date' => '2026-11-30', 'is_closed' => false]);
+
+        $this->actingAs($this->manager)->put(route('settings.quinzaine.update', $other), ['start_date' => '2026-11-01', 'end_date' => '2026-11-15'])
+            ->assertRedirect()->assertSessionHasErrors('start_date');
+        $this->assertSame('2026-11-16', $other->fresh()->start_date->toDateString());
+    }
 }

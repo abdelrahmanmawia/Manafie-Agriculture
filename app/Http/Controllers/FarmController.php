@@ -57,7 +57,7 @@ class FarmController extends Controller
             'name' => $request->name,
         ]);
 
-        return redirect()->back()->with('success', 'Farm created successfully.');
+        return redirect()->back()->with('success', 'Ferme créée.');
     }
 
     /**
