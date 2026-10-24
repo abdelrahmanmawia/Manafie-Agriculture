@@ -9,6 +9,25 @@ use Illuminate\Routing\Controller as BaseController;
 
 class Controller extends BaseController
 {
+    /**
+     * The dashboards' period figures. A pay period is opened for every division at once, so
+     * periods are counted by their dates, not per division's quinzaine: open periods, those past
+     * their end date (to close), and the workers pointed present in the open ones.
+     */
+    protected function periodStats(\Illuminate\Support\Collection $enterpriseIds): array
+    {
+        $open = \App\Models\Quinzaine::whereIn('enterprise_id', $enterpriseIds)->where('is_closed', false)->get(['id', 'start_date', 'end_date']);
+        $key = fn ($q) => $q->start_date->toDateString().'_'.$q->end_date->toDateString();
+
+        return [
+            'open_quinzaines' => $open->map($key)->unique()->count(),
+            'overdue_quinzaines' => $open->filter(fn ($q) => $q->end_date->lt(now()->startOfDay()))->map($key)->unique()->count(),
+            'pointes_periode' => \App\Models\PointageRecord::whereIn('quinzaine_id', $open->pluck('id'))
+                ->where('nature', \App\Models\PointageRecord::NATURE_JOUR)->where('present', true)
+                ->distinct()->count('employee_id'),
+        ];
+    }
+
     use AuthorizesRequests, ValidatesRequests;
 
     /**

@@ -41,7 +41,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
     const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {} });
     const [isMobile, setIsMobile] = useState(false);
-    const [currentDate, setCurrentDate] = useState(days[0] || new Date().toISOString().split('T')[0]);
+    // Opens on today when it falls in the period (the day being pointed), else its first day.
+    // The local calendar day — toISOString() is UTC and gives yesterday's date before 1 a.m. here.
+    const today = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+    const [currentDate, setCurrentDate] = useState(days.includes(today) ? today : (days[0] || today));
     const [globalOperation, setGlobalOperation] = useState('');
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);
@@ -91,6 +94,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [equipeFilter, setEquipeFilter] = useState('all');
     const equipeLabel = (e) => `${e.name}${e.chef ? ` — chef : ${e.chef.full_name}` : ''} (${e.employees_count})`;
     const chefId = mode === 'equipe' ? equipes.find(e => String(e.id) === String(equipeId))?.chef_employee_id : null;
+    const equipeName = equipeId === 'none' ? 'Sans équipe' : (equipes.find(e => String(e.id) === String(equipeId))?.name || 'choisir une équipe');
     const openMode = (m, t) => router.get(
         route('pointage.grid', quinzaine.id),
         m === 'equipe' ? { mode: 'equipe', ...(t ? { equipe: t } : {}) } : {},
@@ -520,7 +524,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     <div className="flex flex-col gap-2">
                         <div className="flex justify-between items-center">
                             <h2 className="font-black text-xl text-gray-800 uppercase tracking-tighter">Mode Terrain</h2>
-                            <span className="text-[10px] bg-primary-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">{quinzaine.enterprise.name}</span>
+                            <span className="text-[10px] bg-primary-600 text-white px-2 py-0.5 rounded-full font-bold uppercase">{mode === 'equipe' ? equipeName : quinzaine.enterprise.name}</span>
                         </div>
                         <div className="flex gap-2">
                              <select
@@ -569,6 +573,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         <div className="bg-white p-3 rounded-2xl shadow-sm border border-gray-100 mb-4 sticky top-[92px] z-20 space-y-2">
                             {modeBar}
                             {noQuinzaineNote}
+                            {pageErrors.date && !selectedCell && (
+                                <div role="alert" className="bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-[11px] font-bold text-red-700">{pageErrors.date}</div>
+                            )}
                             <input
                                 type="text"
                                 value={searchTerm}
@@ -634,11 +641,23 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 <div className="flex justify-between items-center">
                     <div className="flex flex-col">
                         <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">
-                            Gestion Pointage : {quinzaine.enterprise?.name}
+                            {mode === 'equipe' ? `Pointage par équipe : ${equipeName}` : `Gestion Pointage : ${quinzaine.enterprise?.name}`}
                         </h2>
                         <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{formatDate(quinzaine.start_date)} au {formatDate(quinzaine.end_date)}</span>
                     </div>
                     <div className="flex gap-2 items-center">
+                        {/* A team spans divisions: its export is its payment sheet, not one division's fiche. */}
+                        {mode === 'equipe' ? (equipeId && (
+                            <a
+                                href={route('pointage.paiementEquipes', { quinzaine: quinzaine.id, equipe: equipeId })}
+                                target="_blank"
+                                onClick={() => triggerDownload('paiement')}
+                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                {downloadingKey === 'paiement' ? 'GÉNÉRATION...' : "PAIEMENT DE L'ÉQUIPE"}
+                            </a>
+                        )) : (<>
                         <a
                             href={route('pointage.export', quinzaine.id)}
                             target="_blank"
@@ -660,6 +679,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         <span className={`px-4 py-1.5 rounded-full text-[10px] font-black border-2 uppercase tracking-tighter ${quinzaine.enterprise?.contract_type === 'avec_contrat' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-orange-50 border-orange-200 text-orange-700'}`}>
                             {quinzaine.enterprise?.contract_type.replace('_', ' ')}
                         </span>
+                        </>)}
                         {quinzaine.is_closed && (
                             <span className="bg-red-600 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg animate-pulse ml-2">
                                 SESSION CLÔTURÉE
@@ -705,6 +725,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             </div>
                         </div>
                         {(noQuinzaineNote || equipeEmptyNote) && <div className="px-6 pt-3">{noQuinzaineNote}{equipeEmptyNote}</div>}
+                        {/* A refused write from a quick action (no modal to show it), e.g. a worker already present in another division that day. */}
+                        {pageErrors.date && !selectedCell && (
+                            <div role="alert" className="mx-6 mt-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2 text-xs font-bold text-red-700">{pageErrors.date}</div>
+                        )}
                         {aPreciserTotal > 0 && (
                             <div className="mx-6 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-xs font-bold text-amber-800">
                                 {aPreciserTotal} jour(s) de présence « à préciser » : cliquez la case pour choisir l'opération{mode === 'division' ? ', ou « Répartir » sous le jour pour saisir les effectifs par opération' : ' (ou répartissez-les par effectif dans la grille de la division)'}. La clôture attend qu'ils soient complétés.

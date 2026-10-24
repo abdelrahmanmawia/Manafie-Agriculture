@@ -24,7 +24,8 @@ class PaiementEquipesExport implements WithMultipleSheets, WithPreCalculateFormu
 {
     use Exportable;
 
-    public function __construct(private Quinzaine $reference, private ?int $enterpriseId = null) {}
+    /** $equipe: only that équipe's sheet ('none' = "Sans équipe"), as asked from its Grid; null = all. */
+    public function __construct(private Quinzaine $reference, private ?int $enterpriseId = null, private int|string|null $equipe = null) {}
 
     public function sheets(): array
     {
@@ -118,6 +119,10 @@ class PaiementEquipesExport implements WithMultipleSheets, WithPreCalculateFormu
                 'rows' => $members,
             ];
         });
+
+        if ($this->equipe !== null) {
+            $groups = $groups->only([$this->equipe === 'none' ? 0 : (int) $this->equipe]);
+        }
 
         // By name, "Sans équipe" last.
         $sansEquipe = $groups->pull(0);

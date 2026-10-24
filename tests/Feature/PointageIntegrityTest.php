@@ -199,6 +199,19 @@ class PointageIntegrityTest extends TestCase
         $this->assertSame($otherBloc->id, PointageRecord::sole()->bloc_id);
     }
 
+    public function test_a_scan_for_a_worker_already_present_in_another_division_that_day_is_refused(): void
+    {
+        $other = Enterprise::create(['farm_id' => $this->farm->id, 'name' => 'Autre', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 100]);
+        $otherQ = Quinzaine::create(['enterprise_id' => $other->id, 'label' => '1QZ', 'start_date' => '2026-01-01', 'end_date' => '2026-01-15', 'is_closed' => false]);
+        PointageRecord::create(['employee_id' => $this->employee->id, 'quinzaine_id' => $otherQ->id, 'date' => '2026-01-05', 'present' => true,
+            'hours' => 0, 'rate' => 100, 'brut' => 100, 'net' => 100]);
+
+        $this->sync($this->scanToken($this->manager))
+            ->assertJsonPath('results.0.ok', false)
+            ->assertJsonPath('results.0.reason', 'Worker est déjà pointé(e) présent(e) le 05/01 dans Autre : un ouvrier ne travaille que dans une division par jour.');
+        $this->assertSame(0, PointageRecord::where('quinzaine_id', $this->quinzaine->id)->count());
+    }
+
     public function test_grid_edit_of_a_scanned_record_makes_it_manual(): void
     {
         $token = $this->scanToken($this->manager);

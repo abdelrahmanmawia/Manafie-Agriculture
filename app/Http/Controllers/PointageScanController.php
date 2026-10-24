@@ -227,6 +227,11 @@ class PointageScanController extends Controller
                     ->whereDate('date', $date)
                     ->first();
 
+                $repartition = app(\App\Services\RepartitionService::class);
+                if ($ailleurs = $repartition->presentAilleurs($employee->id, $date, $quinzaine->id)) {
+                    return ['scan_uuid' => $scan['scan_uuid'], 'ok' => false, 'reason' => $repartition->messageAilleurs($ailleurs, $employee->full_name)];
+                }
+
                 if ($existing && $existing->scan_uuid === null) {
                     // Entered (or last edited) by hand in the Grid — it may carry H.S., a JF flag
                     // or a piece-rate quantity a scan knows nothing about. A scan only proves

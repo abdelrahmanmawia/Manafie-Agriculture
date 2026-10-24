@@ -78,7 +78,19 @@ class PointageController extends Controller
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
 
-        return Excel::download(new PaiementEquipesExport($quinzaine, $request->user()->enterprise_id), 'Paiement_par_equipe_'.$cleanLabel.'.xlsx');
+        // ?equipe= narrows it to one équipe (the button on that équipe's Grid).
+        $equipe = $request->query('equipe');
+        $suffix = '';
+        if ($equipe === 'none') {
+            $suffix = '_Sans_equipe';
+        } elseif ($equipe !== null) {
+            $equipeModel = Equipe::findOrFail($equipe);
+            $this->assertFarmScope($request, $equipeModel->farm_id);
+            $equipe = $equipeModel->id;
+            $suffix = '_'.str_replace([' ', '/', '\\'], '_', $equipeModel->name);
+        }
+
+        return Excel::download(new PaiementEquipesExport($quinzaine, $request->user()->enterprise_id, $equipe), 'Paiement'.$suffix.'_'.$cleanLabel.'.xlsx');
     }
 
     /**
@@ -115,16 +127,7 @@ class PointageController extends Controller
         return Inertia::render('Pointage/Index', [
             'enterprises' => $enterprises,
             'farm' => $farmId ? Farm::find($farmId, ['id', 'name']) : null,
-            'totals' => [
-                'employees' => $enterprises->sum('employees_count'),
-                'open_quinzaines' => $enterprises->sum('open_quinzaines_count'),
-                // Real (not fabricated) trend signals — new hires added to the system in the
-                // last 30 days, and open quinzaines whose end_date has already passed.
-                'new_employees_30d' => \App\Models\Employee::whereIn('enterprise_id', $enterpriseIds)
-                    ->where('created_at', '>=', now()->subDays(30))->count(),
-                'overdue_quinzaines' => \App\Models\Quinzaine::whereIn('enterprise_id', $enterpriseIds)
-                    ->where('is_closed', false)->where('end_date', '<', now()->toDateString())->count(),
-            ],
+            'totals' => ['employees' => $enterprises->sum('employees_count')] + $this->periodStats($enterpriseIds),
         ]);
     }
 
@@ -333,9 +336,11 @@ class PointageController extends Controller
             ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
             ->get();
 
-        $added = $repartition->markPresent($quinzaine, Carbon::parse($validated['date'])->format('Y-m-d'), $employees);
+        [$added, $ailleurs] = $repartition->markPresent($quinzaine, Carbon::parse($validated['date'])->format('Y-m-d'), $employees);
 
-        return redirect()->back()->with('success', "{$added} ouvrier(s) marqué(s) présent(s).");
+        $redirect = redirect()->back()->with('success', "{$added} ouvrier(s) marqué(s) présent(s).");
+
+        return $ailleurs ? $redirect->withErrors(['date' => 'Déjà présent(s) ce jour-là dans une autre division, non marqué(s) ici : '.implode(', ', $ailleurs).'.']) : $redirect;
     }
 
     /**
@@ -427,6 +432,10 @@ class PointageController extends Controller
                 ->whereDate('date', $validated['date'])
                 ->delete();
             return redirect()->back();
+        }
+
+        if ($present && $ailleurs = app(RepartitionService::class)->presentAilleurs($employee->id, $validated['date'], $quinzaine->id)) {
+            return redirect()->back()->withErrors(['date' => app(RepartitionService::class)->messageAilleurs($ailleurs, $employee->full_name)]);
         }
 
         $identity = [
@@ -625,6 +634,14 @@ class PointageController extends Controller
 
         $operation = Operation::find($validated['operation_id']);
         abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
+
+        // All or nothing: a day already present in another division stops the whole paste.
+        $repartition = app(RepartitionService::class);
+        foreach ($validated['dates'] as $date) {
+            if ($ailleurs = $repartition->presentAilleurs($employee->id, Carbon::parse($date)->format('Y-m-d'), $quinzaine->id)) {
+                return redirect()->back()->withErrors(['date' => $repartition->messageAilleurs($ailleurs, $employee->full_name)]);
+            }
+        }
 
         $hs = $validated['hours'] ?? 0;
 

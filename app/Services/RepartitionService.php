@@ -26,12 +26,33 @@ class RepartitionService
     ) {}
 
     /**
+     * A worker is present in one division a day: their present day in another quinzaine (another
+     * division) on $date, if any. Every path that writes a present day checks it first — a worker
+     * listed on two divisions' fiches for the same days was being paid twice.
+     */
+    public function presentAilleurs(int $employeeId, string $date, int $quinzaineId): ?PointageRecord
+    {
+        return PointageRecord::with('quinzaine.enterprise')
+            ->where('employee_id', $employeeId)->where('quinzaine_id', '!=', $quinzaineId)
+            ->where('nature', PointageRecord::NATURE_JOUR)->where('present', true)
+            ->whereDate('date', $date)
+            ->first();
+    }
+
+    public function messageAilleurs(PointageRecord $ailleurs, string $nom): string
+    {
+        return "{$nom} est déjà pointé(e) présent(e) le ".$ailleurs->date->format('d/m').' dans '
+            .($ailleurs->quinzaine->enterprise->name ?? 'une autre division').' : un ouvrier ne travaille que dans une division par jour.';
+    }
+
+    /**
      * Marks each employee present on $date in their own division's quinzaine for the same dates
      * as $reference (the équipe Grid spans divisions). Workers who already have that day — worked,
      * à préciser or a holiday — are left as they are; so are divisions with no such quinzaine or
-     * whose quinzaine is closed. Returns how many days were added.
+     * whose quinzaine is closed, and workers already present that day in another division.
+     * Returns [days added, names of those present elsewhere].
      */
-    public function markPresent(Quinzaine $reference, string $date, Collection $employees): int
+    public function markPresent(Quinzaine $reference, string $date, Collection $employees): array
     {
         $quinzaines = Quinzaine::with('enterprise')
             ->whereIn('enterprise_id', $employees->pluck('enterprise_id')->unique())
@@ -46,6 +67,7 @@ class RepartitionService
                 ->where('is_closed', false)->pluck('id');
 
             $added = 0;
+            $ailleurs = [];
             foreach ($employees as $employee) {
                 $quinzaine = $quinzaines->get($employee->enterprise_id);
                 if (! $quinzaine || ! $open->contains($quinzaine->id)) {
@@ -54,6 +76,11 @@ class RepartitionService
                 $exists = PointageRecord::where('employee_id', $employee->id)->where('quinzaine_id', $quinzaine->id)
                     ->where('nature', PointageRecord::NATURE_JOUR)->whereDate('date', $date)->exists();
                 if ($exists) {
+                    continue;
+                }
+                if ($this->presentAilleurs($employee->id, $date, $quinzaine->id)) {
+                    $ailleurs[] = $employee->full_name;
+
                     continue;
                 }
 
@@ -79,7 +106,7 @@ class RepartitionService
                 $added++;
             }
 
-            return $added;
+            return [$added, $ailleurs];
         });
     }
 

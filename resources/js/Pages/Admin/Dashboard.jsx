@@ -45,7 +45,7 @@ export default function Dashboard({ auth, enterprise, stats, error = null }) {
                             value={stats.employees_count}
                             tone="blue"
                             href={route('employees.index')}
-                            trend={stats.new_employees_30d > 0 ? { direction: 'up', label: `+${stats.new_employees_30d} ce mois` } : { direction: 'flat', label: 'Aucun nouveau' }}
+                            trend={stats.open_quinzaines > 0 ? { direction: 'calm', label: `${stats.pointes_periode} pointé(s) cette période` } : { direction: 'flat', label: 'Aucune période ouverte' }}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />}
                         />
                         <StatCard
