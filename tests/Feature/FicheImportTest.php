@@ -133,7 +133,10 @@ class FicheImportTest extends TestCase
         // The presence-only period: present, operation à préciser; a new worker is created.
         $second = Quinzaine::where('label', '2EME Qz octobre 2026')->sole();
         $this->assertSame(3, PointageRecord::where('quinzaine_id', $second->id)->where('present', true)->whereNull('operation_id')->count());
-        $this->assertNotNull(Employee::where('cin', 'N9')->first());
+        // The new worker joins the sheet's équipe before their day is written, so it rides its vehicle.
+        $nouveau = Employee::where('cin', 'N9')->sole();
+        $this->assertSame($equipe->id, $nouveau->equipe_id);
+        $this->assertSame(3, PointageRecord::where('quinzaine_id', $second->id)->where('transport_vehicle_id', $bus->id)->count());
     }
 
     public function test_a_stock_entry_linked_to_a_pointage_record_stops_the_import(): void

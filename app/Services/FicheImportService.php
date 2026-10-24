@@ -77,7 +77,7 @@ class FicheImportService
             }
         }
         $this->applyLatestEmployeeData();
-        $this->buildEquipes($farmId, $teamsFile, collect($periods)->pluck('presence')->filter()->all());
+        $this->buildEquipes($farmId, $teamsFile);
         $this->stampVehicles($farmId);
         foreach ($periods as $rank => $period) {
             if ($period['presence'] ?? null) {
@@ -250,10 +250,15 @@ class FicheImportService
         $this->report['files'][] = $stats;
     }
 
-    /** Present with the operation "à préciser", from a team sheet's 1 marks. */
+    /**
+     * Present with the operation "à préciser", from a team sheet's 1 marks. The sheet is the
+     * worker's équipe for that period — new workers and those who changed team included — set
+     * before their days are written so each day is stamped with that équipe's vehicle.
+     */
     private function importPresence(string $path, array $quinzaines, Carbon $start): void
     {
         $book = IOFactory::load($path);
+        $equipes = Equipe::where('farm_id', reset($quinzaines)->enterprise->farm_id)->pluck('id', 'name');
         $stats = ['file' => basename($path), 'quinzaine' => reset($quinzaines)->label, 'division' => 'toutes (présence)', 'workers' => 0, 'days' => 0, 'net_file' => null, 'net_imported' => 0.0];
 
         foreach ($book->getWorksheetIterator() as $ws) {
@@ -289,6 +294,11 @@ class FicheImportService
                     $employee = $this->createEmployee($division, $nom, $prenom, $cin, $rib, round(100 - round(self::BRUT * (1 - PayrollService::DEDUCTION_RATE), 2), 2));
                     $this->latest[$employee->id] = [PHP_INT_MAX, ['enterprise_id' => $division->id, 'complement' => (float) $employee->complement]];
                     $this->report['unmatched'][] = "{$ws->getTitle()} : {$nom} {$prenom} — nouvel ouvrier créé dans {$division->name} (NET/J 100), ".count($marked).' j.';
+                }
+                $equipeId = $equipes[$ws->getTitle()] ?? null;
+                if ($equipeId && $employee->equipe_id !== $equipeId) {
+                    $employee->update(['equipe_id' => $equipeId]);
+                    $this->report['equipes'][$ws->getTitle()]['members'] = ($this->report['equipes'][$ws->getTitle()]['members'] ?? 0) + 1;
                 }
                 $enterpriseId = $this->latest[$employee->id][1]['enterprise_id'] ?? $employee->enterprise_id;
                 $complement = $this->latest[$employee->id][1]['complement'] ?? (float) $employee->complement;
@@ -408,64 +418,50 @@ class FicheImportService
     /**
      * Équipes from the transport workbook: one per chef d'équipe sheet, named like it, its chef
      * from "Chef d'équipe : NAME", riding the vehicle whose code has its name (else its number).
-     * Workers who only appear in a later presence workbook join the same-named équipe.
+     * A later presence workbook moves its workers to its own sheets' équipes (importPresence()).
      */
-    private function buildEquipes(int $farmId, string $teamsFile, array $laterFiles): void
+    private function buildEquipes(int $farmId, string $teamsFile): void
     {
         $vehicles = TransportVehicle::where('farm_id', $farmId)->get();
-        $equipes = [];
-        foreach (array_merge([$teamsFile], $laterFiles) as $index => $path) {
-            foreach (IOFactory::load($path)->getWorksheetIterator() as $ws) {
-                if (! $this->isTeamSheet($ws)) {
+        foreach (IOFactory::load($teamsFile)->getWorksheetIterator() as $ws) {
+            if (! $this->isTeamSheet($ws)) {
+                continue;
+            }
+            $title = $ws->getTitle();
+            $equipe = Equipe::create([
+                'farm_id' => $farmId, 'name' => $title, 'is_active' => true,
+                'transport_vehicle_id' => $this->vehicleFor($title, $vehicles)?->id,
+            ]);
+            $this->report['equipes'][$title] = ['vehicle' => $equipe->transport_vehicle_id ? $vehicles->find($equipe->transport_vehicle_id)->code : null, 'chef' => null, 'members' => 0];
+
+            if (preg_match("/Chef d'équipe\s*:\s*(.+?)\s*(\||$)/u", (string) $ws->getCell('A2')->getValue(), $m)) {
+                $chef = $this->employeesByName[$this->nameKey($m[1])] ?? null;
+                if ($chef) {
+                    $equipe->update(['chef_employee_id' => $chef->id]);
+                    $this->report['equipes'][$title]['chef'] = $chef->full_name;
+                } else {
+                    $this->report['warnings'][] = "Chef introuvable pour {$title} : {$m[1]}";
+                }
+            }
+
+            for ($r = 5; $r <= $ws->getHighestRow(); $r++) {
+                $nom = $this->str($ws->getCell([2, $r])->getValue());
+                if ($nom === '' || str_starts_with(mb_strtoupper($nom), 'TOTAL') || str_starts_with(mb_strtoupper($nom), 'NOMBRE')) {
+                    if (str_starts_with(mb_strtoupper($nom), 'TOTAL')) {
+                        break;
+                    }
+
                     continue;
                 }
-                $title = $ws->getTitle();
-                if (! isset($equipes[$title])) {
-                    if ($index > 0) {
-                        continue;
-                    }
-                    $equipes[$title] = Equipe::create([
-                        'farm_id' => $farmId, 'name' => $title, 'is_active' => true,
-                        'transport_vehicle_id' => $this->vehicleFor($title, $vehicles)?->id,
-                    ]);
-                    $this->report['equipes'][$title] = ['vehicle' => $equipes[$title]->transport_vehicle_id ? $vehicles->find($equipes[$title]->transport_vehicle_id)->code : null, 'chef' => null, 'members' => 0];
+                $prenom = $this->str($ws->getCell([3, $r])->getValue());
+                $employee = $this->find($this->str($ws->getCell([4, $r])->getValue()), $nom, $prenom);
+                if (! $employee) {
+                    $this->report['unmatched'][] = "{$title} : {$nom} {$prenom} (équipe)";
+
+                    continue;
                 }
-                $equipe = $equipes[$title];
-
-                if ($index === 0 && preg_match("/Chef d'équipe\s*:\s*(.+?)\s*(\||$)/u", (string) $ws->getCell('A2')->getValue(), $m)) {
-                    $chef = $this->employeesByName[$this->nameKey($m[1])] ?? null;
-                    if ($chef) {
-                        $equipe->update(['chef_employee_id' => $chef->id]);
-                        $this->report['equipes'][$title]['chef'] = $chef->full_name;
-                    } else {
-                        $this->report['warnings'][] = "Chef introuvable pour {$title} : {$m[1]}";
-                    }
-                }
-
-                for ($r = 5; $r <= $ws->getHighestRow(); $r++) {
-                    $nom = $this->str($ws->getCell([2, $r])->getValue());
-                    if ($nom === '' || str_starts_with(mb_strtoupper($nom), 'TOTAL') || str_starts_with(mb_strtoupper($nom), 'NOMBRE')) {
-                        if (str_starts_with(mb_strtoupper($nom), 'TOTAL')) {
-                            break;
-                        }
-
-                        continue;
-                    }
-                    $prenom = $this->str($ws->getCell([3, $r])->getValue());
-                    $employee = $this->find($this->str($ws->getCell([4, $r])->getValue()), $nom, $prenom);
-                    if (! $employee) {
-                        if ($index === 0) {
-                            $this->report['unmatched'][] = "{$title} : {$nom} {$prenom} (équipe)";
-                        }
-
-                        continue;
-                    }
-                    if ($index === 0 || ! $employee->equipe_id) {
-                        $employee->equipe_id = $equipe->id;
-                        $employee->save();
-                        $this->report['equipes'][$title]['members']++;
-                    }
-                }
+                $employee->update(['equipe_id' => $equipe->id]);
+                $this->report['equipes'][$title]['members']++;
             }
         }
     }
