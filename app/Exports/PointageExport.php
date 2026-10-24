@@ -2,6 +2,7 @@
 
 namespace App\Exports;
 
+use App\Exports\Concerns\WritesSheetCells;
 use App\Models\Enterprise;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
@@ -12,10 +13,7 @@ use Maatwebsite\Excel\Concerns\WithEvents;
 use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
-use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
@@ -40,6 +38,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 {
+    use WritesSheetCells;
+
     public const FICHE_FACTURE = 'facture';
 
     public const FICHE_DECLAREE = 'declaree';
@@ -173,15 +173,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                     : self::A_PRECISER;
             }
 
-            // NET/J as it was when the days were entered: the most common net of a plain day (no
-            // H.S., J.F. or quantity; the latest wins a tie), else the employee's current one.
-            $netJ = $worked->filter(fn ($r) => $r->quantity === null && ! $r->is_jf && (float) $r->hours == 0)
-                ->sortByDesc('date')
-                ->map(fn ($r) => number_format($r->net, 2, '.', ''))
-                ->countBy()->sortDesc()->keys()->first();
-            $netJ = $netJ !== null
-                ? (float) $netJ
-                : round($this->payroll->calculate($contract, $this->enterprise->default_brut_rate, 0, $employee->complement)['sal_net_j'], 2);
+            $netJ = $this->payroll->salNetJFromRecords($contract, $worked, $employee->complement, $this->enterprise->default_brut_rate);
 
             $hs = (float) $worked->sum('hours');
             $jf = $employeeRecords->where('is_jf', true)->count();
@@ -756,76 +748,5 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
     private function code(string $bloc, string $abbreviation): string
     {
         return $bloc.'|'.$abbreviation;
-    }
-
-    /** Escapes a value for use inside a formula's "..." string literal. */
-    private function quote(string $value): string
-    {
-        return str_replace('"', '""', $value);
-    }
-
-    private function num(float $value): string
-    {
-        return rtrim(rtrim(number_format($value, 4, '.', ''), '0'), '.');
-    }
-
-    private function text(string $cell, string $value): void
-    {
-        $this->ws->setCellValueExplicit($cell, $value, DataType::TYPE_STRING);
-    }
-
-    private function formula(string $cell, string $formula): void
-    {
-        $this->ws->setCellValue($cell, $formula);
-    }
-
-    private function col(int $index): string
-    {
-        return Coordinate::stringFromColumnIndex($index);
-    }
-
-    private function cell(int $col, int $row): string
-    {
-        return $this->col($col).$row;
-    }
-
-    private function range(int $col1, int $row1, int $col2, int $row2): string
-    {
-        return $this->cell($col1, $row1).':'.$this->cell($col2, $row2);
-    }
-
-    /** Applies style parts merged recursively (two parts may both set e.g. 'borders'). */
-    private function style(string $range, array ...$parts): void
-    {
-        $this->ws->getStyle($range)->applyFromArray(array_replace_recursive(...$parts));
-    }
-
-    private function font(string $name, float $size, bool $bold = false, ?string $color = null, bool $underline = false): array
-    {
-        return ['font' => array_filter([
-            'name' => $name, 'size' => $size, 'bold' => $bold,
-            'underline' => $underline ? 'single' : null,
-            'color' => $color ? ['rgb' => $color] : null,
-        ], fn ($v) => $v !== null)];
-    }
-
-    private function fill(string $rgb): array
-    {
-        return ['fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => $rgb]]];
-    }
-
-    private function center(): array
-    {
-        return ['alignment' => ['horizontal' => 'center', 'vertical' => 'center', 'wrapText' => true]];
-    }
-
-    private function borders(string $style): array
-    {
-        return ['borders' => ['allBorders' => ['borderStyle' => $style]]];
-    }
-
-    private function outline(string $style): array
-    {
-        return ['borders' => ['outline' => ['borderStyle' => $style]]];
     }
 }

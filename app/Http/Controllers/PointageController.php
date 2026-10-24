@@ -22,6 +22,7 @@ use Carbon\CarbonPeriod;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\PointageExport;
 use App\Exports\DivisionsPointageExport; // Add this import
+use App\Exports\PaiementEquipesExport;
 
 class PointageController extends Controller
 {
@@ -64,6 +65,20 @@ class PointageController extends Controller
         $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';
 
         return Excel::download(new DivisionsPointageExport($quinzaine), $fileName);
+    }
+
+    /**
+     * "Paiement par équipe" for the quinzaine's dates: every division's paid workers grouped by
+     * équipe (PaiementEquipesExport). A division-locked user gets only their own division's.
+     */
+    public function exportPaiementEquipes(Request $request, Quinzaine $quinzaine)
+    {
+        $quinzaine->loadMissing('enterprise');
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+
+        return Excel::download(new PaiementEquipesExport($quinzaine, $request->user()->enterprise_id), 'Paiement_par_equipe_'.$cleanLabel.'.xlsx');
     }
 
     /**

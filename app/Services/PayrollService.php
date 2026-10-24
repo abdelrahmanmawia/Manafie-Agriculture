@@ -8,26 +8,36 @@ class PayrollService
      * Constants based on user Excel formulas
      */
     const DEDUCTION_RATE = 0.0674; // (1 - 0.0674)
+
     // How the payslip splits DEDUCTION_RATE into its two lines — they sum to exactly it.
     const CNSS_RATE = 0.0448;
+
     const AMO_RATE = 0.0226;
+
     const STANDARD_WORKDAY_HOURS = 8; // hs_hourly_rate = sal_brut_j / 8
+
     const CHARGE_RATE = 1.2109;    // sal_brut_j * 1.2109
+
     const FIXED_CHARGE_1 = 5.62;   // + 5.37
+
     const FIXED_CHARGE_2 = 3.22;   // + 3.07
+
     const TAX_ADJUSTMENT = 1.04;   // (...) * 1.04, applies to both the base bracket and the JF/H.S. bracket
+
     const SERVICE_TAX = 1.2;       // (...) * 1.2 — applies to the WHOLE invoice bracket (base +
-                                    // complement + hs/jf), not only the complement/hs portion; see
-                                    // calculateInvoicing() below.
+
+    // complement + hs/jf), not only the complement/hs portion; see
+    // calculateInvoicing() below.
     const JF_TOTAL_TTC_MULTIPLIER = 1.24; // flat multiplier on a JF-day bonus's contribution to
-                                    // TOTAL TTC — distinct from TAX_ADJUSTMENT*SERVICE_TAX (1.248),
-                                    // per the real spreadsheet formula (see calculateInvoicing()).
-                                    // Not used from OCTOBER_2026_INVOICING_FROM on.
+    // TOTAL TTC — distinct from TAX_ADJUSTMENT*SERVICE_TAX (1.248),
+    // per the real spreadsheet formula (see calculateInvoicing()).
+    // Not used from OCTOBER_2026_INVOICING_FROM on.
 
     // Quinzaines starting on/after this date are invoiced with the October 2026 formula (see
     // calculateInvoicing()); earlier ones keep the formula they were invoiced with, so
     // re-exporting a past period never changes its figures.
     const OCTOBER_2026_INVOICING_FROM = '2026-10-01';
+
     const COMP_INVOICE_RATE = 1.0674; // October 2026 formula: comp * 1.0674 inside NET FACTUR J
 
     /**
@@ -38,13 +48,13 @@ class PayrollService
      * per-day approximation of them; it was wrong (missing the JF/H.S. period-spread term) and has
      * been removed rather than left as a second, incorrect source of the same numbers.
      *
-     * @param bool $worked Whether the employee actually worked this day (has an operation/bloc).
-     *                      A day can be flagged is_jf=true either way: worked+JF pays double
-     *                      (the normal day rate PLUS the holiday bonus — the employee showed up on
-     *                      a public holiday); a JF day the employee did NOT work still owes them
-     *                      one single day's pay (a paid holiday), never the double. See
-     *                      PointageController::updateCell() for how a "paid, unworked JF day"
-     *                      record (operation_id/bloc_id both null) is created.
+     * @param  bool  $worked  Whether the employee actually worked this day (has an operation/bloc).
+     *                        A day can be flagged is_jf=true either way: worked+JF pays double
+     *                        (the normal day rate PLUS the holiday bonus — the employee showed up on
+     *                        a public holiday); a JF day the employee did NOT work still owes them
+     *                        one single day's pay (a paid holiday), never the double. See
+     *                        PointageController::updateCell() for how a "paid, unworked JF day"
+     *                        record (operation_id/bloc_id both null) is created.
      */
     public function calculate($contractType, $brutRate, $hs = 0, $complement = 0, $isJf = false, $invoicedToClient = null, $worked = true)
     {
@@ -115,7 +125,7 @@ class PayrollService
             $invoicedToClient = $contractType === 'avec_contrat';
         }
 
-        if (!$invoicedToClient || $contractType !== 'avec_contrat' || $totalDays <= 0) {
+        if (! $invoicedToClient || $contractType !== 'avec_contrat' || $totalDays <= 0) {
             return ['net_factur_j' => 0, 'total_ttc' => 0];
         }
 
@@ -135,6 +145,23 @@ class PayrollService
             + ($october2026 ? 0 : $jfDaysCount * $salNetJ * self::JF_TOTAL_TTC_MULTIPLIER);
 
         return ['net_factur_j' => $netFacturJ, 'total_ttc' => $totalTtc];
+    }
+
+    /**
+     * A worker's SAL NET/J over a period as their days were actually paid: the most common net of
+     * a plain present day (no H.S., J.F. or quantity; the latest wins a tie) — not their current
+     * complement, which may have changed since — else what calculate() gives today. Shared by the
+     * Excel fiche and the payment sheet so both show the same NET/J.
+     */
+    public function salNetJFromRecords(string $contractType, $records, $complement, $brutRate): float
+    {
+        $netJ = collect($records)
+            ->filter(fn ($r) => $r->present && $r->quantity === null && ! $r->is_jf && (float) $r->hours == 0)
+            ->sortByDesc('date')
+            ->map(fn ($r) => number_format($r->net, 2, '.', ''))
+            ->countBy()->sortDesc()->keys()->first();
+
+        return $netJ !== null ? (float) $netJ : round($this->calculate($contractType, $brutRate, 0, $complement)['sal_net_j'], 2);
     }
 
     /** Whether a quinzaine starting on $periodStart is invoiced with the October 2026 formula. */
@@ -343,7 +370,7 @@ class PayrollService
     public function generateSnapshot(\App\Models\Quinzaine $quinzaine)
     {
         $quinzaine->load(['enterprise', 'pointageRecords.employee', 'pointageRecords.operation', 'pointageRecords.bloc']);
-        
+
         $totalNet = 0;
         $totalTtc = 0;
         $totalBrut = 0;
@@ -398,7 +425,7 @@ class PayrollService
         foreach ($opCosts as $name => $total) {
             $formattedOpCosts[] = ['name' => $name, 'total_net' => $total];
         }
-        usort($formattedOpCosts, fn($a, $b) => $b['total_net'] <=> $a['total_net']);
+        usort($formattedOpCosts, fn ($a, $b) => $b['total_net'] <=> $a['total_net']);
 
         $formattedBlocCosts = [];
         foreach ($blocCosts as $name => $total) {
@@ -417,7 +444,7 @@ class PayrollService
                     'employee_nets' => $employeeNets,
                     'op_costs' => $formattedOpCosts,
                     'bloc_costs' => $formattedBlocCosts,
-                ]
+                ],
             ]
         );
     }

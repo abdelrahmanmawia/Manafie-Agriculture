@@ -228,6 +228,22 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                     )}
                                     {downloadingKey === 'all-divisions' ? 'Génération...' : 'Exporter'}
                                 </a>
+                                {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport). */}
+                                <a
+                                    href={selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id ? route('pointage.paiementEquipes', uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) : '#'}
+                                    target="_blank"
+                                    className={`inline-flex items-center px-5 py-2.5 border rounded-md shadow-sm text-sm font-medium transition-colors justify-center ${
+                                        selectedPeriodKey && uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id
+                                            ? 'border-primary-600 text-primary-700 bg-white hover:bg-primary-50'
+                                            : 'border-gray-300 text-gray-400 bg-white cursor-not-allowed opacity-75'
+                                    }`}
+                                    onClick={(e) => {
+                                        if (!selectedPeriodKey || !uniquePeriods.find(p => p.key === selectedPeriodKey)?.quinzaines[0]?.id) { e.preventDefault(); return; }
+                                        triggerDownload('paiement');
+                                    }}
+                                >
+                                    {downloadingKey === 'paiement' ? 'Génération...' : 'Paiement par équipe'}
+                                </a>
                             </div>
                         )}
                         {!canExportAllDivisions && (
