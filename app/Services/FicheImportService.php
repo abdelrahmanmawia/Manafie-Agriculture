@@ -146,9 +146,19 @@ class FicheImportService
 
     private function find(?string $cin, string $nom, string $prenom): ?Employee
     {
-        return ($this->cinKey($cin) ? ($this->employeesByCin[$this->cinKey($cin)] ?? null) : null)
-            ?? $this->employeesByName[$this->nameKey("{$nom} {$prenom}")]
-            ?? null;
+        $cin = $this->cinKey($cin);
+        if ($cin && isset($this->employeesByCin[$cin])) {
+            return $this->employeesByCin[$cin];
+        }
+        $byName = $this->employeesByName[$this->nameKey("{$nom} {$prenom}")] ?? null;
+        // Same name but a clearly different CIN is someone else (two LAASSIRI MALIKA work here);
+        // a typo (VG637338 / G637338, G4444608 / G444608) is still the same person.
+        $known = $byName ? $this->cinKey($byName->cin) : null;
+        if ($cin && $known && ! str_contains($known, $cin) && ! str_contains($cin, $known) && levenshtein($known, $cin) > 2) {
+            return null;
+        }
+
+        return $byName;
     }
 
     private function cinKey(?string $cin): ?string

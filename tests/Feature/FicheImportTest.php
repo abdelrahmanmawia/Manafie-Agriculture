@@ -109,7 +109,8 @@ class FicheImportTest extends TestCase
         $bus = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'TRANS 1 - CHEF']);
         [$fiche, $net] = $this->fiche();
         $teams = $this->teams([['CHEF', 'C1', []], ['OUVRIER', 'O1', []]], 1);
-        $presence = $this->teams([['CHEF', 'C1', [0, 1]], ['NOUVEAU', 'N9', [2]]], 16);
+        // OUVRIER with another CIN is a namesake (a new worker); CHEF's VC1 is a typo of C1.
+        $presence = $this->teams([['CHEF', 'VC1', [0, 1]], ['NOUVEAU', 'N9', [2]], ['OUVRIER', 'X777777', [3]]], 16);
 
         $report = app(FicheImportService::class)->run($this->farm->id, [
             ['label' => '1ERE Qz octobre 2026', 'start' => '2026-10-01', 'end' => '2026-10-15', 'fiches' => [[$fiche, $this->division->id]], 'presence' => null],
@@ -132,11 +133,15 @@ class FicheImportTest extends TestCase
 
         // The presence-only period: present, operation à préciser; a new worker is created.
         $second = Quinzaine::where('label', '2EME Qz octobre 2026')->sole();
-        $this->assertSame(3, PointageRecord::where('quinzaine_id', $second->id)->where('present', true)->whereNull('operation_id')->count());
+        $this->assertSame(4, PointageRecord::where('quinzaine_id', $second->id)->where('present', true)->whereNull('operation_id')->count());
         // The new worker joins the sheet's équipe before their day is written, so it rides its vehicle.
         $nouveau = Employee::where('cin', 'N9')->sole();
         $this->assertSame($equipe->id, $nouveau->equipe_id);
-        $this->assertSame(3, PointageRecord::where('quinzaine_id', $second->id)->where('transport_vehicle_id', $bus->id)->count());
+        $this->assertSame(4, PointageRecord::where('quinzaine_id', $second->id)->where('transport_vehicle_id', $bus->id)->count());
+        $this->assertSame(2, PointageRecord::where('quinzaine_id', $second->id)->whereHas('employee', fn ($q) => $q->where('cin', 'C1'))->count());
+        $namesake = Employee::where('cin', 'X777777')->sole();
+        $this->assertSame(1, PointageRecord::where('quinzaine_id', $second->id)->where('employee_id', $namesake->id)->count());
+        $this->assertSame(0, PointageRecord::where('quinzaine_id', $second->id)->whereHas('employee', fn ($q) => $q->where('cin', 'O1'))->count());
     }
 
     public function test_a_stock_entry_linked_to_a_pointage_record_stops_the_import(): void
