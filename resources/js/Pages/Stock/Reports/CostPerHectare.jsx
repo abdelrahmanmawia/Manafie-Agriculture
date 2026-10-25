@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { Head, Link } from '@inertiajs/react';
 import { Fragment, useState } from 'react';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
@@ -18,7 +19,7 @@ function CostPerHaCell({ cost, area, highlight, baseline }) {
     );
 }
 
-export default function CostPerHectare({ auth, costPerHectareData }) {
+export default function CostPerHectare({ auth, costPerHectareData, period }) {
     const [expandedBlocs, setExpandedBlocs] = useState({});
     const [expandedSectors, setExpandedSectors] = useState({});
 
@@ -56,6 +57,7 @@ export default function CostPerHectare({ auth, costPerHectareData }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <ReportPeriodPicker routeName="stock.reports.cost-per-hectare" period={period} />
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6">

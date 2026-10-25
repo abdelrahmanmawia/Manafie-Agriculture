@@ -111,6 +111,8 @@ Fuel goes out as a vehicle's fill-up, not a sortie: a "Consommation" sortie of a
 
 The Mouvements, Sorties and Carburant lists are paginated on the server (50 per page, `paginate()->withQueryString()`) with their filters in the URL (`from`/`to` dates, type, search; sorties also `statut`, fuel also `vehicle_id`) through `useListFilters()` + `Components/Pagination.jsx` — don't load a whole history into a page again; the Carburant totals are computed over every matching row, not the page.
 
+Every stock report (`StockReportController`) covers a period resolved by [StockReportPeriod.php](app/Services/StockReportPeriod.php) — `?periode=mois&mois=YYYY-MM` (default: the current month), `quinzaine&quinzaine=YYYY-MM-1|2` (1–15 / 16–end), `dates&from=&to=`, or `tout` — and passes it to the page as `period` for `Components/ReportPeriodPicker.jsx`. Inventory value and turnover use the stock as it stood on a date, rebuilt from today's quantity minus the later movements (`quantitiesAt()`), valued at today's CUMP (there is no CUMP history). Costs come from what the movements recorded (CUMP at the time), never the catalog `unit_cost`. The movement history is paginated with its totals over the whole period.
+
 A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyone with Stock access — the magasinier included — can verify it; once verified it is locked for everyone until a `farm_manager`/`super_admin` unlocks it (`ManualStockEntryController::unverify`). Réceptions (`stockIn`) and inventory counts have no edit/delete at all. Every stock write locks its `StockInventory` row through `Controller::lockedInventoryFor()` (one row per product, `unique(product_id)`).
 
 ### "Aujourd'hui" is the day's starting point

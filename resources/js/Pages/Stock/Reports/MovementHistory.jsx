@@ -1,9 +1,19 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import Pagination from '@/Components/Pagination';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function MovementHistory({ auth, movementHistory }) {
+const TYPES = [['', 'Tous'], ['in', 'Entrées'], ['out', 'Sorties'], ['adjustment', 'Ajustements']];
+
+export default function MovementHistory({ auth, movementHistory: paginator, stats = {}, movementType = null, period }) {
+    const movementHistory = paginator.data;
+    const stat = (type, key) => stats[type]?.[key] ?? 0;
+    const totalCount = Object.values(stats).reduce((sum, s) => sum + s.count, 0);
+    const { label, ...periodParams } = period;
+    const filterType = (type) => router.get(route('stock.reports.movement-history'), { ...periodParams, ...(type ? { movement_type: type } : {}) }, { preserveState: true, preserveScroll: true, replace: true });
+
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
@@ -46,7 +56,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                         </Link>
                         <div>
                             <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Historique des Mouvements de Stock</h2>
-                            <p className="text-sm text-gray-500 mt-1">Suivi détaillé de toutes les entrées et sorties de stock</p>
+                            <p className="text-sm text-gray-500 mt-1">Entrées, sorties et ajustements de la période</p>
                         </div>
                     </div>
                 </div>
@@ -56,13 +66,15 @@ export default function MovementHistory({ auth, movementHistory }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <ReportPeriodPicker routeName="stock.reports.movement-history" period={period} extra={movementType ? { movement_type: movementType } : {}} />
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Total Mouvements</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(movementHistory.length)}</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatInt(totalCount)}</p>
+                                    <p className="text-xs text-gray-500 mt-1">dont {formatInt(stat('adjustment', 'count'))} ajustement(s)</p>
                                 </div>
                                 <div className="h-12 w-12 bg-primary-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +87,8 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Entrées</p>
-                                    <p className="text-2xl font-bold text-green-600 mt-1">{formatInt(movementHistory.filter(m => m.movement_type === 'in').length)}</p>
+                                    <p className="text-2xl font-bold text-green-600 mt-1">{formatInt(stat('in', 'count'))}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{formatMAD(stat('in', 'value'))}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +101,8 @@ export default function MovementHistory({ auth, movementHistory }) {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <p className="text-sm text-gray-500">Sorties</p>
-                                    <p className="text-2xl font-bold text-red-600 mt-1">{formatInt(movementHistory.filter(m => m.movement_type === 'out').length)}</p>
+                                    <p className="text-2xl font-bold text-red-600 mt-1">{formatInt(stat('out', 'count'))}</p>
+                                    <p className="text-xs text-gray-500 mt-1">{formatMAD(stat('out', 'value'))}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-red-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,8 +114,8 @@ export default function MovementHistory({ auth, movementHistory }) {
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <p className="text-sm text-gray-500">Coût Total</p>
-                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatMAD(movementHistory.reduce((sum, m) => sum + Number(m.total_cost || 0), 0))}</p>
+                                    <p className="text-sm text-gray-500">Entrées − Sorties</p>
+                                    <p className="text-2xl font-bold text-gray-900 mt-1">{formatMAD(stat('in', 'value') - stat('out', 'value'))}</p>
                                 </div>
                                 <div className="h-12 w-12 bg-purple-100 rounded-xl flex items-center justify-center">
                                     <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -114,8 +128,20 @@ export default function MovementHistory({ auth, movementHistory }) {
 
                     {/* Movement History Table */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100">
+                        <div className="p-6 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
                             <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique Détaillé des Mouvements de Stock</h3>
+                            <div className="inline-flex rounded-lg border border-gray-200 p-0.5 bg-gray-50">
+                                {TYPES.map(([type, typeLabel]) => (
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => filterType(type)}
+                                        className={`px-3 py-1.5 text-xs font-semibold rounded-md ${(movementType || '') === type ? 'bg-white shadow-sm text-primary-700' : 'text-gray-500 hover:text-gray-800'}`}
+                                    >
+                                        {typeLabel}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                         <div className="p-6">
                             {movementHistory.length === 0 ? (
@@ -196,6 +222,7 @@ export default function MovementHistory({ auth, movementHistory }) {
                                 </div>
                             )}
                         </div>
+                        <Pagination paginator={paginator} />
                     </div>
                 </div>
             </div>

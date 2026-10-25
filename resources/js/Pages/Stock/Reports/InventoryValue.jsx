@@ -1,9 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { Head, Link } from '@inertiajs/react';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function InventoryValue({ auth, inventoryValue }) {
+export default function InventoryValue({ auth, inventoryValue, period, asOf }) {
     const totalInventoryValue = inventoryValue.reduce((sum, item) => sum + item.total_value, 0);
 
     return (
@@ -22,7 +23,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
                         </Link>
                         <div>
                             <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Valeur de l'Inventaire</h2>
-                            <p className="text-sm text-gray-500 mt-1">Vue d'ensemble de la valeur actuelle de votre stock</p>
+                            <p className="text-sm text-gray-500 mt-1">Le stock à la fin de la période choisie, valorisé au CUMP actuel</p>
                         </div>
                     </div>
                 </div>
@@ -32,6 +33,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <ReportPeriodPicker routeName="stock.reports.inventory-value" period={period} />
                     {/* Total Value Card */}
                     <div className="bg-gradient-to-r from-primary-500 to-primary-600 rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">
@@ -56,7 +58,7 @@ export default function InventoryValue({ auth, inventoryValue }) {
                     {/* Inventory Value Table */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Valeur Actuelle de l'Inventaire par Produit</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Valeur de l'Inventaire au {new Date(asOf).toLocaleDateString('fr-FR')}</h3>
                         </div>
                         <div className="p-6">
                             {inventoryValue.length === 0 ? (

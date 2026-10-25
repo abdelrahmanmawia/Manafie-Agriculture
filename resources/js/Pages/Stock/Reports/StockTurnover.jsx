@@ -1,19 +1,9 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
-import PrimaryButton from '@/Components/PrimaryButton';
-import InputLabel from '@/Components/InputLabel';
-import TextInput from '@/Components/TextInput';
+import { Head, Link } from '@inertiajs/react';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { formatNumber, formatInt } from '@/utils/number';
 
-export default function StockTurnover({ auth, stockTurnoverData }) {
-    const { data, setData, get } = useForm({
-        period: '365', // Default to 365 days (1 year)
-    });
-
-    const handleFilterChange = (e) => {
-        e.preventDefault();
-        get(route('stock.reports.stock-turnover', { period: data.period }));
-    };
+export default function StockTurnover({ auth, stockTurnoverData, period, days }) {
 
     const averageTurnover = stockTurnoverData.length > 0 
         ? stockTurnoverData.reduce((sum, data) => sum + (data.stock_turnover_ratio || 0), 0) / stockTurnoverData.length 
@@ -45,26 +35,10 @@ export default function StockTurnover({ auth, stockTurnoverData }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {/* Filter Card */}
-                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                        <form onSubmit={handleFilterChange} className="flex items-end gap-4">
-                            <div className="flex-1">
-                                <InputLabel htmlFor="period" value="Période (jours)" />
-                                <TextInput
-                                    id="period"
-                                    type="number"
-                                    min="1"
-                                    className="mt-1 block w-full"
-                                    value={data.period}
-                                    onChange={(e) => setData('period', e.target.value)}
-                                    placeholder="Ex: 365"
-                                />
-                            </div>
-                            <PrimaryButton type="submit" className="bg-indigo-600 hover:bg-indigo-700">
-                                Appliquer le Filtre
-                            </PrimaryButton>
-                        </form>
-                    </div>
+                    <ReportPeriodPicker routeName="stock.reports.stock-turnover" period={period} />
+                    <p className="text-xs text-gray-500 -mt-3">
+                        Sur {days} jour(s) : stock de début et de fin tels qu'ils étaient ces jours-là, sorties de la période au CUMP.
+                    </p>
 
                     {/* Stats Card */}
                     <div className="bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-xl shadow-lg p-6">

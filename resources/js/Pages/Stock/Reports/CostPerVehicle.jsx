@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { Head, Link } from '@inertiajs/react';
 import { useState } from 'react';
 import { formatNumber, formatInt, formatMAD } from '@/utils/number';
@@ -8,7 +9,7 @@ import {
     EQUIPMENT_TYPE_LABELS,
 } from '@/utils/stockLabels';
 
-export default function CostPerVehicle({ auth, costPerVehicleData }) {
+export default function CostPerVehicle({ auth, costPerVehicleData, period }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [assetTypeFilter, setAssetTypeFilter] = useState('');
     const [selectedType, setSelectedType] = useState('');
@@ -69,6 +70,7 @@ export default function CostPerVehicle({ auth, costPerVehicleData }) {
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <ReportPeriodPicker routeName="stock.reports.cost-per-vehicle" period={period} />
                     {/* Stats Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div className="bg-gradient-to-r from-teal-500 to-teal-600 rounded-xl shadow-lg p-6">

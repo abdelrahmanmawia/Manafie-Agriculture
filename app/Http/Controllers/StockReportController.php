@@ -2,24 +2,53 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Farm;
+use App\Models\Bloc;
+use App\Models\FuelTransaction;
+use App\Models\ManualStockEntry;
+use App\Models\Operation;
+use App\Models\Parcelle;
+use App\Models\Product;
+use App\Models\Sector;
 use App\Models\StockInventory;
 use App\Models\StockMovement;
-use App\Models\ManualStockEntry;
-use App\Models\FuelTransaction;
-use App\Models\Product;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
-use App\Models\Bloc;
-use App\Models\Sector;
-use App\Models\Parcelle;
-use App\Models\Operation;
+use App\Services\StockReportPeriod;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 
+/**
+ * Every report covers a period (StockReportPeriod: a month by default, a quinzaine, two dates or
+ * everything) passed to the page as `period` for its picker.
+ */
 class StockReportController extends Controller
 {
+    private function period(Request $request): StockReportPeriod
+    {
+        return StockReportPeriod::fromInput($request->only('periode', 'mois', 'quinzaine', 'from', 'to'));
+    }
+
+    /**
+     * Each product's quantity at the end of $date: today's quantity minus every movement dated
+     * after it (an "out" counts negative, an adjustment carries its own sign). Today when null.
+     */
+    private function quantitiesAt(Collection $productIds, ?Carbon $date): Collection
+    {
+        $now = StockInventory::whereIn('product_id', $productIds)->pluck('quantity_on_hand', 'product_id')->map(fn ($q) => (float) $q);
+        if (! $date || $date->gte(Carbon::today())) {
+            return $now;
+        }
+        $after = StockMovement::whereIn('product_id', $productIds)
+            ->whereDate('date', '>', $date->toDateString())
+            ->selectRaw("product_id, SUM(CASE WHEN movement_type = 'out' THEN -quantity ELSE quantity END) as delta")
+            ->groupBy('product_id')
+            ->pluck('delta', 'product_id');
+
+        return $now->map(fn ($q, $id) => $q - (float) ($after[$id] ?? 0));
+    }
+
     public function index(Request $request)
     {
         return Inertia::render('Stock/Reports/Index');
@@ -28,62 +57,92 @@ class StockReportController extends Controller
     public function inventoryValue(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
+        // The stock as it stood at the end of the period (today for an open one), valued at
+        // today's CUMP — there is no CUMP history to value it at that day's cost.
+        $at = $period->to && $period->to->lt(Carbon::today()) ? $period->to : null;
 
-        $inventoryValue = StockInventory::when($farmId, function ($query) use ($farmId) {
-                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
-            })
+        $inventory = StockInventory::when($farmId, function ($query) use ($farmId) {
+            $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
+        })
             ->with('product')
-            ->get()
-            ->map(function ($item) {
-                // average_cost/unit_cost are decimal-cast attributes, which Eloquent serializes
-                // as strings — cast explicitly so the frontend can call .toFixed() on them.
-                $cost = (float) ($item->average_cost ?? $item->product->unit_cost ?? 0);
-                return [
-                    'product_name' => $item->product->name,
-                    'quantity_on_hand' => (float) $item->quantity_on_hand,
-                    'unit_type' => $item->product->unit_type,
-                    'unit_cost' => $cost,
-                    'total_value' => (float) $item->quantity_on_hand * $cost,
-                ];
-            });
+            ->get();
+        $quantities = $this->quantitiesAt($inventory->pluck('product_id'), $at);
+
+        $inventoryValue = $inventory->map(function ($item) use ($quantities) {
+            // average_cost/unit_cost are decimal-cast attributes, which Eloquent serializes
+            // as strings — cast explicitly so the frontend can call .toFixed() on them.
+            $cost = (float) ($item->average_cost ?? $item->product->unit_cost ?? 0);
+            $quantity = (float) ($quantities[$item->product_id] ?? 0);
+
+            return [
+                'product_name' => $item->product->name,
+                'quantity_on_hand' => $quantity,
+                'unit_type' => $item->product->unit_type,
+                'unit_cost' => $cost,
+                'total_value' => $quantity * $cost,
+            ];
+        })->values();
 
         return Inertia::render('Stock/Reports/InventoryValue', [
-            'inventoryValue' => $inventoryValue,        ]);
+            'inventoryValue' => $inventoryValue,
+            'period' => $period->toArray(),
+            'asOf' => ($at ?? Carbon::today())->toDateString(),
+        ]);
     }
 
     public function movementHistory(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
+        $type = in_array($request->input('movement_type'), ['in', 'out', 'adjustment'], true) ? $request->input('movement_type') : null;
 
-        $movements = StockMovement::with([
-                'product',
-                'performedBy',
-                'reference' => function ($morphTo) {
-                    $morphTo->morphWith([
-                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
-                        FuelTransaction::class => ['vehicle'],
-                    ]);
-                },
-            ])
-            ->when($farmId, function ($query) use ($farmId) {
-                $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
-            })
+        $scoped = $period->apply(StockMovement::query()
+            ->when($farmId, fn ($query) => $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId))));
+
+        // Over the whole period, whatever the type filter and the page shown.
+        $stats = (clone $scoped)
+            ->selectRaw('movement_type, COUNT(*) as count, COALESCE(SUM(total_cost), 0) as value')
+            ->groupBy('movement_type')
+            ->get()
+            ->keyBy('movement_type')
+            ->map(fn ($row) => ['count' => (int) $row->count, 'value' => (float) $row->value]);
+
+        $movements = $scoped->with([
+            'product',
+            'performedBy',
+            'reference' => function ($morphTo) {
+                $morphTo->morphWith([
+                    ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
+                    FuelTransaction::class => ['vehicle'],
+                ]);
+            },
+        ])
+            ->when($type, fn ($q) => $q->where('movement_type', $type))
             ->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('id', 'desc')
+            ->paginate(50)
+            ->withQueryString();
 
         return Inertia::render('Stock/Reports/MovementHistory', [
-            'movementHistory' => $movements,        ]);
+            'movementHistory' => $movements,
+            'stats' => $stats,
+            'movementType' => $type,
+            'period' => $period->toArray(),
+        ]);
     }
 
     public function consumptionByOperation(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
 
         // Merge two sources: field consumption (ManualStockEntry) and fuel fill-ups attributed
         // to an operation (FuelTransaction) — both are "stock consumed for an operation", just
         // recorded through different forms.
-        $manualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $manualEntries = $period->apply(ManualStockEntry::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('operation_id')
             ->with('product', 'operation')
@@ -96,7 +155,8 @@ class StockReportController extends Controller
                 'quantity' => (float) $entry->quantity,
             ]);
 
-        $fuelEntries = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $fuelEntries = $period->apply(FuelTransaction::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->whereNotNull('operation_id')
             ->with('product', 'operation')
             ->get()
@@ -125,12 +185,15 @@ class StockReportController extends Controller
             })->values();
 
         return Inertia::render('Stock/Reports/ConsumptionByOperation', [
-            'consumptionByOperation' => $consumption,        ]);
+            'consumptionByOperation' => $consumption,
+            'period' => $period->toArray(),
+        ]);
     }
 
     public function costPerHectare(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
 
         $hasArea = fn ($query) => $query->whereNotNull('area_ha')->where('area_ha', '>', 0);
 
@@ -151,20 +214,23 @@ class StockReportController extends Controller
             'cost' => $cost,
         ];
 
-        $manualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $manualEntries = $period->apply(ManualStockEntry::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('entry_type', 'consumption')
             ->whereNotNull('bloc_id')
             ->whereHas('bloc', $hasArea)
-            ->with('product', 'bloc', 'sector', 'parcelle')
+            ->with('stockMovement', 'bloc', 'sector', 'parcelle')
             ->get()
             ->map(fn ($entry) => $toRow(
                 $entry->bloc_id, $entry->bloc->name, (float) $entry->bloc->area_ha,
                 $entry->sector_id, $entry->sector?->name, (float) ($entry->sector?->area_ha ?? 0),
                 $entry->parcelle_id, $entry->parcelle?->name, (float) ($entry->parcelle?->area_ha ?? 0),
-                ($entry->product->unit_cost ?? 0) * $entry->quantity
+                // What the sortie cost (at the CUMP, as recorded), not today's catalog price.
+                (float) ($entry->stockMovement->total_cost ?? 0)
             ));
 
-        $fuelEntries = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $fuelEntries = $period->apply(FuelTransaction::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->whereNotNull('bloc_id')
             ->whereHas('bloc', $hasArea)
             ->with('bloc', 'sector', 'parcelle')
@@ -227,18 +293,22 @@ class StockReportController extends Controller
             })->values();
 
         return Inertia::render('Stock/Reports/CostPerHectare', [
-            'costPerHectareData' => $costPerHectareData,        ]);
+            'costPerHectareData' => $costPerHectareData,
+            'period' => $period->toArray(),
+        ]);
     }
 
     public function costPerVehicle(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
 
         $vehicles = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->orderBy('name')
             ->get();
 
-        $fuelStats = FuelTransaction::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $fuelStats = $period->apply(FuelTransaction::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->whereNotNull('vehicle_id')
             ->selectRaw('vehicle_id, SUM(total_cost) as fuel_cost, SUM(quantity_liters) as fuel_liters, COUNT(*) as fuel_count')
             ->groupBy('vehicle_id')
@@ -248,7 +318,8 @@ class StockReportController extends Controller
         // Every entry_type counts here (consommation, perte, vol, dommage, maintenance...) —
         // all of them represent stock value that left the magasin attributed to this vehicle,
         // matching what Vehicles/Show.jsx already lists under "Historique de Consommation".
-        $partsStats = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $partsStats = $period->apply(ManualStockEntry::query())
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->whereNotNull('vehicle_id')
             ->with('stockMovement')
             ->get()
@@ -258,7 +329,8 @@ class StockReportController extends Controller
                 'parts_count' => $entries->count(),
             ]);
 
-        $maintenanceStats = VehicleMaintenanceLog::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+        $maintenanceStats = $period->apply(VehicleMaintenanceLog::query(), 'performed_at')
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->selectRaw('vehicle_id, SUM(cost) as maintenance_cost, COUNT(*) as maintenance_count')
             ->groupBy('vehicle_id')
             ->get()
@@ -291,47 +363,51 @@ class StockReportController extends Controller
                 'total_cost' => $fuelCost + $partsCost + $maintenanceCost,
             ];
         })
-        ->sortByDesc('total_cost')
-        ->values();
+            ->sortByDesc('total_cost')
+            ->values();
 
         return Inertia::render('Stock/Reports/CostPerVehicle', [
             'costPerVehicleData' => $costPerVehicleData,
+            'period' => $period->toArray(),
         ]);
     }
 
     public function stockTurnover(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
-        $periodInDays = $request->input('period', 365); // Default to 1 year
-        $startDate = now()->subDays($periodInDays);
+        $period = $this->period($request);
 
         $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get();
         $productIds = $products->pluck('id');
 
-        // Pulled once for every product up front (2 queries total) instead of 4 queries
-        // per product in the loop — this report scans every product in the farm, so the
-        // per-product query count used to scale linearly with catalog size.
+        // "Toute la période" starts at the first movement; nothing is counted past today.
+        $from = $period->from ?? Carbon::parse(StockMovement::whereIn('product_id', $productIds)->min('date') ?? Carbon::today())->startOfDay();
+        $to = $period->to && $period->to->lt(Carbon::today()) ? $period->to : Carbon::today();
+        $days = max(1, $from->diffInDays($to) + 1);
+
+        // Pulled once for every product up front instead of per product in the loop.
         $inventories = StockInventory::whereIn('product_id', $productIds)->get()->keyBy('product_id');
+        $beginning = $this->quantitiesAt($productIds, $from->copy()->subDay());
+        $ending = $this->quantitiesAt($productIds, $to);
 
         $movementSums = StockMovement::whereIn('product_id', $productIds)
-            ->where('date', '>=', $startDate)
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<=', $to->toDateString())
             ->selectRaw('product_id, movement_type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost_sum')
             ->groupBy('product_id', 'movement_type')
             ->get()
             ->groupBy('product_id');
 
-        $stockTurnoverData = $products->map(function ($product) use ($inventories, $movementSums) {
-            // Value inventory at CUMP (the actual weighted-average cost paid in), same basis
-            // used for every other cost calculation in this module — falling back to the
-            // catalog unit_cost only when no réception has ever set a CUMP yet.
+        $stockTurnoverData = $products->map(function ($product) use ($inventories, $movementSums, $beginning, $ending, $days) {
+            // Valued at CUMP (the actual weighted-average cost paid in), like every other cost in
+            // this module — the catalog unit_cost only when no réception has set a CUMP yet.
             $inventory = $inventories->get($product->id);
             $valuationCost = (float) ($inventory->average_cost ?? $product->unit_cost ?? 1);
 
-            // quantity_on_hand is a live snapshot — today's ending inventory, the one figure we
-            // actually know. There's no historical point-in-time snapshot for "$periodInDays ago",
-            // so beginning inventory is derived algebraically from it instead: ending = beginning
-            // + purchases - consumption, solved for beginning.
-            $endingInventory = (float) ($inventory->quantity_on_hand ?? 0);
+            // Both ends are the stock as it stood that day, rebuilt from the movements (counts
+            // and opening-stock adjustments included).
+            $beginningInventory = (float) ($beginning[$product->id] ?? 0);
+            $endingInventory = (float) ($ending[$product->id] ?? 0);
 
             $productMovements = $movementSums->get($product->id, collect());
             $purchases = (float) ($productMovements->firstWhere('movement_type', 'in')->total_quantity ?? 0);
@@ -339,14 +415,10 @@ class StockReportController extends Controller
             $salesOrConsumption = (float) ($outRow->total_quantity ?? 0);
             $costOfGoodsSold = (float) ($outRow->total_cost_sum ?? 0);
 
-            $beginningInventory = $endingInventory - $purchases + $salesOrConsumption;
-
             $averageInventory = ($beginningInventory + $endingInventory) / 2;
 
-            // valuationCost can be a real, explicit 0 (not null) — a product whose average_cost
-            // was recorded as free/zero-cost — which the ?? fallback above never catches. A
-            // turnover ratio is meaningless for a $0-valued product either way, so treat it the
-            // same as no average inventory to move.
+            // valuationCost can be a real, explicit 0 (a product recorded as free) — a turnover
+            // ratio is meaningless for it, same as with no average inventory to move.
             $stockTurnoverRatio = ($averageInventory > 0 && $valuationCost > 0)
                 ? $costOfGoodsSold / ($averageInventory * $valuationCost)
                 : 0;
@@ -360,11 +432,15 @@ class StockReportController extends Controller
                 'average_inventory' => $averageInventory,
                 'cost_of_goods_sold' => $costOfGoodsSold,
                 'stock_turnover_ratio' => round($stockTurnoverRatio, 2),
-                'days_inventory_outstanding' => $stockTurnoverRatio > 0 ? round(365 / $stockTurnoverRatio) : 'N/A',
+                // Days of stock at the period's pace of consumption.
+                'days_inventory_outstanding' => $stockTurnoverRatio > 0 ? round($days / $stockTurnoverRatio) : 'N/A',
             ];
         });
 
         return Inertia::render('Stock/Reports/StockTurnover', [
-            'stockTurnoverData' => $stockTurnoverData,        ]);
+            'stockTurnoverData' => $stockTurnoverData,
+            'period' => $period->toArray(),
+            'days' => $days,
+        ]);
     }
 }

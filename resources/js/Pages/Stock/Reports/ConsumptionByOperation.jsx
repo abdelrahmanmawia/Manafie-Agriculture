@@ -1,9 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import ReportPeriodPicker from '@/Components/ReportPeriodPicker';
 import { Head, Link } from '@inertiajs/react';
 import { formatNumber, formatInt } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function ConsumptionByOperation({ auth, consumptionByOperation }) {
+export default function ConsumptionByOperation({ auth, consumptionByOperation, period }) {
     const totalConsumption = consumptionByOperation.reduce((sum, op) => sum + op.total_quantity_consumed, 0);
 
     return (
@@ -32,6 +33,7 @@ export default function ConsumptionByOperation({ auth, consumptionByOperation })
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <ReportPeriodPicker routeName="stock.reports.consumption-by-operation" period={period} />
                     {/* Stats Card */}
                     <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6">
                         <div className="flex items-center justify-between">
