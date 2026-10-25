@@ -84,3 +84,9 @@ export const EQUIPMENT_TYPE_LABELS = {
     tool: 'Outil',
     other: 'Autre',
 };
+
+// A road vehicle's meter counts km, a tractor's or a machine's engine hours — same list as
+// FuelConsumptionService::KM_TYPES on the server.
+const KM_VEHICLE_TYPES = ['car', 'van', 'truck', 'pickup', 'quad', 'motorcycle', 'bus'];
+export const meterUnit = (vehicleType) => (KM_VEHICLE_TYPES.includes(vehicleType) ? 'km' : 'h');
+export const meterLabel = (vehicleType) => (meterUnit(vehicleType) === 'km' ? 'Kilométrage (km)' : 'Compteur (heures)');

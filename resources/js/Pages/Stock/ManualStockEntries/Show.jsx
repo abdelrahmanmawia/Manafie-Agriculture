@@ -6,7 +6,7 @@ import DangerButton from '@/Components/DangerButton';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import { formatNumber } from '@/utils/number';
-import { ENTRY_TYPE_LABELS as ENTRY_TYPE_TEXT, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { ENTRY_TYPE_LABELS as ENTRY_TYPE_TEXT, UNIT_TYPE_LABELS, meterUnit } from '@/utils/stockLabels';
 
 const ENTRY_TYPE_CLASSNAMES = {
     consumption: 'bg-red-100 text-red-800',
@@ -217,8 +217,8 @@ export default function Show({ auth, manualStockEntry }) {
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="flex justify-between items-center py-2">
-                                        <span className="text-gray-500">Kilométrage</span>
-                                        <span className="font-medium text-gray-900">{manualStockEntry.odometer_km ? `${formatNumber(manualStockEntry.odometer_km)} km` : 'N/A'}</span>
+                                        <span className="text-gray-500">Compteur</span>
+                                        <span className="font-medium text-gray-900">{manualStockEntry.odometer_km ? `${formatNumber(manualStockEntry.odometer_km)} ${meterUnit(manualStockEntry.vehicle?.type)}` : 'N/A'}</span>
                                     </div>
                                 </div>
                             </div>

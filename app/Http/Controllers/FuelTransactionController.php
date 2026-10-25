@@ -6,6 +6,7 @@ use App\Models\FuelTransaction;
 use App\Models\Product;
 use App\Models\StockMovement;
 use App\Models\Vehicle;
+use App\Services\FuelConsumptionService;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -26,7 +27,12 @@ class FuelTransactionController extends Controller
             'from' => 'nullable|date',
             'to' => 'nullable|date',
             'search' => 'nullable|string|max:100',
+            'anomalies' => 'nullable|boolean',
         ]);
+
+        // Each fill-up's consumption against the one before it (the vehicle's whole history).
+        $analysis = FuelConsumptionService::analyse(FuelConsumptionService::farmFillUps($farmId));
+        $flagged = $analysis->filter(fn ($row) => $row['alertes'])->keys();
 
         $query = FuelTransaction::query()
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
@@ -36,7 +42,8 @@ class FuelTransactionController extends Controller
             ->when($filters['search'] ?? null, fn ($q, $term) => $q->where(fn ($w) => $w
                 ->whereHas('vehicle', fn ($v) => $v->where('name', 'like', "%{$term}%")->orWhere('plate_number', 'like', "%{$term}%"))
                 ->orWhereHas('driver', fn ($d) => $d->where('full_name', 'like', "%{$term}%"))
-                ->orWhere('notes', 'like', "%{$term}%")));
+                ->orWhere('notes', 'like', "%{$term}%")))
+            ->when($filters['anomalies'] ?? false, fn ($q) => $q->whereIn('id', $flagged));
 
         // Totals over every matching fill-up, not just the page shown.
         $totals = (clone $query)->selectRaw('COUNT(*) as count, COALESCE(SUM(quantity_liters), 0) as liters, COALESCE(SUM(total_cost), 0) as cost')->first();
@@ -53,6 +60,10 @@ class FuelTransactionController extends Controller
             'vehicles' => $vehicles,
             'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
             'totals' => ['count' => (int) $totals->count, 'liters' => (float) $totals->liters, 'cost' => (float) $totals->cost],
+            'consommation' => $analysis->only($fuelTransactions->pluck('id'))->map(fn ($row) => [
+                'rate' => $row['rate'], 'label' => FuelConsumptionService::rateLabel($row['unit']), 'delta' => $row['delta'], 'unit' => $row['unit'], 'alertes' => $row['alertes'],
+            ]),
+            'anomaliesCount' => $flagged->count(),
             'canDeleteAny' => in_array($request->user()->role, ['farm_manager', 'super_admin'], true),
         ]);
     }

@@ -1,7 +1,7 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
 import { formatNumber, formatMAD } from '@/utils/number';
-import { FUEL_TRANSACTION_TYPE_LABELS } from '@/utils/stockLabels';
+import { FUEL_TRANSACTION_TYPE_LABELS, meterUnit } from '@/utils/stockLabels';
 
 export default function Show({ auth, fuelTransaction }) {
     const formatDate = (dateString) => {
@@ -97,8 +97,8 @@ export default function Show({ auth, fuelTransaction }) {
                             </div>
                             <div className="p-6 space-y-4">
                                 <div className="flex justify-between items-center py-2">
-                                    <span className="text-gray-500">Kilométrage</span>
-                                    <span className="font-medium text-gray-900">{fuelTransaction.odometer_km ? `${formatNumber(fuelTransaction.odometer_km)} km` : 'N/A'}</span>
+                                    <span className="text-gray-500">Compteur</span>
+                                    <span className="font-medium text-gray-900">{fuelTransaction.odometer_km ? `${formatNumber(fuelTransaction.odometer_km)} ${meterUnit(fuelTransaction.vehicle?.type)}` : 'N/A'}</span>
                                 </div>
                             </div>
                         </div>

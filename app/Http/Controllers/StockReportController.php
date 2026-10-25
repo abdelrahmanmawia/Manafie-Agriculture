@@ -13,6 +13,7 @@ use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
+use App\Services\FuelConsumptionService;
 use App\Services\StockHistory;
 use App\Services\StockReportPeriod;
 use Carbon\Carbon;
@@ -316,6 +317,13 @@ class StockReportController extends Controller
                 'parts_count' => $entries->count(),
             ]);
 
+        // Consumption over the period's fill-ups, each rated against the one before it (even
+        // when that one is older than the period).
+        $allFills = FuelConsumptionService::farmFillUps($farmId);
+        $analysis = FuelConsumptionService::analyse($allFills);
+        $periodFills = $allFills->filter(fn ($f) => (! $period->from || $f->date->gte($period->from)) && (! $period->to || $f->date->lte($period->to)))
+            ->groupBy('vehicle_id');
+
         $maintenanceStats = $period->apply(VehicleMaintenanceLog::query(), 'performed_at')
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->selectRaw('vehicle_id, SUM(cost) as maintenance_cost, COUNT(*) as maintenance_count')
@@ -323,7 +331,8 @@ class StockReportController extends Controller
             ->get()
             ->keyBy('vehicle_id');
 
-        $costPerVehicleData = $vehicles->map(function ($vehicle) use ($fuelStats, $partsStats, $maintenanceStats) {
+        $costPerVehicleData = $vehicles->map(function ($vehicle) use ($fuelStats, $partsStats, $maintenanceStats, $periodFills, $analysis) {
+            $fills = $periodFills->get($vehicle->id, collect());
             $fuel = $fuelStats->get($vehicle->id);
             $parts = $partsStats->get($vehicle->id);
             $maintenance = $maintenanceStats->get($vehicle->id);
@@ -348,6 +357,9 @@ class StockReportController extends Controller
                 'maintenance_cost' => $maintenanceCost,
                 'maintenance_count' => (int) ($maintenance->maintenance_count ?? 0),
                 'total_cost' => $fuelCost + $partsCost + $maintenanceCost,
+                'consommation' => $fills->isEmpty() ? null : FuelConsumptionService::average($fills, $analysis),
+                'consommation_unite' => FuelConsumptionService::rateLabel(FuelConsumptionService::unitFor($vehicle->type)),
+                'pleins_a_verifier' => $fills->filter(fn ($f) => $analysis[$f->id]['alertes'] ?? [])->count(),
             ];
         })
             ->sortByDesc('total_cost')

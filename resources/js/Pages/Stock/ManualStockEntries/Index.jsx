@@ -11,7 +11,7 @@ import InputError from '@/Components/InputError';
 import Pagination from '@/Components/Pagination';
 import { formatNumber } from '@/utils/number';
 import useListFilters from '@/utils/useListFilters';
-import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS, meterLabel } from '@/utils/stockLabels';
 
 export default function Index({ auth, manualStockEntries, filters = {}, aVerifier = 0, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
@@ -669,7 +669,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
 
                             {isVehicleConsumable && data.vehicle_id && (
                                 <div>
-                                    <InputLabel htmlFor="odometer_km" value="Kilométrage (km)" />
+                                    <InputLabel htmlFor="odometer_km" value={meterLabel(selectedVehicle?.type)} />
                                     <TextInput
                                         id="odometer_km"
                                         type="number"

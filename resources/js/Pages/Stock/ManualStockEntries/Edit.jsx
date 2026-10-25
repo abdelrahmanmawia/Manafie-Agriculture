@@ -6,7 +6,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
-import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { UNIT_TYPE_LABELS, meterLabel } from '@/utils/stockLabels';
 
 export default function Edit({ auth, manualStockEntry, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const { data, setData, put, processing, errors } = useForm({
@@ -194,7 +194,7 @@ export default function Edit({ auth, manualStockEntry, products, employees, vehi
                                 {isVehicleConsumable && data.vehicle_id && (
                                     <div>
                                         <div>
-                                            <InputLabel htmlFor="odometer_km" value="Kilométrage (km)" />
+                                            <InputLabel htmlFor="odometer_km" value={meterLabel(selectedVehicle?.type)} />
                                             <TextInput
                                                 id="odometer_km"
                                                 type="number"

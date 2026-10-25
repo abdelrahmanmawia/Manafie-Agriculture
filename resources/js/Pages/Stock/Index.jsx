@@ -9,7 +9,7 @@ import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
-import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { UNIT_TYPE_LABELS, meterLabel } from '@/utils/stockLabels';
 import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
 
 export default function Index({ auth, products, categories, suppliers, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
@@ -840,7 +840,7 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
 
                                     {isVehicleConsumable(movementModal.product) && sortieForm.data.vehicle_id && (
                                         <div>
-                                            <InputLabel htmlFor="sortie_odometer_km" value="Kilométrage (km)" />
+                                            <InputLabel htmlFor="sortie_odometer_km" value={meterLabel(sortieSelectedVehicle?.type)} />
                                             <TextInput
                                                 id="sortie_odometer_km"
                                                 type="number"

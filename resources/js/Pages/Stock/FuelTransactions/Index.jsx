@@ -9,7 +9,7 @@ import { formatNumber, formatMAD } from '@/utils/number';
 import { FUEL_TRANSACTION_TYPE_LABELS } from '@/utils/stockLabels';
 import useListFilters from '@/utils/useListFilters';
 
-export default function Index({ auth, fuelTransactions, vehicles, filters = {}, totals, canDeleteAny = false }) {
+export default function Index({ auth, fuelTransactions, vehicles, filters = {}, totals, canDeleteAny = false, consommation = {}, anomaliesCount = 0 }) {
     const { values, set, reset, active } = useListFilters('stock.fuel-transactions.index', filters);
     const [deleting, setDeleting] = useState(null);
     const rows = fuelTransactions.data;
@@ -97,11 +97,22 @@ export default function Index({ auth, fuelTransactions, vehicles, filters = {}, 
                                 <input type="date" value={values.to || ''} onChange={(e) => set('to', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500" />
                             </div>
                         </div>
-                        {active && (
-                            <button type="button" onClick={reset} className="mt-3 text-xs font-medium text-gray-500 hover:text-orange-600">
-                                Effacer les filtres
-                            </button>
-                        )}
+                        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+                            <label className="flex items-center gap-2 font-medium text-amber-800">
+                                <input
+                                    type="checkbox"
+                                    checked={Boolean(values.anomalies)}
+                                    onChange={(e) => set('anomalies', e.target.checked ? '1' : '')}
+                                    className="rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                                />
+                                Seulement les pleins à vérifier ({anomaliesCount})
+                            </label>
+                            {active && (
+                                <button type="button" onClick={reset} className="font-medium text-gray-500 hover:text-orange-600">
+                                    Effacer les filtres
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* Transactions Table */}
@@ -138,6 +149,9 @@ export default function Index({ auth, fuelTransactions, vehicles, filters = {}, 
                                             </th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Quantité
+                                            </th>
+                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" title="Litres depuis le plein précédent, sur le compteur parcouru : L/100 km (véhicules) ou L/h (tracteurs, matériel)">
+                                                Conso.
                                             </th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Coût
@@ -177,6 +191,28 @@ export default function Index({ auth, fuelTransactions, vehicles, filters = {}, 
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     <div className="text-sm font-medium text-gray-900">{formatNumber(transaction.quantity_liters)} L</div>
                                                     <div className="text-xs text-gray-500">{transaction.product?.name || ''}</div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                    {(() => {
+                                                        const c = consommation[transaction.id];
+                                                        if (!c) return <span className="text-gray-300">—</span>;
+                                                        return (
+                                                            <>
+                                                                <div className={`font-medium ${c.alertes.length ? 'text-amber-700' : 'text-gray-900'}`}>
+                                                                    {c.rate !== null ? `${formatNumber(c.rate)} ${c.label}` : '—'}
+                                                                    {c.alertes.length > 0 && (
+                                                                        <span className="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-semibold" title={c.alertes.join(' · ')}>
+                                                                            ⚠ à vérifier
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {c.delta !== null && c.delta > 0 && (
+                                                                    <div className="text-xs text-gray-500">+{formatNumber(c.delta)} {c.unit} · compteur {formatNumber(transaction.odometer_km, 0)}</div>
+                                                                )}
+                                                                {c.alertes.map((a) => <div key={a} className="text-xs text-amber-700 whitespace-normal max-w-xs">{a}</div>)}
+                                                            </>
+                                                        );
+                                                    })()}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                                     {transaction.total_cost ? formatMAD(transaction.total_cost) : 'N/A'}

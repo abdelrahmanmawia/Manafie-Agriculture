@@ -223,6 +223,17 @@ export default function CostPerVehicle({ auth, costPerVehicleData, period }) {
                                                         <>
                                                             {formatMAD(row.fuel_cost)}
                                                             <div className="text-xs text-gray-400">{formatNumber(row.fuel_liters, 0)} L</div>
+                                                            {row.consommation !== null && (
+                                                                <div className="text-xs text-gray-600">moy. {formatNumber(row.consommation)} {row.consommation_unite}</div>
+                                                            )}
+                                                            {row.pleins_a_verifier > 0 && (
+                                                                <Link
+                                                                    href={route('stock.fuel-transactions.index', { vehicle_id: row.vehicle_id, anomalies: 1 })}
+                                                                    className="text-xs font-semibold text-amber-700 hover:underline"
+                                                                >
+                                                                    ⚠ {row.pleins_a_verifier} plein(s) à vérifier
+                                                                </Link>
+                                                            )}
                                                         </>
                                                     ) : <span className="text-gray-300">—</span>}
                                                 </td>
