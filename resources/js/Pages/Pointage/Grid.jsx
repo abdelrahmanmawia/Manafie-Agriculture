@@ -6,6 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
     const [selectedCell, setSelectedCell] = useState(null);
@@ -98,7 +99,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // the period yet, so the row is read-only.
     const empById = (id) => employees.find(e => e.id === id);
     const qidFor = (id) => empById(id)?.quinzaine_id ?? null;
-    const closedFor = (id) => { const e = empById(id); return e ? !!e.quinzaine_closed : !!quinzaine.is_closed; };
+    // Consultation (no Pointage saisie) reads the grid like a closed period: nothing to edit.
+    const consultation = !peutSaisir(auth.user, 'pointage');
+    const closedFor = (id) => { const e = empById(id); return consultation || (e ? !!e.quinzaine_closed : !!quinzaine.is_closed); };
+    const verrouille = consultation || quinzaine.is_closed;
     const entFor = (emp) => emp.enterprise ?? quinzaine.enterprise;
 
     // Division mode narrows the list client-side; équipe mode reloads from the server so it
@@ -709,6 +713,11 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 SESSION CLÔTURÉE
                             </span>
                         )}
+                        {consultation && !quinzaine.is_closed && (
+                            <span className="bg-gray-700 text-white px-4 py-1.5 rounded-full font-black text-xs ml-2">
+                                CONSULTATION
+                            </span>
+                        )}
                     </div>
                 </div>
             }
@@ -792,9 +801,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         {days.map(day => (
                                             <th
                                                 key={day}
-                                                onClick={() => !quinzaine.is_closed && setJourFerieDay(day)}
-                                                title={quinzaine.is_closed ? undefined : 'Jour férié pour ce jour…'}
-                                                className={`border border-gray-300 p-1 min-w-[38px] ${dayIsJf(day) ? 'bg-purple-100 text-purple-700' : 'text-gray-600'} ${quinzaine.is_closed ? '' : 'cursor-pointer hover:bg-purple-50'}`}
+                                                onClick={() => !verrouille && setJourFerieDay(day)}
+                                                title={verrouille ? undefined : 'Jour férié pour ce jour…'}
+                                                className={`border border-gray-300 p-1 min-w-[38px] ${dayIsJf(day) ? 'bg-purple-100 text-purple-700' : 'text-gray-600'} ${verrouille ? '' : 'cursor-pointer hover:bg-purple-50'}`}
                                             >
                                                 {day.split('-')[2]}
                                                 {dayIsJf(day) && <div className="text-[6px] uppercase font-black">JF</div>}
@@ -805,7 +814,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         <th className="border border-gray-300 p-2 bg-primary-50 sticky right-[100px] z-20 text-primary-800 font-black shadow-md w-[70px] min-w-[70px] max-w-[70px] whitespace-nowrap overflow-hidden">Total H.S</th>
                                         <th className="border border-gray-300 p-2 bg-primary-700 sticky right-0 z-20 text-white font-black shadow-md uppercase tracking-tighter w-[100px] min-w-[100px] max-w-[100px] whitespace-nowrap overflow-hidden">Total Net</th>
                                     </tr>
-                                    {!quinzaine.is_closed && (
+                                    {!verrouille && (
                                         <tr className="bg-gray-50">
                                             <th className="border border-gray-300 px-2 py-1 sticky left-0 z-20 bg-gray-50 text-[8px] font-black text-gray-400 uppercase tracking-widest text-left">
                                                 ✓ Présents{mode === 'division' ? ' · ≡ Répartir' : ''}

@@ -35,7 +35,7 @@ class DivisionLockScopingTest extends TestCase
         $this->ownDivision = Enterprise::create(['farm_id' => $farm->id, 'name' => 'Own', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 97.44]);
         $this->siblingDivision = Enterprise::create(['farm_id' => $farm->id, 'name' => 'Sibling', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 97.44]);
         $this->pointeur = User::factory()->create([
-            'role' => 'data_entry', 'farm_id' => $farm->id, 'enterprise_id' => $this->ownDivision->id, 'can_access_pointage' => true,
+            'role' => 'data_entry', 'farm_id' => $farm->id, 'enterprise_id' => $this->ownDivision->id, 'acces_pointage' => 'saisie',
         ]);
         $this->siblingQuinzaine = Quinzaine::create([
             'enterprise_id' => $this->siblingDivision->id, 'label' => '1QZ', 'start_date' => '2026-01-01', 'end_date' => '2026-01-15', 'is_closed' => false,

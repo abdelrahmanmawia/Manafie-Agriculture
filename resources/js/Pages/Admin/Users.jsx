@@ -7,10 +7,26 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { t } from '@/Helpers/i18n';
 
+const NIVEAUX = [
+    ['aucun', 'Aucun accès'],
+    ['consultation', 'Consultation (voir, exporter)'],
+    ['saisie', 'Saisie (tout faire)'],
+];
+const NIVEAU_COURT = { consultation: 'consultation', saisie: 'saisie' };
+
+// One click for the usual accounts; both levels stay editable afterwards.
+const PROFILS = [
+    { label: 'Pointeur', role: 'data_entry', acces_pointage: 'saisie', acces_stock: 'aucun' },
+    { label: 'Magasinier', role: 'data_entry', acces_pointage: 'aucun', acces_stock: 'saisie' },
+    { label: 'Responsable', role: 'farm_manager', acces_pointage: 'consultation', acces_stock: 'consultation' },
+    { label: 'Consultation', role: 'data_entry', acces_pointage: 'consultation', acces_stock: 'consultation' },
+];
+
 /**
- * Name / e-mail / (password) / farm / role / division / domain-access fields, shared by the
+ * Name / e-mail / (password) / farm / role / division / access-level fields, shared by the
  * create and edit modals so both stay identical. The division select is disabled for a
- * farm_manager — the server also forces it empty for that role (UserController).
+ * farm_manager — the server also forces it empty for that role (UserController). What an
+ * account can do is its two levels (User::acces()), not its role.
  */
 function AccountFields({ idPrefix, data, setData, errors, farms, enterprises, passwordLabel = null }) {
     const filteredEnterprises = data.farm_id
@@ -54,7 +70,7 @@ function AccountFields({ idPrefix, data, setData, errors, farms, enterprises, pa
                 <div>
                     <label htmlFor={`${idPrefix}_role`} className="block text-sm font-bold text-gray-700 mb-1">Rôle</label>
                     <select id={`${idPrefix}_role`} className="w-full rounded border-gray-300" value={data.role} onChange={e => setData('role', e.target.value)}>
-                        <option value="farm_manager">Manager Ferme (Tous accès)</option>
+                        <option value="farm_manager">Responsable de ferme</option>
                         <option value="data_entry">{t('data_entry_personnel')}</option>
                     </select>
                     {errors.role && <div className="text-red-500 text-xs mt-1">{errors.role}</div>}
@@ -75,39 +91,37 @@ function AccountFields({ idPrefix, data, setData, errors, farms, enterprises, pa
                 </div>
             </div>
 
-            {data.role === 'data_entry' && (
-                <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Accès</label>
-                    <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                checked={data.can_access_pointage}
-                                onChange={e => setData('can_access_pointage', e.target.checked)}
-                            />
-                            <span className="text-sm font-bold text-gray-700">Accès Pointage</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer select-none">
-                            <input
-                                type="checkbox"
-                                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-                                checked={data.can_access_stock}
-                                onChange={e => setData('can_access_stock', e.target.checked)}
-                            />
-                            <span className="text-sm font-bold text-gray-700">Accès Stock</span>
-                        </label>
-                    </div>
-                    {!data.can_access_pointage && !data.can_access_stock && (
-                        <p className="text-[11px] font-bold text-amber-600 mt-2 uppercase tracking-wide">
-                            Aucun accès sélectionné — ce compte ne pourra rien voir.
-                        </p>
-                    )}
-                    {(errors.can_access_pointage || errors.can_access_stock) && (
-                        <div className="text-red-500 text-xs mt-1">{errors.can_access_pointage || errors.can_access_stock}</div>
-                    )}
+            <div>
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                    <span className="text-sm font-bold text-gray-700">Accès</span>
+                    {PROFILS.map((p) => (
+                        <button
+                            key={p.label}
+                            type="button"
+                            onClick={() => setData((prev) => ({ ...prev, role: p.role, acces_pointage: p.acces_pointage, acces_stock: p.acces_stock }))}
+                            className="px-2 py-0.5 rounded-full border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                        >
+                            {p.label}
+                        </button>
+                    ))}
                 </div>
-            )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[['acces_pointage', 'Pointage'], ['acces_stock', 'Stock']].map(([field, label]) => (
+                        <div key={field}>
+                            <label htmlFor={`${idPrefix}_${field}`} className="block text-xs font-bold text-gray-500 uppercase mb-1">{label}</label>
+                            <select id={`${idPrefix}_${field}`} className="w-full rounded border-gray-300" value={data[field]} onChange={(e) => setData(field, e.target.value)}>
+                                {NIVEAUX.map(([value, text]) => <option key={value} value={value}>{text}</option>)}
+                            </select>
+                            {errors[field] && <div className="text-red-500 text-xs mt-1">{errors[field]}</div>}
+                        </div>
+                    ))}
+                </div>
+                {data.acces_pointage === 'aucun' && data.acces_stock === 'aucun' && (
+                    <p className="text-[11px] font-bold text-amber-600 mt-2 uppercase tracking-wide">
+                        Aucun accès — ce compte ne pourra rien voir.
+                    </p>
+                )}
+            </div>
         </div>
     );
 }
@@ -119,7 +133,7 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
 
     const editForm = useForm({
         name: '', email: '', role: 'data_entry', farm_id: '', enterprise_id: '',
-        can_access_pointage: false, can_access_stock: false,
+        acces_pointage: 'aucun', acces_stock: 'aucun',
     });
     const openEdit = (user) => {
         editForm.clearErrors();
@@ -129,8 +143,8 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
             role: user.role,
             farm_id: user.farm_id ?? '',
             enterprise_id: user.enterprise_id ?? '',
-            can_access_pointage: !!user.can_access_pointage,
-            can_access_stock: !!user.can_access_stock,
+            acces_pointage: user.acces_pointage || 'aucun',
+            acces_stock: user.acces_stock || 'aucun',
         });
         setEditingUser(user);
     };
@@ -180,10 +194,9 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
         role: 'data_entry',
         farm_id: selectedFarmId || (farms[0]?.id || ''),
         enterprise_id: selectedEnterpriseId || '',
-        // Both start unchecked — a new data_entry account should fail closed until someone
-        // deliberately grants it a domain, not silently see everything by default.
-        can_access_pointage: false,
-        can_access_stock: false,
+        // No access until someone deliberately grants it, not everything by default.
+        acces_pointage: 'aucun',
+        acces_stock: 'aucun',
     });
 
     const submit = (e) => {
@@ -244,17 +257,18 @@ export default function Users({ auth, users, farms = [], enterprises = [], selec
                                                 user.role === 'farm_manager' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
                                             }`}>
                                                 {user.role === 'super_admin' ? t('super_admin') :
-                                                 user.role === 'farm_manager' ? 'Manager Ferme' : t('data_entry_personnel')}
+                                                 user.role === 'farm_manager' ? 'Responsable' : t('data_entry_personnel')}
                                             </span>
-                                            {user.role === 'data_entry' && (
+                                            {user.role !== 'super_admin' && (
                                                 <div className="flex gap-1 mt-1">
-                                                    {user.can_access_pointage && (
-                                                        <span className="px-1.5 py-0.5 rounded bg-primary-50 text-primary-700 text-[9px] font-bold uppercase">Pointage</span>
-                                                    )}
-                                                    {user.can_access_stock && (
-                                                        <span className="px-1.5 py-0.5 rounded bg-success-50 text-success-700 text-[9px] font-bold uppercase">Stock</span>
-                                                    )}
-                                                    {!user.can_access_pointage && !user.can_access_stock && (
+                                                    {[['acces_pointage', 'Pointage', 'bg-primary-50 text-primary-700'], ['acces_stock', 'Stock', 'bg-success-50 text-success-700']].map(([field, label, color]) => (
+                                                        NIVEAU_COURT[user[field]] && (
+                                                            <span key={field} className={`px-1.5 py-0.5 rounded ${color} text-[9px] font-bold uppercase`}>
+                                                                {label} · {NIVEAU_COURT[user[field]]}
+                                                            </span>
+                                                        )
+                                                    ))}
+                                                    {user.acces_pointage === 'aucun' && user.acces_stock === 'aucun' && (
                                                         <span className="px-1.5 py-0.5 rounded bg-danger-50 text-danger-700 text-[9px] font-bold uppercase">Aucun accès</span>
                                                     )}
                                                 </div>

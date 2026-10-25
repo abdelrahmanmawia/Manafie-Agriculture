@@ -63,7 +63,7 @@ class QuinzainesPageTest extends TestCase
 
     public function test_a_division_locked_user_cannot_open_a_sibling_division_in_the_batch(): void
     {
-        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'can_access_pointage' => true]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'acces_pointage' => 'saisie']);
 
         $this->open([$this->a->id, $this->b->id], $pointeur)->assertForbidden();
         $this->assertSame(0, Quinzaine::count());
@@ -127,7 +127,7 @@ class QuinzainesPageTest extends TestCase
     public function test_a_division_locked_user_closes_only_their_own_division_of_the_period(): void
     {
         $this->open([$this->a->id, $this->b->id]);
-        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'can_access_pointage' => true]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'acces_pointage' => 'saisie']);
         $qa = Quinzaine::where('enterprise_id', $this->a->id)->sole();
 
         $this->actingAs($pointeur)->post(route('settings.quinzaine.close-periode', $qa))->assertSessionHas('success', 'Période clôturée pour A.');

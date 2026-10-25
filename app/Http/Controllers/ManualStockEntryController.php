@@ -24,13 +24,6 @@ use Inertia\Inertia;
 
 class ManualStockEntryController extends Controller
 {
-    /**
-     * A verified sortie is locked: neither edited nor deleted, by anyone, until a manager
-     * unlocks it (unverify()) — otherwise verification protected nothing, since the entry and
-     * its StockMovement audit row could still be rewritten or removed afterwards.
-     */
-    private const LOCKED_MESSAGE = 'Cette sortie est vérifiée et verrouillée. Un responsable doit la déverrouiller avant toute modification.';
-
     // Lets the "Intervention liée" select on the sortie form filter, client-side, to the
     // logs belonging to whichever vehicle is picked — one query, no per-vehicle round trip.
     private function maintenanceLogsFor(?int $farmId)
@@ -45,7 +38,6 @@ class ManualStockEntryController extends Controller
         $farmId = $this->scopedFarmId($request);
         $filters = $request->validate([
             'entry_type' => 'nullable|string|max:50',
-            'statut' => 'nullable|in:a_verifier,verifiee',
             'from' => 'nullable|date',
             'to' => 'nullable|date',
             'search' => 'nullable|string|max:100',
@@ -54,8 +46,6 @@ class ManualStockEntryController extends Controller
         $query = ManualStockEntry::query()
             ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->when($filters['entry_type'] ?? null, fn ($q, $type) => $q->where('entry_type', $type))
-            ->when(($filters['statut'] ?? null) === 'a_verifier', fn ($q) => $q->where('is_verified', false))
-            ->when(($filters['statut'] ?? null) === 'verifiee', fn ($q) => $q->where('is_verified', true))
             ->when($filters['from'] ?? null, fn ($q, $d) => $q->whereDate('date', '>=', $d))
             ->when($filters['to'] ?? null, fn ($q, $d) => $q->whereDate('date', '<=', $d))
             ->when($filters['search'] ?? null, fn ($q, $term) => $q->where(fn ($w) => $w
@@ -65,10 +55,7 @@ class ManualStockEntryController extends Controller
                 ->orWhere('employee_name', 'like', "%{$term}%")
                 ->orWhere('notes', 'like', "%{$term}%")));
 
-        // Counted on the whole farm, whatever the filters: what is still waiting for a check.
-        $aVerifier = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->where('is_verified', false)->count();
-
-        $manualStockEntries = $query->with('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
+        $manualStockEntries = $query->with('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy')
             ->orderBy('date', 'desc')->orderBy('id', 'desc')
             ->paginate(50)
             ->withQueryString();
@@ -92,7 +79,6 @@ class ManualStockEntryController extends Controller
         return Inertia::render('Stock/ManualStockEntries/Index', [
             'manualStockEntries' => $manualStockEntries,
             'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
-            'aVerifier' => $aVerifier,
             'products' => $products,
             'employees' => $employees,
             'vehicles' => $vehicles,
@@ -303,7 +289,7 @@ class ManualStockEntryController extends Controller
     {
         $this->assertFarmScope($request, $manualStockEntry->farm_id);
 
-        $manualStockEntry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy');
+        $manualStockEntry->load('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy');
 
         return Inertia::render('Stock/ManualStockEntries/Show', [
             'manualStockEntry' => $manualStockEntry,
@@ -313,10 +299,6 @@ class ManualStockEntryController extends Controller
     public function edit(Request $request, ManualStockEntry $manualStockEntry)
     {
         $this->assertFarmScope($request, $manualStockEntry->farm_id);
-
-        if ($manualStockEntry->is_verified) {
-            return redirect()->route('stock.manual-entries.show', $manualStockEntry)->with('error', self::LOCKED_MESSAGE);
-        }
 
         $products = Product::with('category')->where('farm_id', $manualStockEntry->farm_id)->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
         // Keep the entry's currently assigned employee selectable even if they've since gone
@@ -402,12 +384,6 @@ class ManualStockEntryController extends Controller
             // stock below, so two overlapping saves of the same entry must not both start from
             // the same pre-edit values.
             $manualStockEntry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
-
-            // Checked here, under the row lock, rather than before the transaction: a verify()
-            // landing between that check and this write would otherwise still be overwritten.
-            if ($manualStockEntry->is_verified) {
-                return redirect()->back()->with('error', self::LOCKED_MESSAGE);
-            }
 
             $oldProductId = $manualStockEntry->product_id;
             $oldQuantity = $manualStockEntry->quantity;
@@ -508,9 +484,6 @@ class ManualStockEntryController extends Controller
             if (! $entry) {
                 return back();
             }
-            if ($entry->is_verified) {
-                return back()->with('error', self::LOCKED_MESSAGE);
-            }
 
             // Revert stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
@@ -529,75 +502,6 @@ class ManualStockEntryController extends Controller
 
             return back()->with('success', 'Entrée supprimée avec succès.');
         });
-    }
-
-    public function verify(Request $request, ManualStockEntry $manualStockEntry)
-    {
-        if (! $request->user()->canAccessStock()) {
-            abort(403);
-        }
-        $this->assertFarmScope($request, $manualStockEntry->farm_id);
-
-        DB::transaction(function () use ($request, $manualStockEntry) {
-            $entry = ManualStockEntry::lockForUpdate()->findOrFail($manualStockEntry->id);
-
-            // Verifying twice (double-click) must not replace who verified it first, or when.
-            if (! $entry->is_verified) {
-                $entry->update([
-                    'is_verified' => true,
-                    'verified_by' => $request->user()->id,
-                    'verified_at' => now(),
-                ]);
-            }
-        });
-
-        return back()->with('success', 'Entrée vérifiée avec succès.');
-    }
-
-    /** The sorties ticked on the page, verified at once (same rule as verify(): first check stands). */
-    public function verifyBulk(Request $request)
-    {
-        abort_unless($request->user()->canAccessStock(), 403);
-        $farmId = $this->scopedFarmId($request);
-        $validated = $request->validate([
-            'ids' => 'required|array|min:1|max:200',
-            'ids.*' => 'integer|distinct',
-        ], ['ids.required' => 'Cochez au moins une sortie.']);
-
-        $verifiees = DB::transaction(function () use ($request, $validated, $farmId) {
-            $entries = ManualStockEntry::whereIn('id', $validated['ids'])->lockForUpdate()->get();
-            abort_unless($entries->count() === count($validated['ids']) && $entries->every(fn ($e) => $e->farm_id === $farmId), 403);
-
-            $aVerifier = $entries->where('is_verified', false);
-            foreach ($aVerifier as $entry) {
-                $entry->update(['is_verified' => true, 'verified_by' => $request->user()->id, 'verified_at' => now()]);
-            }
-
-            return $aVerifier->count();
-        });
-
-        return back()->with('success', $verifiees.' sortie(s) vérifiée(s).'
-            .($verifiees < count($validated['ids']) ? ' '.(count($validated['ids']) - $verifiees).' déjà vérifiée(s).' : ''));
-    }
-
-    /**
-     * "Déverrouiller": takes a verified sortie back to unverified so a mistake can be corrected
-     * (edit/destroy refuse a verified entry), after which it gets verified again. Manager-level
-     * only — anyone with Stock access, the magasinier included, can verify, but if they could
-     * also unlock, verification would protect nothing.
-     */
-    public function unverify(Request $request, ManualStockEntry $manualStockEntry)
-    {
-        abort_unless(in_array($request->user()->role, ['super_admin', 'farm_manager']), 403);
-        $this->assertFarmScope($request, $manualStockEntry->farm_id);
-
-        $manualStockEntry->update([
-            'is_verified' => false,
-            'verified_by' => null,
-            'verified_at' => null,
-        ]);
-
-        return back()->with('success', 'Entrée déverrouillée — elle peut être corrigée puis vérifiée à nouveau.');
     }
 
     // Every optional foreign key below was previously validated only with exists:TABLE,id —

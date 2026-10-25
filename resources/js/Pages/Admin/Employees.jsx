@@ -6,6 +6,7 @@ import { t } from '@/Helpers/i18n';
 import EmployeeFormModal from '@/Pages/Admin/Employees/EmployeeFormModal';
 import DeleteEmployeeModal from '@/Pages/Admin/Employees/DeleteEmployeeModal';
 import ContractModal from '@/Pages/Admin/Employees/ContractModal';
+import { peutSaisir } from '@/utils/acces';
 
 const FILTERS = [
     { key: 'cin', label: 'CIN', has: e => !!e.cin, yes: 'Avec', no: 'Sans' },
@@ -111,7 +112,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                 <div className="flex flex-wrap justify-between items-center gap-4">
                     <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">{t('personnel_management')}</h2>
                     <div className="flex gap-4 items-center">
-                        {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
+                        {peutSaisir(auth.user, 'pointage') && (
                             <button
                                 onClick={() => setIsAddingEmployee(true)}
                                 className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-xl font-black text-sm uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
@@ -268,7 +269,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                 />
                                                 <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
                                             </label>
-                                            {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
+                                            {peutSaisir(auth.user, 'pointage') && (
                                                 <div className="flex items-center justify-end gap-4">
                                                     <button
                                                         type="button"
@@ -376,7 +377,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                         </svg>
                                                     </a>
-                                                {(auth.user.role !== 'data_entry' || auth.user.can_access_pointage) && (
+                                                {peutSaisir(auth.user, 'pointage') && (
                                                     <>
                                                         <button
                                                             type="button"

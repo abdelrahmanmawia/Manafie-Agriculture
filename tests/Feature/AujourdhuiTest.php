@@ -90,7 +90,7 @@ class AujourdhuiTest extends TestCase
 
     public function test_a_division_locked_user_sees_only_their_division(): void
     {
-        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'can_access_pointage' => true]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'acces_pointage' => 'saisie']);
 
         $this->actingAs($pointeur)->get(route('pointage.today', ['date' => '2026-11-02']))->assertInertia(fn ($p) => $p
             ->where('divisions', fn ($list) => collect($list)->pluck('name')->all() === ['A'])

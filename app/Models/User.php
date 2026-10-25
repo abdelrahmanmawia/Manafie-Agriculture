@@ -24,8 +24,8 @@ class User extends Authenticatable
         'farm_id',
         'enterprise_id',
         'role',
-        'can_access_pointage',
-        'can_access_stock',
+        'acces_pointage',
+        'acces_stock',
     ];
 
     /**
@@ -45,9 +45,10 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'can_access_pointage' => 'boolean',
-        'can_access_stock' => 'boolean',
     ];
+
+    /** Access to a domain (pointage, stock): none, read and export, or everything. */
+    public const NIVEAUX = ['aucun', 'consultation', 'saisie'];
 
     public function farm()
     {
@@ -60,18 +61,32 @@ class User extends Authenticatable
     }
 
     /**
-     * super_admin/farm_manager always have full access regardless of these flags — they only
-     * ever restrict the data_entry tier, which is otherwise scoped to "everything except
-     * create/delete/toggle" across both domains. A magasinier and a pointeur are both
-     * data_entry underneath; these flags are what actually tells them apart.
+     * This account's level on a domain ('pointage' or 'stock'): users.acces_pointage /
+     * acces_stock, whatever the role — the role only says who it is (responsable or not). A
+     * super_admin has saisie everywhere.
      */
+    public function acces(string $domaine): string
+    {
+        return $this->role === 'super_admin' ? 'saisie' : ($this->{'acces_'.$domaine} ?? 'aucun');
+    }
+
+    public function peutConsulter(string $domaine): bool
+    {
+        return $this->acces($domaine) !== 'aucun';
+    }
+
+    public function peutSaisir(string $domaine): bool
+    {
+        return $this->acces($domaine) === 'saisie';
+    }
+
     public function canAccessPointage(): bool
     {
-        return $this->role !== 'data_entry' || $this->can_access_pointage;
+        return $this->peutConsulter('pointage');
     }
 
     public function canAccessStock(): bool
     {
-        return $this->role !== 'data_entry' || $this->can_access_stock;
+        return $this->peutConsulter('stock');
     }
 }

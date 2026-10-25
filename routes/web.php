@@ -56,21 +56,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/farms/{farm}/activate', [FarmController::class, 'activate'])->name('farms.activate');
     Route::post('/farms/deactivate', [FarmController::class, 'deactivate'])->name('farms.deactivate');
     Route::delete('/farms/{farm}', [FarmController::class, 'destroy'])->name('farms.destroy');
-    Route::get('/farms/{farm}/settings', [FarmController::class, 'settings'])->name('farms.settings');
-    Route::patch('/farms/{farm}/settings', [FarmController::class, 'updateSettings'])->name('farms.updateSettings');
-    Route::post('/farms/{farm}/operations', [FarmController::class, 'addOperation'])->name('farms.operations.store');
-    Route::put('/farms/operations/{operation}', [FarmController::class, 'updateOperation'])->name('farms.operations.update');
-    Route::post('/farms/{farm}/blocs', [FarmController::class, 'addBloc'])->name('farms.blocs.store');
-    Route::post('/farms/{farm}/sectors', [FarmController::class, 'addSector'])->name('farms.sectors.store');
-    Route::post('/farms/{farm}/parcelles', [FarmController::class, 'addParcelle'])->name('farms.parcelles.store');
-    Route::delete('/farms/operations/{operation}', [FarmController::class, 'deleteOperation'])->name('farms.operations.destroy');
-    Route::delete('/farms/blocs/{bloc}', [FarmController::class, 'deleteBloc'])->name('farms.blocs.destroy');
-    Route::delete('/farms/sectors/{sector}', [FarmController::class, 'deleteSector'])->name('farms.sectors.destroy');
-    Route::delete('/farms/parcelles/{parcelle}', [FarmController::class, 'deleteParcelle'])->name('farms.parcelles.destroy');
+    // Farm structure and divisions are Pointage work (the pointeur's): reading needs
+    // consultation, changing saisie — no active farm needed, the farm is in the URL.
+    Route::middleware('access.domain:pointage')->group(function () {
+        Route::get('/farms/{farm}/settings', [FarmController::class, 'settings'])->name('farms.settings');
+        Route::patch('/farms/{farm}/settings', [FarmController::class, 'updateSettings'])->name('farms.updateSettings');
+        Route::post('/farms/{farm}/operations', [FarmController::class, 'addOperation'])->name('farms.operations.store');
+        Route::put('/farms/operations/{operation}', [FarmController::class, 'updateOperation'])->name('farms.operations.update');
+        Route::post('/farms/{farm}/blocs', [FarmController::class, 'addBloc'])->name('farms.blocs.store');
+        Route::post('/farms/{farm}/sectors', [FarmController::class, 'addSector'])->name('farms.sectors.store');
+        Route::post('/farms/{farm}/parcelles', [FarmController::class, 'addParcelle'])->name('farms.parcelles.store');
+        Route::delete('/farms/operations/{operation}', [FarmController::class, 'deleteOperation'])->name('farms.operations.destroy');
+        Route::delete('/farms/blocs/{bloc}', [FarmController::class, 'deleteBloc'])->name('farms.blocs.destroy');
+        Route::delete('/farms/sectors/{sector}', [FarmController::class, 'deleteSector'])->name('farms.sectors.destroy');
+        Route::delete('/farms/parcelles/{parcelle}', [FarmController::class, 'deleteParcelle'])->name('farms.parcelles.destroy');
 
-    Route::post('/enterprises', [EnterpriseController::class, 'store'])->name('enterprises.store');
-    Route::patch('/enterprises/{enterprise}', [EnterpriseController::class, 'update'])->name('enterprises.update');
-    Route::delete('/enterprises/{enterprise}', [EnterpriseController::class, 'destroy'])->name('enterprises.destroy');
+        Route::post('/enterprises', [EnterpriseController::class, 'store'])->name('enterprises.store');
+        Route::patch('/enterprises/{enterprise}', [EnterpriseController::class, 'update'])->name('enterprises.update');
+        Route::delete('/enterprises/{enterprise}', [EnterpriseController::class, 'destroy'])->name('enterprises.destroy');
+    });
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -253,13 +257,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Manual Stock Entries
     Route::get('/stock/manual-entries', [ManualStockEntryController::class, 'index'])->name('stock.manual-entries.index');
     Route::post('/stock/manual-entries', [ManualStockEntryController::class, 'store'])->name('stock.manual-entries.store');
-    Route::post('/stock/manual-entries/verify-bulk', [ManualStockEntryController::class, 'verifyBulk'])->name('stock.manual-entries.verify-bulk');
     Route::get('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'show'])->name('stock.manual-entries.show');
     Route::get('/stock/manual-entries/{manualStockEntry}/edit', [ManualStockEntryController::class, 'edit'])->name('stock.manual-entries.edit');
     Route::put('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');
     Route::delete('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'destroy'])->name('stock.manual-entries.destroy');
-    Route::post('/stock/manual-entries/{manualStockEntry}/verify', [ManualStockEntryController::class, 'verify'])->name('stock.manual-entries.verify');
-    Route::post('/stock/manual-entries/{manualStockEntry}/unverify', [ManualStockEntryController::class, 'unverify'])->name('stock.manual-entries.unverify');
 
     // Stock Management - Exit Types (the "Type de Sortie" options — configurable per farm)
     Route::post('/stock/exit-types', [StockExitTypeController::class, 'store'])->name('stock.exit-types.store');

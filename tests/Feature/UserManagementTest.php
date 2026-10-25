@@ -45,7 +45,7 @@ class UserManagementTest extends TestCase
         return array_merge([
             'name' => 'Pointeur', 'email' => 'pointeur@example.test', 'password' => 'secret-123',
             'role' => 'data_entry', 'farm_id' => $this->farmA->id, 'enterprise_id' => $this->divisionA->id,
-            'can_access_pointage' => true, 'can_access_stock' => false,
+            'acces_pointage' => 'saisie', 'acces_stock' => 'aucun',
         ], $overrides);
     }
 
@@ -80,18 +80,17 @@ class UserManagementTest extends TestCase
 
     public function test_admin_can_edit_a_user(): void
     {
-        $user = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farmA->id, 'can_access_pointage' => true]);
+        $user = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farmA->id, 'acces_pointage' => 'saisie']);
 
         $this->actingAs($this->admin)->put("/users/{$user->id}", $this->account([
             'name' => 'Magasinier', 'email' => 'mag@example.test', 'enterprise_id' => null,
-            'can_access_pointage' => false, 'can_access_stock' => true,
+            'acces_pointage' => 'aucun', 'acces_stock' => 'saisie',
         ]))->assertSessionHasNoErrors();
 
         $user->refresh();
         $this->assertSame('Magasinier', $user->name);
         $this->assertSame('mag@example.test', $user->email);
-        $this->assertFalse($user->can_access_pointage);
-        $this->assertTrue($user->can_access_stock);
+        $this->assertSame(['aucun', 'saisie'], [$user->acces_pointage, $user->acces_stock]);
     }
 
     public function test_edit_keeps_email_unique_but_allows_the_users_own(): void

@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -11,28 +11,14 @@ import InputError from '@/Components/InputError';
 import Pagination from '@/Components/Pagination';
 import { formatNumber } from '@/utils/number';
 import useListFilters from '@/utils/useListFilters';
+import { peutSaisir } from '@/utils/acces';
 import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS, meterLabel } from '@/utils/stockLabels';
 
-export default function Index({ auth, manualStockEntries, filters = {}, aVerifier = 0, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
+export default function Index({ auth, manualStockEntries, filters = {}, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
     const { values, set, reset: resetFilters, active } = useListFilters('stock.manual-entries.index', filters);
     const filteredEntries = manualStockEntries.data;
 
-    // Ticked sorties to verify at once (verifyBulk); only unverified ones on this page can be ticked.
-    const [selected, setSelected] = useState([]);
-    const [verifyingBulk, setVerifyingBulk] = useState(false);
-    const selectable = filteredEntries.filter((e) => !e.is_verified).map((e) => e.id);
-    useEffect(() => setSelected([]), [manualStockEntries]); // a new page or a reload starts empty
-    const toggle = (id) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-    const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
-    const verifySelected = () => {
-        setVerifyingBulk(true);
-        router.post(route('stock.manual-entries.verify-bulk'), { ids: selected }, {
-            preserveScroll: true,
-            onSuccess: () => setSelected([]),
-            onFinish: () => setVerifyingBulk(false),
-        });
-    };
     const [deletingEntry, setDeletingEntry] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isManagingTypes, setIsManagingTypes] = useState(false);
@@ -40,7 +26,8 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
     // farm's employee list (a contractor, another farm's driver...) — the two fields are
     // mutually exclusive on submit, so switching modes clears whichever one isn't shown.
     const [employeeInputMode, setEmployeeInputMode] = useState('list');
-    const canManageTypes = auth.user.role !== 'data_entry';
+    // The magasinier (Stock saisie) records sorties and manages their types; others only consult.
+    const canWrite = peutSaisir(auth.user, 'stock');
 
     // Several products can leave at once: one line each, the rest of the form shared by all.
     const emptyLine = () => ({ product_id: '', quantity: '' });
@@ -128,20 +115,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
 
     const selectedExitType = exitTypes.find((t) => t.key === data.entry_type);
 
-    const handleVerify = (entryId) => {
-        router.post(route('stock.manual-entries.verify', entryId), {}, {
-            onSuccess: () => {
-                // Entry will be reloaded from server
-            },
-        });
-    };
-
-    // Unlocking a verified sortie is manager-level only (ManualStockEntryController::unverify).
-    const canUnlock = ['super_admin', 'farm_manager'].includes(auth.user.role);
-    const handleUnverify = (entryId) => {
-        router.post(route('stock.manual-entries.unverify', entryId), {}, { preserveScroll: true });
-    };
-
     const handleDelete = () => {
         if (deletingEntry) {
             router.delete(route('stock.manual-entries.destroy', deletingEntry.id), {
@@ -172,7 +145,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Sorties de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Enregistrez les consommations, transferts et ajustements de stock</p>
                     </div>
-                    {canManageTypes && (
+                    {canWrite && (
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setIsManagingTypes(true)}
@@ -204,7 +177,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Filters */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
                                 <div className="relative">
@@ -234,14 +207,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
-                                <select value={values.statut || ''} onChange={(e) => set('statut', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                                    <option value="">Tous</option>
-                                    <option value="a_verifier">À vérifier</option>
-                                    <option value="verifiee">Vérifiées</option>
-                                </select>
-                            </div>
-                            <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Du</label>
                                 <input type="date" value={values.from || ''} onChange={(e) => set('from', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
                             </div>
@@ -251,11 +216,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                             </div>
                         </div>
                         <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-                            {aVerifier > 0 && values.statut !== 'a_verifier' && (
-                                <button type="button" onClick={() => set('statut', 'a_verifier')} className="font-semibold text-amber-700 hover:underline">
-                                    {aVerifier} sortie(s) à vérifier
-                                </button>
-                            )}
                             {active && (
                                 <button type="button" onClick={resetFilters} className="font-medium text-gray-500 hover:text-primary-600">
                                     Effacer les filtres
@@ -269,24 +229,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex flex-wrap justify-between items-center gap-3">
                                 <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Sorties</h3>
-                                {selected.length > 0 ? (
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm text-gray-600">{selected.length} sélectionnée(s)</span>
-                                        <button type="button" onClick={() => setSelected([])} className="text-xs font-medium text-gray-500 hover:text-gray-800">
-                                            Désélectionner
-                                        </button>
-                                        <button
-                                            type="button"
-                                            disabled={verifyingBulk}
-                                            onClick={verifySelected}
-                                            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest"
-                                        >
-                                            {verifyingBulk ? 'Vérification...' : 'Vérifier la sélection'}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <span className="text-sm text-gray-500">{manualStockEntries.total} sortie(s)</span>
-                                )}
+                                <span className="text-sm text-gray-500">{manualStockEntries.total} sortie(s)</span>
                             </div>
                         </div>
 
@@ -296,7 +239,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                 </svg>
                                 <p className="mt-4 text-gray-500">Aucune sortie trouvée</p>
-                                {auth.user.role !== 'data_entry' && !active && (
+                                {canWrite && !active && (
                                     <button
                                         onClick={() => setIsCreating(true)}
                                         className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
@@ -310,16 +253,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
-                                            <th scope="col" className="pl-6 pr-2 py-3 w-8">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={allSelected}
-                                                    disabled={selectable.length === 0}
-                                                    onChange={() => setSelected(allSelected ? [] : selectable)}
-                                                    title="Sélectionner les sorties à vérifier de cette page"
-                                                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
-                                                />
-                                            </th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Date
                                             </th>
@@ -338,9 +271,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Destination
                                             </th>
-                                            <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                                Statut
-                                            </th>
                                             <th scope="col" className="relative px-6 py-3">
                                                 <span className="sr-only">Actions</span>
                                             </th>
@@ -348,17 +278,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {filteredEntries.map((entry) => (
-                                            <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${selected.includes(entry.id) ? 'bg-green-50/60' : ''}`}>
-                                                <td className="pl-6 pr-2 py-4">
-                                                    {!entry.is_verified && (
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selected.includes(entry.id)}
-                                                            onChange={() => toggle(entry.id)}
-                                                            className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                                                        />
-                                                    )}
-                                                </td>
+                                            <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {formatDate(entry.date)}
                                                 </td>
@@ -396,36 +316,8 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                                         {!entry.vehicle && !entry.operation && !entry.bloc && <span>-</span>}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    {entry.is_verified ? (
-                                                        <span className="flex items-center text-green-600">
-                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                            </svg>
-                                                            Vérifié
-                                                        </span>
-                                                    ) : (
-                                                        <span className="flex items-center text-gray-400">
-                                                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                            </svg>
-                                                            En attente
-                                                        </span>
-                                                    )}
-                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                     <div className="flex items-center justify-end space-x-2">
-                                                        {!entry.is_verified && (
-                                                            <button
-                                                                onClick={() => handleVerify(entry.id)}
-                                                                className="text-gray-400 hover:text-green-600 transition-colors"
-                                                                title="Vérifier"
-                                                            >
-                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
                                                         <Link
                                                             href={route('stock.manual-entries.show', entry.id)}
                                                             className="text-gray-400 hover:text-primary-600 transition-colors"
@@ -436,9 +328,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                             </svg>
                                                         </Link>
-                                                        {/* A verified sortie is locked (ManualStockEntryController::LOCKED_MESSAGE):
-                                                            no edit/delete until a manager unlocks it. */}
-                                                        {!entry.is_verified && (
+                                                        {canWrite && (
                                                             <Link
                                                                 href={route('stock.manual-entries.edit', entry.id)}
                                                                 className="text-gray-400 hover:text-primary-600 transition-colors"
@@ -449,18 +339,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                                                 </svg>
                                                             </Link>
                                                         )}
-                                                        {entry.is_verified && canUnlock && (
-                                                            <button
-                                                                onClick={() => handleUnverify(entry.id)}
-                                                                className="text-gray-400 hover:text-amber-600 transition-colors"
-                                                                title="Déverrouiller"
-                                                            >
-                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
-                                                                </svg>
-                                                            </button>
-                                                        )}
-                                                        {!entry.is_verified && (
+                                                        {canWrite && (
                                                             <button
                                                                 onClick={() => openDeleteModal(entry)}
                                                                 className="text-gray-400 hover:text-red-600 transition-colors"
@@ -830,7 +709,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                 </div>
             </Modal>
 
-            {canManageTypes && (
+            {canWrite && (
                 <Modal show={isManagingTypes} onClose={() => setIsManagingTypes(false)}>
                     <ManageExitTypesModal exitTypes={exitTypes} onClose={() => setIsManagingTypes(false)} />
                 </Modal>

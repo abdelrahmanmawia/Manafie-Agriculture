@@ -6,6 +6,7 @@ import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import PrimaryButton from '@/Components/PrimaryButton';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Settings({ auth, enterprise, quinzaines }) {
     const [confirmingDivisionDeletion, setConfirmingDivisionDeletion] = useState(false);
@@ -83,7 +84,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                         granted Pointage access only gets a read-only summary here. */}
                     <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-primary-600">
                         <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">Détails de la Division</h3>
-                        {auth.user.role === 'data_entry' ? (
+                        {!(peutSaisir(auth.user, 'pointage') && !auth.user.enterprise_id) ? (
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                                 <div>
                                     <div className="text-xs font-black uppercase text-gray-400 mb-1">Nom de la Division</div>
@@ -171,7 +172,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                                     </button>
                                     {editForm.wasSuccessful && <span className="ml-4 text-green-600 text-xs font-bold">Enregistré !</span>}
                                 </div>
-                                {auth.user.role !== 'data_entry' && (
+                                {(peutSaisir(auth.user, 'pointage') && !auth.user.enterprise_id) && (
                                     <button
                                         type="button"
                                         onClick={confirmDivisionDeletion}

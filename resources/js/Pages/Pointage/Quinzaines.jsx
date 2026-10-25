@@ -6,6 +6,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { formatNumber } from '@/Helpers/formatNumber';
+import { peutSaisir } from '@/utils/acces';
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -60,9 +61,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
     // Mirrors PointageController::exportAllDivisions()'s $isFarmScopedPointageDataEntry check —
     // a data_entry locked to one division must stay blocked (it would leak sibling divisions'
     // payroll), but a farm-scoped one with Pointage access is exactly like a farm_manager here.
-    const canExportAllDivisions = auth.user.role === 'super_admin' || auth.user.role === 'farm_manager'
-        || (auth.user.role === 'data_entry' && auth.user.can_access_pointage && !auth.user.enterprise_id);
-    const canManage = auth.user.role !== 'data_entry' || auth.user.can_access_pointage;
+    const canExportAllDivisions = !auth.user.enterprise_id;
+    const canManage = peutSaisir(auth.user, 'pointage');
     // A division-locked user gets no list (selectableEnterprises()) and only ever opens their own.
     const divisionChoices = enterprises || [];
 
@@ -182,7 +182,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                 </optgroup>
                             </select>
                             </span>
-                            {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && divisionChoices.length > 1 && (
+                            {!auth.user.enterprise_id && divisionChoices.length > 1 && (
                                 <span className="flex items-center gap-2">
                                     <label htmlFor="enterprise_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Division :</label>
                                     <select id="enterprise_filter_select" className="w-auto min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>

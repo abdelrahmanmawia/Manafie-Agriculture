@@ -156,7 +156,7 @@ class ComptageTest extends TestCase
 
     public function test_a_pointeur_without_stock_access_cannot_count(): void
     {
-        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'can_access_pointage' => true, 'can_access_stock' => false]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'acces_pointage' => 'saisie', 'acces_stock' => 'aucun']);
 
         $this->actingAs($pointeur)->get(route('stock.inventory.comptage'))->assertForbidden();
         $this->actingAs($pointeur)->post(route('stock.inventory.comptage.store'), [

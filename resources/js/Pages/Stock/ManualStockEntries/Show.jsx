@@ -1,12 +1,12 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm } from '@inertiajs/react';
-import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
 import { formatNumber } from '@/utils/number';
 import { ENTRY_TYPE_LABELS as ENTRY_TYPE_TEXT, UNIT_TYPE_LABELS, meterUnit } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 const ENTRY_TYPE_CLASSNAMES = {
     consumption: 'bg-red-100 text-red-800',
@@ -21,11 +21,11 @@ const ENTRY_TYPE_LABELS = Object.fromEntries(
 
 export default function Show({ auth, manualStockEntry }) {
     const [confirmingEntryDeletion, setConfirmingEntryDeletion] = useState(false);
-    const [confirmingVerification, setConfirmingVerification] = useState(false);
-    const { delete: destroy, post, processing } = useForm();
+    const { delete: destroy, processing } = useForm();
+    // Corrected or removed by the magasinier (Stock saisie); everyone else only consults it.
+    const canWrite = peutSaisir(auth.user, 'stock');
 
     const confirmEntryDeletion = () => setConfirmingEntryDeletion(true);
-    const confirmVerification = () => setConfirmingVerification(true);
 
     const deleteEntry = (e) => {
         e.preventDefault();
@@ -37,23 +37,8 @@ export default function Show({ auth, manualStockEntry }) {
         });
     };
 
-    const verifyEntry = (e) => {
-        e.preventDefault();
-        post(route('stock.manual-entries.verify', manualStockEntry.id), {
-            preserveScroll: true,
-            onSuccess: closeModal,
-            onError: closeModal,
-            onFinish: closeModal,
-        });
-    };
-
-    const unverifyEntry = () => {
-        post(route('stock.manual-entries.unverify', manualStockEntry.id), { preserveScroll: true });
-    };
-
     const closeModal = () => {
         setConfirmingEntryDeletion(false);
-        setConfirmingVerification(false);
     };
 
     const formatDate = (dateString) => {
@@ -80,10 +65,8 @@ export default function Show({ auth, manualStockEntry }) {
                             <p className="text-sm text-gray-500 mt-1">Sortie #{manualStockEntry.id}</p>
                         </div>
                     </div>
-                    {/* Anyone with Stock access may verify; a verified sortie is locked (no edit/delete)
-                        until a manager unlocks it — see ManualStockEntryController. */}
                     <div className="flex items-center gap-2">
-                        {!manualStockEntry.is_verified && (
+                        {canWrite && (
                             <Link
                                 href={route('stock.manual-entries.edit', manualStockEntry.id)}
                                 className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
@@ -94,13 +77,7 @@ export default function Show({ auth, manualStockEntry }) {
                                 Modifier
                             </Link>
                         )}
-                        {!manualStockEntry.is_verified && (
-                            <PrimaryButton onClick={confirmVerification} className="rounded-xl">Vérifier</PrimaryButton>
-                        )}
-                        {manualStockEntry.is_verified && ['super_admin', 'farm_manager'].includes(auth.user.role) && (
-                            <SecondaryButton onClick={unverifyEntry} disabled={processing} className="rounded-xl">Déverrouiller</SecondaryButton>
-                        )}
-                        {!manualStockEntry.is_verified && (
+                        {canWrite && (
                             <DangerButton onClick={confirmEntryDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
                     </div>
@@ -131,16 +108,6 @@ export default function Show({ auth, manualStockEntry }) {
                                         </div>
                                     </div>
                                 </div>
-                                <span className={`px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 ${manualStockEntry.is_verified ? 'bg-green-50 text-green-600' : 'bg-gray-50 text-gray-500'}`}>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        {manualStockEntry.is_verified ? (
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                        ) : (
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        )}
-                                    </svg>
-                                    {manualStockEntry.is_verified ? 'Vérifiée' : 'En attente'}
-                                </span>
                             </div>
                         </div>
                     </div>
@@ -209,7 +176,7 @@ export default function Show({ auth, manualStockEntry }) {
                             </div>
                         </div>
 
-                        {/* Vehicle telemetry or verification info */}
+                        {/* Vehicle telemetry, or who recorded it */}
                         {hasVehicleContext ? (
                             <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                                 <div className="p-6 border-b border-gray-100">
@@ -225,44 +192,36 @@ export default function Show({ auth, manualStockEntry }) {
                         ) : (
                             <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                                 <div className="p-6 border-b border-gray-100">
-                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Vérification</h4>
+                                    <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Saisie</h4>
                                 </div>
                                 <div className="p-6 space-y-4">
                                     <div className="flex justify-between items-center py-2 border-b border-gray-50">
                                         <span className="text-gray-500">Saisie par</span>
                                         <span className="font-medium text-gray-900">{manualStockEntry.entered_by?.name || 'N/A'}</span>
                                     </div>
-                                    <div className="flex justify-between items-center py-2 border-b border-gray-50">
-                                        <span className="text-gray-500">Vérifié par</span>
-                                        <span className="font-medium text-gray-900">{manualStockEntry.verified_by?.name || 'N/A'}</span>
-                                    </div>
                                     <div className="flex justify-between items-center py-2">
-                                        <span className="text-gray-500">Date de Vérification</span>
-                                        <span className="font-medium text-gray-900">{formatDate(manualStockEntry.verified_at)}</span>
+                                        <span className="text-gray-500">Saisie le</span>
+                                        <span className="font-medium text-gray-900">{formatDate(manualStockEntry.created_at)}</span>
                                     </div>
                                 </div>
                             </div>
                         )}
                     </div>
 
-                    {/* Verification info when vehicle context takes the second slot */}
+                    {/* Who recorded it, when the vehicle context takes the second slot */}
                     {hasVehicleContext && (
                         <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                             <div className="p-6 border-b border-gray-100">
-                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Vérification</h4>
+                                <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Saisie</h4>
                             </div>
-                            <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-x-8">
+                            <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-x-8">
                                 <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50">
                                     <span className="text-gray-500">Saisie par</span>
                                     <span className="font-medium text-gray-900">{manualStockEntry.entered_by?.name || 'N/A'}</span>
                                 </div>
-                                <div className="flex justify-between items-center py-2 border-b md:border-b-0 border-gray-50">
-                                    <span className="text-gray-500">Vérifié par</span>
-                                    <span className="font-medium text-gray-900">{manualStockEntry.verified_by?.name || 'N/A'}</span>
-                                </div>
                                 <div className="flex justify-between items-center py-2">
-                                    <span className="text-gray-500">Date de Vérification</span>
-                                    <span className="font-medium text-gray-900">{formatDate(manualStockEntry.verified_at)}</span>
+                                    <span className="text-gray-500">Saisie le</span>
+                                    <span className="font-medium text-gray-900">{formatDate(manualStockEntry.created_at)}</span>
                                 </div>
                             </div>
                         </div>
@@ -298,22 +257,6 @@ export default function Show({ auth, manualStockEntry }) {
                 </form>
             </Modal>
 
-            <Modal show={confirmingVerification} onClose={closeModal}>
-                <form onSubmit={verifyEntry} className="p-6">
-                    <h2 className="text-lg font-medium text-gray-900">
-                        Confirmer la vérification de cette sortie de stock ?
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-600">
-                        Cette action marquera la sortie comme vérifiée.
-                    </p>
-                    <div className="mt-6 flex justify-end">
-                        <SecondaryButton onClick={closeModal}>Annuler</SecondaryButton>
-                        <PrimaryButton className="ml-3" disabled={processing}>
-                            Vérifier la Sortie
-                        </PrimaryButton>
-                    </div>
-                </form>
-            </Modal>
         </AuthenticatedLayout>
     );
 }

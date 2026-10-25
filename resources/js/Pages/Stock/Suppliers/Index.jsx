@@ -8,6 +8,7 @@ import DangerButton from '@/Components/DangerButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { peutSaisir } from '@/utils/acces';
 
 // A simple named list picked when logging an Entrée (réception) — no order/procurement workflow.
 // Was a small modal (ManageSuppliersModal) launched from the Produits page; now its own page so
@@ -69,7 +70,7 @@ export default function Index({ auth, suppliers }) {
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Fournisseurs</h2>
                         <p className="text-sm text-gray-500 mt-1">Gérez la liste des fournisseurs utilisée à la réception de stock</p>
                     </div>
-                    {auth.user.role !== 'data_entry' && (
+                    {peutSaisir(auth.user, 'stock') && (
                         <button
                             onClick={() => { createForm.reset(); createForm.clearErrors(); setIsCreating(true); }}
                             className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
@@ -128,7 +129,7 @@ export default function Index({ auth, suppliers }) {
                                                 <button
                                                     type="button"
                                                     onClick={() => toggleActive(supplier)}
-                                                    disabled={auth.user.role === 'data_entry'}
+                                                    disabled={!peutSaisir(auth.user, 'stock')}
                                                     className={`text-[10px] font-black uppercase px-2 py-1 rounded ${supplier.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600'}`}
                                                 >
                                                     {supplier.is_active ? 'Actif' : 'Inactif'}
@@ -142,7 +143,7 @@ export default function Index({ auth, suppliers }) {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                         </svg>
                                                     </Link>
-                                                    {auth.user.role !== 'data_entry' && (
+                                                    {peutSaisir(auth.user, 'stock') && (
                                                         <>
                                                             <button type="button" onClick={() => startRename(supplier)} className="text-gray-400 hover:text-gray-700 transition-colors" title="Renommer">
                                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

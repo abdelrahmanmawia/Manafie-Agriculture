@@ -58,7 +58,7 @@ class UxCleanupTest extends TestCase
 
     public function test_a_pointage_only_data_entry_lands_on_aujourdhui(): void
     {
-        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'can_access_pointage' => true, 'can_access_stock' => false]);
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'acces_pointage' => 'saisie', 'acces_stock' => 'aucun']);
 
         $this->actingAs($pointeur)->get(route('dashboard'))->assertRedirect(route('pointage.today'));
     }

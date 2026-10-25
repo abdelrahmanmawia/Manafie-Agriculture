@@ -19,6 +19,7 @@ import {
     ASSET_STATUS_LABELS,
     EQUIPMENT_TYPE_LABELS,
 } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuelTypes, employees }) {
     const types = vehicleTypes.map((t) => t.key);
@@ -243,7 +244,7 @@ export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuel
                             </svg>
                             Modifier
                         </button>
-                        {auth.user.role !== 'data_entry' && (
+                        {peutSaisir(auth.user, 'stock') && (
                             <DangerButton onClick={confirmVehicleDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
                     </div>
@@ -297,7 +298,7 @@ export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuel
                                     <ToggleSwitch
                                         checked={vehicle.is_active}
                                         onChange={handleToggleActive}
-                                        disabled={auth.user.role === 'data_entry'}
+                                        disabled={!peutSaisir(auth.user, 'stock')}
                                     />
                                 </div>
                             </div>
@@ -368,7 +369,7 @@ export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuel
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                             <h4 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique de Maintenance</h4>
-                            {auth.user.role !== 'data_entry' && (
+                            {peutSaisir(auth.user, 'stock') && (
                                 <button
                                     type="button"
                                     onClick={openAddMaintenance}
@@ -424,7 +425,7 @@ export default function Show({ auth, vehicle, vehicleTypes, equipmentTypes, fuel
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                 </svg>
                                             </button>
-                                            {auth.user.role !== 'data_entry' && (
+                                            {peutSaisir(auth.user, 'stock') && (
                                                 <button
                                                     type="button"
                                                     onClick={() => confirmMaintenanceLogDeletion(log)}

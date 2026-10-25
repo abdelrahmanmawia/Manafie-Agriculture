@@ -3,6 +3,7 @@ import { Head, Link } from '@inertiajs/react';
 import { formatInt, formatNumber } from '@/utils/number';
 import StatCard from '@/Components/StatCard';
 import DashboardHeader from '@/Components/DashboardHeader';
+import { peutSaisir } from '@/utils/acces';
 
 const ALERT_LABELS = {
     low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
@@ -17,7 +18,7 @@ const MOVEMENT_LABELS = {
     adjustment: { label: 'Ajustement', className: 'bg-primary-100 text-primary-700', sign: '' },
 };
 
-export default function Dashboard({ auth, stats, recentAlerts, recentMovements, pendingManualEntries }) {
+export default function Dashboard({ auth, stats, recentAlerts, recentMovements }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -39,24 +40,6 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {/* Pending manual entries callout */}
-                    {pendingManualEntries > 0 && (
-                        <Link
-                            href={route('stock.manual-entries.index')}
-                            className="flex items-center justify-between bg-primary-50 border border-primary-200 rounded-xl px-5 py-4 hover:bg-primary-100 transition-colors"
-                        >
-                            <div className="flex items-center gap-3">
-                                <svg className="w-5 h-5 text-primary-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <p className="text-sm font-medium text-primary-900">
-                                    {pendingManualEntries} entrée{pendingManualEntries > 1 ? 's' : ''} manuelle{pendingManualEntries > 1 ? 's' : ''} en attente de vérification
-                                </p>
-                            </div>
-                            <span className="text-sm font-medium text-primary-700">Vérifier →</span>
-                        </Link>
-                    )}
-
                     {/* Quick Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <StatCard
@@ -177,15 +160,17 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements, 
                                 </svg>
                                 <span className="text-sm font-medium text-gray-700">Nouveau Produit</span>
                             </Link>
-                            <Link
-                                href={route('stock.movements.index') + '?action=receive'}
-                                className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-green-300"
-                            >
-                                <svg className="w-8 h-8 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
-                                <span className="text-sm font-medium text-gray-700">Réception Stock</span>
-                            </Link>
+                            {peutSaisir(auth.user, 'stock') && (
+                                <Link
+                                    href={route('stock.movements.index') + '?action=receive'}
+                                    className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-green-300"
+                                >
+                                    <svg className="w-8 h-8 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                    </svg>
+                                    <span className="text-sm font-medium text-gray-700">Réception Stock</span>
+                                </Link>
+                            )}
                             <Link
                                 href={route('stock.manual-entries.index')}
                                 className="flex flex-col items-center justify-center p-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-gray-200 hover:border-primary-300"

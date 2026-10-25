@@ -15,11 +15,10 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * A data_entry account is only ever restricted by its own domain flags (see
- * User::canAccessStock()/canAccessPointage()) — a "magasinier" (can_access_stock) gets full
- * Stock permissions, exactly like a farm_manager would; a data_entry without that flag gets
- * none at all, not a partial "can edit but not create" tier. This suite locks in that
- * flag-driven boundary on each Stock controller's abort(403) guard.
+ * A data_entry account is only ever restricted by its domain levels (see
+ * User::acces()) — a "magasinier" (acces_stock = saisie) gets full
+ * Stock permissions; a data_entry with no Stock access gets none at all, not a partial "can
+ * edit but not create" tier. This suite locks in that boundary on each Stock route.
  */
 class StockDataEntryRoleTest extends TestCase
 {
@@ -51,8 +50,8 @@ class StockDataEntryRoleTest extends TestCase
         $this->dataEntryNoStock = User::factory()->create([
             'role' => 'data_entry',
             'farm_id' => $this->farm->id,
-            'can_access_pointage' => true,
-            'can_access_stock' => false,
+            'acces_pointage' => 'saisie',
+            'acces_stock' => 'aucun',
         ]);
 
         $this->farmManager = User::factory()->create([
@@ -475,42 +474,6 @@ class StockDataEntryRoleTest extends TestCase
             ->assertForbidden();
 
         $this->assertDatabaseHas('manual_stock_entries', ['id' => $entry->id]);
-    }
-
-    public function test_data_entry_with_stock_access_can_verify_manual_stock_entry(): void
-    {
-        $entry = ManualStockEntry::create([
-            'farm_id' => $this->farm->id,
-            'product_id' => $this->product->id,
-            'entry_type' => 'consumption',
-            'quantity' => 5,
-            'date' => now()->toDateString(),
-            'entered_by' => $this->farmManager->id,
-        ]);
-
-        $this->actingAs($this->dataEntry)
-            ->post(route('stock.manual-entries.verify', $entry))
-            ->assertRedirect();
-
-        $this->assertDatabaseHas('manual_stock_entries', ['id' => $entry->id, 'is_verified' => true]);
-    }
-
-    public function test_data_entry_without_stock_access_cannot_verify_manual_stock_entry(): void
-    {
-        $entry = ManualStockEntry::create([
-            'farm_id' => $this->farm->id,
-            'product_id' => $this->product->id,
-            'entry_type' => 'consumption',
-            'quantity' => 5,
-            'date' => now()->toDateString(),
-            'entered_by' => $this->farmManager->id,
-        ]);
-
-        $this->actingAs($this->dataEntryNoStock)
-            ->post(route('stock.manual-entries.verify', $entry))
-            ->assertForbidden();
-
-        $this->assertDatabaseHas('manual_stock_entries', ['id' => $entry->id, 'is_verified' => false]);
     }
 
     public function test_data_entry_can_update_manual_stock_entry(): void

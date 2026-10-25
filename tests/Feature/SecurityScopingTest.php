@@ -76,8 +76,8 @@ class SecurityScopingTest extends TestCase
         $this->dataEntryNoPointage = User::factory()->create([
             'role' => 'data_entry',
             'farm_id' => $this->farmA->id,
-            'can_access_pointage' => false,
-            'can_access_stock' => true,
+            'acces_pointage' => 'aucun',
+            'acces_stock' => 'saisie',
         ]);
 
         $this->employeeA = Employee::create([
@@ -193,14 +193,17 @@ class SecurityScopingTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_data_entry_cannot_create_an_enterprise(): void
+    public function test_only_pointage_saisie_creates_a_division(): void
     {
-        $this->actingAs($this->dataEntryA)
-            ->post('/enterprises', [
-                'farm_id' => $this->farmA->id, 'name' => 'New Division',
-                'contract_type' => 'avec_contrat', 'default_brut_rate' => 90,
-            ])
-            ->assertForbidden();
+        $division = ['farm_id' => $this->farmA->id, 'name' => 'New Division', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 90];
+        $this->dataEntryA->update(['acces_pointage' => 'consultation']);
+        $this->actingAs($this->dataEntryA)->post('/enterprises', $division)->assertSessionHas('error');
+        $this->assertDatabaseMissing('enterprises', ['name' => 'New Division']);
+
+        // The pointeur (Pointage saisie, not tied to one division) runs the divisions too.
+        $this->dataEntryA->update(['acces_pointage' => 'saisie']);
+        $this->actingAs($this->dataEntryA)->post('/enterprises', $division)->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('enterprises', ['name' => 'New Division']);
     }
 
     public function test_farm_manager_cannot_update_another_farms_enterprise(): void

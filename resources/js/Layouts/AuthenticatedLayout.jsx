@@ -6,6 +6,7 @@ import AppSidebar from '@/Components/AppSidebar';
 import FlashToast from '@/Components/FlashToast';
 import { Link, usePage } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
+import { acces, peutConsulter } from '@/utils/acces';
 
 export default function Authenticated({ user, header, children }) {
     const [showingNavigationDropdown, setShowingNavigationDropdown] = useState(false);
@@ -20,13 +21,13 @@ export default function Authenticated({ user, header, children }) {
     // Only data_entry accounts are ever restricted — super_admin/farm_manager always see both
     // domains (see User::canAccessPointage()/canAccessStock() on the backend, mirrored here so
     // the nav doesn't offer an entry point the middleware would just 403 on).
-    const canAccessPointage = user.role !== 'data_entry' || user.can_access_pointage;
-    const canAccessStock = user.role !== 'data_entry' || user.can_access_stock;
+    const canAccessPointage = peutConsulter(user, 'pointage');
+    const canAccessStock = peutConsulter(user, 'stock');
 
     // A data_entry granted exactly one domain has no real use for the Hub — EnterpriseController
     // redirects them straight into that domain, so offering an "Accueil" link that just bounces
     // back out is confusing. A data_entry with both (or neither) flag still sees it normally.
-    const isSingleDomainDataEntry = user.role === 'data_entry' && (canAccessPointage !== canAccessStock);
+    const isSingleDomainDataEntry = user.role !== 'super_admin' && (canAccessPointage !== canAccessStock);
 
     // Only used to decide which sidebar section opens by default on this page load — the
     // sidebar itself is one persistent tree now, not three that swap (see AppSidebar).
@@ -49,6 +50,9 @@ export default function Authenticated({ user, header, children }) {
     );
     const isAdminZone = !isStockZone && !isPointageZone && (route().current('farms.settings') || route().current('users.*'));
     const isHubZone = !isStockZone && !isPointageZone && !isAdminZone;
+    // In a domain this account only consults: say so once, above every page of it.
+    const zoneDomain = isStockZone ? 'stock' : (isPointageZone ? 'pointage' : null);
+    const enConsultation = zoneDomain && acces(user, zoneDomain) === 'consultation';
     // Whether the "Gestion Transport" sub-group (nested under Pointage) should default-open —
     // separate from isPointageZone above, which only decides the outer Pointage section itself.
     const isTransportZone = route().current('transport.*');
@@ -73,7 +77,8 @@ export default function Authenticated({ user, header, children }) {
         cart: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z',
     };
 
-    const farmSettingsItem = (user.farm_id || activeFarm)
+    // Farm structure is Pointage's: hidden from an account that has no Pointage access.
+    const farmSettingsItem = (user.farm_id || activeFarm) && canAccessPointage
         ? { label: t('system_settings') || 'Paramètres Système', href: 'farms.settings', params: user.farm_id || activeFarm.id, match: 'farms.settings', icon: ICONS.sliders }
         : null;
 
@@ -304,6 +309,14 @@ export default function Authenticated({ user, header, children }) {
                         <header className="border-b border-primary-100">
                             <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">{header}</div>
                         </header>
+                    )}
+
+                    {enConsultation && (
+                        <div className="bg-gray-100 border-b border-gray-200">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 text-xs font-semibold text-gray-600">
+                                Mode consultation : vous pouvez voir et exporter {zoneDomain === 'stock' ? 'le stock' : 'le pointage'}, pas le modifier.
+                            </div>
+                        </div>
                     )}
 
                     <main>{children}</main>

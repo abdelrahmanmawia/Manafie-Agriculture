@@ -28,7 +28,9 @@ class FarmController extends Controller
      */
     private function assertFarmManagerAccess(Request $request, int $farmId): void
     {
-        abort_unless($request->user()->canAccessPointage(), 403);
+        // Outside the Pointage route group: reading the settings needs consultation, changing
+        // them saisie (the pointeur's).
+        abort_unless($request->isMethod('GET') ? $request->user()->peutConsulter('pointage') : $request->user()->peutSaisir('pointage'), 403);
 
         if ($request->user()->role === 'super_admin') {
             return;

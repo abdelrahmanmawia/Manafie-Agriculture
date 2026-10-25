@@ -3,6 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/react';
 import { useState } from 'react';
 import { t } from '@/Helpers/i18n';
 import DashboardHeader from '@/Components/DashboardHeader';
+import { peutSaisir } from '@/utils/acces';
 
 // The farm's divisions: create one, and each one's quinzaines, analysis and settings. The day's
 // work starts on "Aujourd'hui"; this is setup, so it sits lower in the sidebar.
@@ -48,7 +49,7 @@ export default function Index({ auth, enterprises, farm }) {
                                     Choisissez une division pour gérer ses quinzaines de pointage.
                                 </p>
                             </div>
-                            {farm && auth.user.role !== 'data_entry' && (
+                            {farm && (peutSaisir(auth.user, 'pointage') && !auth.user.enterprise_id) && (
                                 <button
                                     onClick={() => setShowEntForm(!showEntForm)}
                                     className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2 rounded-full font-bold text-sm uppercase tracking-widest transition-all shadow-md"

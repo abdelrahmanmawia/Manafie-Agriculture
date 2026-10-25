@@ -6,6 +6,7 @@ import StatCard from '@/Components/StatCard';
 import DashboardHeader from '@/Components/DashboardHeader';
 import QuickActions from '@/Components/QuickActions';
 import { formatInt, formatNumber, formatMAD } from '@/utils/number';
+import { peutConsulter } from '@/utils/acces';
 
 export default function FarmDashboard({
     auth,
@@ -21,8 +22,8 @@ export default function FarmDashboard({
     // show the error message instead of crashing on farm.name/farm.id below.
     // Mirrors AuthenticatedLayout's own gating — a data_entry account without a domain flag
     // would otherwise see live Pointage/Stock numbers and dead-end links that just 403.
-    const canAccessPointage = auth.user.role !== 'data_entry' || auth.user.can_access_pointage;
-    const canAccessStock = auth.user.role !== 'data_entry' || auth.user.can_access_stock;
+    const canAccessPointage = peutConsulter(auth.user, 'pointage');
+    const canAccessStock = peutConsulter(auth.user, 'stock');
 
     if (!farm) {
         return (

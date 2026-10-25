@@ -11,6 +11,7 @@ import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD, formatInt } from '@/utils/number';
 import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 function formatDate(value) {
     if (!value) return '—';
@@ -70,7 +71,7 @@ export default function Show({ auth, supplier, stats }) {
                             <p className="text-sm text-gray-500 mt-1">Historique des réceptions</p>
                         </div>
                     </div>
-                    {auth.user.role !== 'data_entry' && (
+                    {peutSaisir(auth.user, 'stock') && (
                         <div className="flex items-center gap-2">
                             <button
                                 type="button"
@@ -111,7 +112,7 @@ export default function Show({ auth, supplier, stats }) {
                                     <ToggleSwitch
                                         checked={supplier.is_active}
                                         onChange={handleToggleActive}
-                                        disabled={auth.user.role === 'data_entry'}
+                                        disabled={!peutSaisir(auth.user, 'stock')}
                                     />
                                 </div>
                             </div>

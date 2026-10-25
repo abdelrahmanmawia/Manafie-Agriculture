@@ -168,7 +168,6 @@ class DemoStockSeeder extends Seeder
                 continue;
             }
             $date = $day->toDateString();
-            $verified = $d > 7; // the last week's sorties still wait for the magasinier's check
 
             // Réceptions: whatever fell under its minimum gets reordered (a few days' delay).
             foreach ($consommables as $c) {
@@ -200,7 +199,7 @@ class DemoStockSeeder extends Seeder
                     default => mt_rand(5, 60),
                 };
                 $type = mt_rand(1, 40) === 1 ? ['loss', 'damage'][mt_rand(0, 1)] : 'consumption';
-                $this->sortie($c['product'], $qty, $type, $date, $verified, $place() + [
+                $this->sortie($c['product'], $qty, $type, $date, $place() + [
                     'operation_id' => $operation($c['ops']),
                     'employee_id' => $workers ? $workers[array_rand($workers)] : null,
                 ]);
@@ -208,7 +207,7 @@ class DemoStockSeeder extends Seeder
 
             // A real magasin part now and then (flanges, elbows… from the counted inventory).
             if ($spareParts->isNotEmpty() && mt_rand(1, 3) === 1) {
-                $this->sortie($spareParts->random(), mt_rand(1, 4), 'consumption', $date, $verified, $place() + [
+                $this->sortie($spareParts->random(), mt_rand(1, 4), 'consumption', $date, $place() + [
                     'operation_id' => $operation(['R.F', 'F.G', 'M.P', 'En.P']),
                     'employee_id' => $workers ? $workers[array_rand($workers)] : null,
                 ]);
@@ -230,7 +229,7 @@ class DemoStockSeeder extends Seeder
                     ? [['HUILE MOTEUR 15W40', 12], ['FILTRE A HUILE', 1], ['FILTRE A GASOIL', 1]]
                     : [['HUILE HYDRAULIQUE', mt_rand(5, 20)], ['GRAISSE', mt_rand(1, 3)]];
                 foreach ($parts as [$name, $qty]) {
-                    $this->sortie($consommables[$name]['product'], $qty, 'maintenance', $date, $verified,
+                    $this->sortie($consommables[$name]['product'], $qty, 'maintenance', $date,
                         ['vehicle_id' => $vehicle->id, 'maintenance_log_id' => $log->id, 'employee_id' => $log->performed_by_id]);
                 }
             }
@@ -269,7 +268,7 @@ class DemoStockSeeder extends Seeder
     }
 
     /** A sortie, never more than is on hand (skipped when the magasin is empty). */
-    private function sortie(Product $product, float $qty, string $type, string $date, bool $verified, array $fields): void
+    private function sortie(Product $product, float $qty, string $type, string $date, array $fields): void
     {
         $inventory = StockInventory::where('product_id', $product->id)->first();
         $qty = min($qty, (float) $inventory->quantity_on_hand);
@@ -280,7 +279,6 @@ class DemoStockSeeder extends Seeder
         $entry = ManualStockEntry::create($fields + [
             'farm_id' => $this->farm->id, 'product_id' => $product->id, 'entry_type' => $type, 'quantity' => $qty, 'date' => $date,
             'entered_by' => $this->magasinierId,
-            'is_verified' => $verified, 'verified_by' => $verified ? $this->userId : null, 'verified_at' => $verified ? Carbon::parse($date)->addDays(2) : null,
             'notes' => $type === 'loss' ? 'Sac déchiré au déchargement' : ($type === 'damage' ? 'Produit abîmé (humidité)' : null),
         ]);
         StockMovement::create([

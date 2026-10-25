@@ -6,6 +6,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import Modal from '@/Components/Modal';
 import { formatNumber, formatInt } from '@/utils/number';
 import { ALERT_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Index({ auth, stockAlerts, resolvedCount }) {
     const [confirmingResolve, setConfirmingResolve] = useState(false);
@@ -158,7 +159,7 @@ export default function Index({ auth, stockAlerts, resolvedCount }) {
                                                     </span>
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                    {!alert.is_resolved && auth.user.role !== 'data_entry' && (
+                                                    {!alert.is_resolved && peutSaisir(auth.user, 'stock') && (
                                                         <button
                                                             type="button"
                                                             onClick={() => confirmResolveAlert(alert)}

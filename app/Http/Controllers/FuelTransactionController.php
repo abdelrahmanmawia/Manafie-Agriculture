@@ -64,7 +64,7 @@ class FuelTransactionController extends Controller
                 'rate' => $row['rate'], 'label' => FuelConsumptionService::rateLabel($row['unit']), 'delta' => $row['delta'], 'unit' => $row['unit'], 'alertes' => $row['alertes'],
             ]),
             'anomaliesCount' => $flagged->count(),
-            'canDeleteAny' => in_array($request->user()->role, ['farm_manager', 'super_admin'], true),
+            'canDelete' => $request->user()->peutSaisir('stock'),
         ]);
     }
 
@@ -80,18 +80,12 @@ class FuelTransactionController extends Controller
     }
 
     /**
-     * Removes a wrong fill-up and gives its liters back to the magasin. A manager may do it any
-     * time; whoever recorded it, only the day they recorded it (after that it is in the
-     * vehicle's fuel cost and stays, like a verified sortie).
+     * Removes a wrong fill-up and gives its liters back to the magasin (Stock saisie: the
+     * magasinier).
      */
     public function destroy(Request $request, FuelTransaction $transaction)
     {
         $this->assertFarmScope($request, $transaction->farm_id);
-        $user = $request->user();
-        $manager = in_array($user->role, ['farm_manager', 'super_admin'], true);
-        if (! $manager && ! ($transaction->performed_by === $user->id && $transaction->created_at?->isToday())) {
-            return redirect()->back()->with('error', 'Seul un responsable peut supprimer ce ravitaillement (ou son auteur, le jour même).');
-        }
 
         DB::transaction(function () use ($transaction) {
             $transaction = FuelTransaction::lockForUpdate()->findOrFail($transaction->id);

@@ -5,6 +5,7 @@ import { formatNumber } from '@/Helpers/formatNumber';
 import EmployeeFormModal from '@/Pages/Admin/Employees/EmployeeFormModal';
 import DeleteEmployeeModal from '@/Pages/Admin/Employees/DeleteEmployeeModal';
 import ContractModal from '@/Pages/Admin/Employees/ContractModal';
+import { peutSaisir } from '@/utils/acces';
 
 function InfoRow({ label, value }) {
     return (
@@ -38,7 +39,7 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
     const [isEditing, setIsEditing] = useState(false);
     const [isGeneratingContract, setIsGeneratingContract] = useState(false);
     const [confirmingDeletion, setConfirmingDeletion] = useState(false);
-    const canManage = auth.user.role !== 'data_entry' || auth.user.can_access_pointage;
+    const canManage = peutSaisir(auth.user, 'pointage');
 
     const salNetJ = employee.enterprise?.contract_type === 'avec_contrat'
         ? (parseFloat(employee.base_rate) * (1 - 0.0674)) + parseFloat(employee.complement || 0)

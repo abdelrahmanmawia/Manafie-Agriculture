@@ -111,12 +111,13 @@ class ReceptionAnnulationTest extends TestCase
         $this->assertNull($this->wrong()->annulation_id);
     }
 
-    public function test_only_a_manager_of_the_farm_may_cancel_and_with_a_reason(): void
+    public function test_only_stock_saisie_of_the_farm_may_cancel_and_with_a_reason(): void
     {
-        $this->annuler($this->wrong(), $this->magasinier)->assertForbidden();
+        $responsable = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $this->farm->id, 'acces_stock' => 'consultation']);
+        $this->annuler($this->wrong(), $responsable)->assertSessionHas('error');
         $stranger = User::factory()->create(['role' => 'farm_manager', 'farm_id' => Farm::create(['name' => 'Other'])->id]);
         $this->annuler($this->wrong(), $stranger)->assertForbidden();
-        $this->annuler($this->wrong(), $this->manager, '')->assertSessionHasErrors('motif');
+        $this->annuler($this->wrong(), $this->magasinier, '')->assertSessionHasErrors('motif');
 
         $this->assertNull($this->wrong()->annulation_id);
         $this->assertEqualsWithDelta(150, $this->inventory()->quantity_on_hand, 0.01);

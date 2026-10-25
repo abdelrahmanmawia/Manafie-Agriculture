@@ -210,7 +210,7 @@ class JourFerieTest extends TestCase
     public function test_a_division_locked_user_only_marks_their_own_division(): void
     {
         $pointeur = User::factory()->create([
-            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->avec->id, 'can_access_pointage' => true,
+            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->avec->id, 'acces_pointage' => 'saisie',
         ]);
         $karim = $this->employee($this->sans, 'Karim');
         $this->worked($karim, $this->qSans, '2026-01-10');

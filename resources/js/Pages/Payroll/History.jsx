@@ -31,7 +31,7 @@ export default function History({ auth, employees, periods, history, selectedEnt
                         <h2 className="font-black text-xl sm:text-2xl text-gray-800 uppercase tracking-tighter leading-none">Historique des Salaires</h2>
                         <p className="text-[10px] sm:text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">Récapitulatif global par salarié et par période</p>
                     </div>
-                    {(auth.user.role === 'super_admin' || auth.user.role === 'farm_manager') && (
+                    {!auth.user.enterprise_id && (
                         <select
                             className="w-full md:w-auto rounded-xl border-gray-200 bg-white font-bold text-sm shadow-sm focus:ring-primary-500"
                             value={selectedEnterpriseId || ''}

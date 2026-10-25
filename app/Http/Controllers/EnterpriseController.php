@@ -54,13 +54,13 @@ class EnterpriseController extends Controller
     }
 
     /**
-     * Creating/renaming/deleting a division itself — including its contract_type, which
-     * branches PayrollService's whole formula — is a structural decision, not routine pointage
-     * work. Stays farm_manager/super_admin-only regardless of a data_entry's domain flags.
+     * Creating/renaming/deleting a division (its contract type included) is the pointeur's,
+     * like everything in Pointage: these routes sit outside the Pointage group, so they check
+     * saisie themselves. A division-locked account can't touch the farm's divisions.
      */
     private function assertEnterpriseStructuralAccess(Request $request, int $farmId): void
     {
-        abort_if($request->user()->role === 'data_entry', 403);
+        abort_unless($request->user()->peutSaisir('pointage') && ! $request->user()->enterprise_id, 403);
         $this->assertFarmScope($request, $farmId);
     }
 
@@ -69,14 +69,13 @@ class EnterpriseController extends Controller
         $user = $request->user();
         $farmId = session('active_farm_id');
 
-        // A data_entry granted exactly one domain (magasinier or pointeur) has no real use for
-        // the Hub — send them straight into the zone they actually work in. One with both (or
-        // neither) flag still lands on the normal Hub below.
-        if ($user->role === 'data_entry' && $user->farm_id) {
-            if ($user->canAccessPointage() && ! $user->canAccessStock()) {
+        // Someone who works in exactly one domain (the pointeur, the magasinier) has no real use
+        // for the Hub — straight into the zone they work in. Everyone else lands on the Hub.
+        if ($user->role !== 'super_admin' && $user->farm_id) {
+            if ($user->peutConsulter('pointage') && ! $user->peutConsulter('stock')) {
                 return redirect()->route('pointage.today');
             }
-            if ($user->canAccessStock() && ! $user->canAccessPointage()) {
+            if ($user->peutConsulter('stock') && ! $user->peutConsulter('pointage')) {
                 return redirect()->route('stock.dashboard');
             }
         }

@@ -11,6 +11,7 @@ import Pagination from '@/Components/Pagination';
 import useListFilters from '@/utils/useListFilters';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 // A sortie left with no note shows its own type (Consommation/Perte/...) instead of a blank
 // cell — same label the "Type de Sortie" dropdown uses for that key.
@@ -53,7 +54,7 @@ export default function Index({ auth, stockMovements: paginator, filters = {}, c
 
     // Support being deep-linked from the Inventory page with ?action=receive
     useEffect(() => {
-        if (new URLSearchParams(window.location.search).get('action') === 'receive') {
+        if (new URLSearchParams(window.location.search).get('action') === 'receive' && peutSaisir(auth.user, 'stock')) {
             setIsReceiving(true);
         }
     }, []);
@@ -79,15 +80,17 @@ export default function Index({ auth, stockMovements: paginator, filters = {}, c
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Mouvements de Stock</h2>
                         <p className="text-sm text-gray-500 mt-1">Historique des entrées et sorties du magasin</p>
                     </div>
-                    <button
-                        onClick={() => setIsReceiving(true)}
-                        className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                    >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Nouvelle Réception
-                    </button>
+                    {peutSaisir(auth.user, 'stock') && (
+                        <button
+                            onClick={() => setIsReceiving(true)}
+                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Nouvelle Réception
+                        </button>
+                    )}
                 </div>
             }
         >

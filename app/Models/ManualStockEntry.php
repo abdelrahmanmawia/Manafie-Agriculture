@@ -28,17 +28,12 @@ class ManualStockEntry extends Model
         'date',
         'entered_by',
         'notes',
-        'is_verified',
-        'verified_by',
-        'verified_at',
         'odometer_km',
     ];
 
     protected $casts = [
         'date' => 'date',
         'quantity' => 'decimal:2',
-        'is_verified' => 'boolean',
-        'verified_at' => 'datetime',
         'odometer_km' => 'decimal:2',
     ];
 
@@ -97,11 +92,6 @@ class ManualStockEntry extends Model
     public function enteredBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'entered_by');
-    }
-
-    public function verifiedBy(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'verified_by');
     }
 
     // Reverse of StockMovement::reference() — the cost of this sortie lives on the movement,

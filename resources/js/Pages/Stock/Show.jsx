@@ -12,6 +12,7 @@ import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS, ALERT_TYPE_LABELS, MOVEMENT_TYPE_LABELS } from '@/utils/stockLabels';
 import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Show({ auth, product, categories, unitTypes }) {
     const [confirmingProductDeletion, setConfirmingProductDeletion] = useState(false);
@@ -155,7 +156,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                             </svg>
                             Modifier
                         </button>
-                        {auth.user.role !== 'data_entry' && (
+                        {peutSaisir(auth.user, 'stock') && (
                             <DangerButton onClick={confirmProductDeletion} className="rounded-xl">Supprimer</DangerButton>
                         )}
                     </div>
@@ -209,7 +210,7 @@ export default function Show({ auth, product, categories, unitTypes }) {
                                                 <ToggleSwitch
                                                     checked={product.is_active}
                                                     onChange={handleToggleActive}
-                                                    disabled={auth.user.role === 'data_entry'}
+                                                    disabled={!peutSaisir(auth.user, 'stock')}
                                                 />
                                             </div>
                                         </div>

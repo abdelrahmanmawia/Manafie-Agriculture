@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { peutSaisir } from '@/utils/acces';
 
 function getStockStatus(currentStock, minStock) {
     if (currentStock <= 0) return { status: 'Épuisé', color: 'bg-red-500', textColor: 'text-red-600' };
@@ -98,24 +99,26 @@ export default function Index({ auth, stockInventory, categories }) {
                             </svg>
                             PDF{selectedCategory ? ` (${categories.find((c) => String(c.id) === selectedCategory)?.name ?? ''})` : ''}
                         </a>
-                        <Link
-                            href={route('stock.inventory.comptage', selectedCategory ? { category_id: selectedCategory } : {})}
-                            className="bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 text-xs"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                            Comptage
-                        </Link>
-                        <Link
-                            href={route('stock.movements.index') + '?action=receive'}
-                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Nouvelle Réception
-                        </Link>
+                        {peutSaisir(auth.user, 'stock') && (<>
+                            <Link
+                                href={route('stock.inventory.comptage', selectedCategory ? { category_id: selectedCategory } : {})}
+                                className="bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 text-xs"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                </svg>
+                                Comptage
+                            </Link>
+                            <Link
+                                href={route('stock.movements.index') + '?action=receive'}
+                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                </svg>
+                                Nouvelle Réception
+                            </Link>
+                        </>)}
                     </div>
                 </div>
             }
@@ -223,7 +226,7 @@ export default function Index({ auth, stockInventory, categories }) {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                         <div className="flex items-center justify-end gap-4">
-                                                            <button
+                                                            {peutSaisir(auth.user, 'stock') && <button
                                                                 type="button"
                                                                 onClick={() => openCount(item)}
                                                                 className="text-gray-400 hover:text-green-600 transition-colors"
@@ -232,7 +235,7 @@ export default function Index({ auth, stockInventory, categories }) {
                                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
                                                                 </svg>
-                                                            </button>
+                                                            </button>}
                                                             <Link
                                                                 href={route('stock.inventory.show', item.id)}
                                                                 className="text-gray-400 hover:text-primary-600 transition-colors"

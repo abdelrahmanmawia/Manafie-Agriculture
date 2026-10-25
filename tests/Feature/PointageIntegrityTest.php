@@ -229,7 +229,7 @@ class PointageIntegrityTest extends TestCase
             'farm_id' => $this->farm->id, 'name' => 'Other', 'contract_type' => 'sans_contrat', 'default_brut_rate' => 90,
         ]);
         $pointeur = User::factory()->create([
-            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $otherDivision->id, 'can_access_pointage' => true,
+            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $otherDivision->id, 'acces_pointage' => 'saisie',
         ]);
 
         $this->sync($this->scanToken($pointeur))
@@ -247,10 +247,10 @@ class PointageIntegrityTest extends TestCase
     public function test_user_who_lost_pointage_access_cannot_sync(): void
     {
         $user = User::factory()->create([
-            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'can_access_pointage' => true,
+            'role' => 'data_entry', 'farm_id' => $this->farm->id, 'acces_pointage' => 'saisie',
         ]);
         $token = $this->scanToken($user);
-        $user->update(['can_access_pointage' => false]);
+        $user->update(['acces_pointage' => 'aucun']);
 
         $this->sync($token)->assertForbidden();
     }

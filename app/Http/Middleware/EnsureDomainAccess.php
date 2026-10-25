@@ -8,19 +8,25 @@ use Illuminate\Http\Request;
 class EnsureDomainAccess
 {
     /**
-     * Gates the Pointage-domain and Stock-domain route groups for a data_entry account that
-     * hasn't been granted that domain (see User::canAccessPointage()/canAccessStock()) — a
-     * magasinier hitting a Pointage route, or a pointeur hitting a Stock route. super_admin/
-     * farm_manager are never affected. Runs after farm.selected, so $user always has a
-     * resolvable farm by the time this checks.
+     * Gates the Pointage and Stock route groups by the account's level on that domain
+     * (User::acces()): reading (GET) needs consultation, anything that writes needs saisie —
+     * so a write route can't be left open by forgetting a check in its controller. A
+     * consultation account trying to write from a page gets a message back, not an error page.
      */
     public function handle(Request $request, Closure $next, string $domain)
     {
         $user = $request->user();
-        $allowed = $domain === 'pointage' ? $user->canAccessPointage() : $user->canAccessStock();
+        $write = ! in_array($request->method(), ['GET', 'HEAD', 'OPTIONS'], true);
 
-        abort_unless($allowed, 403);
+        if ($write ? $user->peutSaisir($domain) : $user->peutConsulter($domain)) {
+            return $next($request);
+        }
 
-        return $next($request);
+        if ($write && $user->peutConsulter($domain) && ! $request->expectsJson()) {
+            return redirect()->back()->with('error', 'Accès en consultation : vous ne pouvez pas modifier '
+                .($domain === 'stock' ? 'le stock.' : 'le pointage.'));
+        }
+
+        abort(403);
     }
 }

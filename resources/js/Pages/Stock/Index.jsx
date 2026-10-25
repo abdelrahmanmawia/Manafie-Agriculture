@@ -11,6 +11,7 @@ import ToggleSwitch from '@/Components/ToggleSwitch';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { UNIT_TYPE_LABELS, meterLabel } from '@/utils/stockLabels';
 import ManageCategoriesModal from '@/Components/ManageCategoriesModal';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Index({ auth, products, categories, suppliers, unitTypes, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
@@ -230,7 +231,7 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
                         <h2 className="font-black text-2xl text-gray-800 uppercase tracking-tighter leading-tight">Gestion des Produits</h2>
                         <p className="text-sm text-gray-500 mt-1">Gérez votre catalogue de produits et niveaux de stock</p>
                     </div>
-                    {auth.user.role !== 'data_entry' && (
+                    {peutSaisir(auth.user, 'stock') && (
                         <div className="flex items-center gap-3">
                             <button
                                 onClick={() => setIsManagingCategories(true)}
@@ -317,7 +318,7 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                                 </svg>
                                 <p className="mt-4 text-gray-500">Aucun produit trouvé</p>
-                                {auth.user.role !== 'data_entry' && (
+                                {peutSaisir(auth.user, 'stock') && (
                                     <button
                                         onClick={openCreate}
                                         className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
@@ -403,7 +404,7 @@ export default function Index({ auth, products, categories, suppliers, unitTypes
                                                         <ToggleSwitch
                                                             checked={product.is_active}
                                                             onChange={() => handleToggleActive(product)}
-                                                            disabled={auth.user.role === 'data_entry'}
+                                                            disabled={!peutSaisir(auth.user, 'stock')}
                                                         />
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

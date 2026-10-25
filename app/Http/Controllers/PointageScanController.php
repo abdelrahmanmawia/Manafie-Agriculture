@@ -72,8 +72,8 @@ class PointageScanController extends Controller
         $user = $request->user();
 
         // Re-checked on every API call, not just when the token was minted: a user whose
-        // Pointage access was revoked since must not keep writing pointage through an old token.
-        abort_unless($user->canAccessPointage(), 403);
+        // Pointage saisie was revoked since must not keep writing pointage through an old token.
+        abort_unless($user->peutSaisir('pointage'), 403);
 
         if ($user->farm_id) {
             return $user->farm_id;

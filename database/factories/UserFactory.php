@@ -23,12 +23,10 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
             'remember_token' => Str::random(10),
-            // Match the DB column default (see the users migration) explicitly — a factory
-            // override sets an attribute on the in-memory instance, so leaving these unset
-            // means canAccessPointage()/canAccessStock() see a null attribute instead of the
-            // DB's actual default(true) until the record is re-fetched from the database.
-            'can_access_pointage' => true,
-            'can_access_stock' => true,
+            // Full access by default, so a test's farm_manager or data_entry can work in both
+            // domains; tests about access set acces_pointage / acces_stock themselves.
+            'acces_pointage' => 'saisie',
+            'acces_stock' => 'saisie',
         ];
     }
 

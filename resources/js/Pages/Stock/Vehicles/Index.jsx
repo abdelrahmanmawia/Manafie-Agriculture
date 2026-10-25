@@ -16,6 +16,7 @@ import {
     ASSET_STATUS_LABELS,
     EQUIPMENT_TYPE_LABELS,
 } from '@/utils/stockLabels';
+import { peutSaisir } from '@/utils/acces';
 
 const TYPE_ICON = {
     tractor: (
@@ -51,7 +52,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
     const [selectedType, setSelectedType] = useState('');
     const [isManagingTypes, setIsManagingTypes] = useState(false);
     const [isManagingEquipmentTypes, setIsManagingEquipmentTypes] = useState(false);
-    const canManageTypes = auth.user.role !== 'data_entry';
+    const canManageTypes = peutSaisir(auth.user, 'stock');
 
     // vehicleTypes/equipmentTypes are both DB-backed, farm-configurable lists ({id, key,
     // label}); everything below that only needs the raw key list or a label lookup derives
@@ -305,7 +306,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                             <div className="text-center py-16">
                                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">{TYPE_ICON.other}</svg>
                                 <p className="mt-4 text-gray-500">Aucun élément trouvé</p>
-                                {auth.user.role !== 'data_entry' && (
+                                {peutSaisir(auth.user, 'stock') && (
                                     <button onClick={openCreate} className="mt-4 text-gray-700 hover:text-gray-900 font-medium">
                                         Ajouter votre premier véhicule ou équipement
                                     </button>
@@ -372,7 +373,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
                                                     <ToggleSwitch
                                                         checked={vehicle.is_active}
                                                         onChange={() => handleToggleActive(vehicle)}
-                                                        disabled={auth.user.role === 'data_entry'}
+                                                        disabled={!peutSaisir(auth.user, 'stock')}
                                                     />
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

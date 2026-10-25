@@ -65,7 +65,7 @@ class StockMovementController extends Controller
         return Inertia::render('Stock/Movements/Index', [
             'stockMovements' => $movements,
             'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
-            'canAnnuler' => in_array($request->user()->role, ['farm_manager', 'super_admin'], true),
+            'canAnnuler' => $request->user()->peutSaisir('stock'),
             'products' => $products,
             'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->orderBy('name')
@@ -130,13 +130,12 @@ class StockMovementController extends Controller
     }
 
     /**
-     * Cancels a wrong réception (manager only): a negative adjustment at the réception's own
+     * Cancels a wrong réception (Stock saisie: the magasinier): a negative adjustment at the réception's own
      * cost takes its quantity and value back out, and the CUMP is recomputed without it. Refused
      * once part of it has already gone out — fix that with a count instead.
      */
     public function annuler(Request $request, StockMovement $movement)
     {
-        abort_unless(in_array($request->user()->role, ['farm_manager', 'super_admin'], true), 403);
         $this->assertFarmScope($request, $movement->product()->first()?->farm_id);
         $validated = $request->validate(['motif' => 'required|string|max:255'], ['motif.required' => 'Indiquez pourquoi la réception est annulée.']);
 

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\User;
 use App\Models\Enterprise;
 use App\Models\Farm;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -21,7 +21,7 @@ class UserController extends Controller
 
         $farmId = $request->query('farm_id');
         $enterpriseId = $request->query('enterprise_id');
-        
+
         $query = User::with(['farm', 'enterprise']);
 
         if ($enterpriseId) {
@@ -35,7 +35,7 @@ class UserController extends Controller
             'farms' => \App\Models\Farm::all(),
             'enterprises' => $farmId ? \App\Models\Enterprise::where('farm_id', $farmId)->get() : \App\Models\Enterprise::all(),
             'selectedFarmId' => $farmId,
-            'selectedEnterpriseId' => $enterpriseId
+            'selectedEnterpriseId' => $enterpriseId,
         ]);
     }
 
@@ -113,11 +113,10 @@ class UserController extends Controller
             // The division must belong to the chosen farm — otherwise a user could be pinned to
             // one farm while scoped (by every enterprise_id-first check) to another farm's division.
             'enterprise_id' => ['nullable', Rule::exists('enterprises', 'id')->where('farm_id', $request->input('farm_id'))],
-            // Only meaningful for role=data_entry (see User::canAccessPointage()/
-            // canAccessStock()) — farm_manager always has full access regardless of what's
-            // sent here, so the frontend doesn't even show these fields for that role.
-            'can_access_pointage' => 'sometimes|boolean',
-            'can_access_stock' => 'sometimes|boolean',
+            // Each domain's level, whatever the role (User::acces()): the pointeur has saisie on
+            // Pointage, the magasinier on Stock, the responsable usually consultation on both.
+            'acces_pointage' => ['required', Rule::in(User::NIVEAUX)],
+            'acces_stock' => ['required', Rule::in(User::NIVEAUX)],
         ];
     }
 
@@ -134,8 +133,8 @@ class UserController extends Controller
             // and every scope check looks at enterprise_id first, silently locking the "manager"
             // to one division.
             'enterprise_id' => $isManager ? null : ($validated['enterprise_id'] ?? null),
-            'can_access_pointage' => (bool) ($validated['can_access_pointage'] ?? false),
-            'can_access_stock' => (bool) ($validated['can_access_stock'] ?? false),
+            'acces_pointage' => $validated['acces_pointage'],
+            'acces_stock' => $validated['acces_stock'],
         ];
     }
 

@@ -9,6 +9,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import { peutSaisir } from '@/utils/acces';
 
 function destinationOf(movement) {
     const ref = movement.reference;
@@ -99,12 +100,14 @@ export default function Show({ auth, stockInventory, exitTypes = [] }) {
                         >
                             PDF
                         </a>
-                        <button
-                            onClick={openCount}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
-                        >
-                            Compter le Stock
-                        </button>
+                        {peutSaisir(auth.user, 'stock') && (
+                            <button
+                                onClick={openCount}
+                                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"
+                            >
+                                Compter le Stock
+                            </button>
+                        )}
                         <Link
                             href={route('stock.products.show', stockInventory.product.id)}
                             className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-black uppercase tracking-widest shadow-md transition-all"

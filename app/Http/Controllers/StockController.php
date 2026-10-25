@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ManualStockEntry;
 use App\Models\Product;
 use App\Models\StockAlert;
 use App\Models\StockMovement;
@@ -64,10 +63,6 @@ class StockController extends Controller
             ->limit(8)
             ->get();
 
-        $pendingManualEntries = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
-            ->where('is_verified', false)
-            ->count();
-
         return [
             'stats' => [
                 'products' => $products->count(),
@@ -78,7 +73,6 @@ class StockController extends Controller
             ],
             'recentAlerts' => $recentAlerts,
             'recentMovements' => $recentMovements,
-            'pendingManualEntries' => $pendingManualEntries,
         ];
     }
 }

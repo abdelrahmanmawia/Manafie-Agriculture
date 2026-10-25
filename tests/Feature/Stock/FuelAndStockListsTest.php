@@ -125,20 +125,20 @@ class FuelAndStockListsTest extends TestCase
         $this->assertEqualsWithDelta(1000, $this->onHand(), 0.01);
     }
 
-    public function test_the_magasinier_may_delete_their_own_fill_up_only_the_same_day(): void
+    public function test_stock_saisie_deletes_a_fill_up_any_time_consultation_never(): void
     {
         $this->plein($this->magasinier);
         $fill = FuelTransaction::sole();
-        $other = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id]);
+        $responsable = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $this->farm->id, 'acces_stock' => 'consultation']);
 
-        $this->actingAs($other)->delete(route('stock.fuel-transactions.destroy', $fill))->assertSessionHas('error');
-        Carbon::setTestNow(now()->addDay());
-        $this->actingAs($this->magasinier)->delete(route('stock.fuel-transactions.destroy', $fill))->assertSessionHas('error');
+        $this->actingAs($responsable)->delete(route('stock.fuel-transactions.destroy', $fill))
+            ->assertSessionHas('error', 'Accès en consultation : vous ne pouvez pas modifier le stock.');
         $this->assertSame(1, FuelTransaction::count());
 
-        Carbon::setTestNow();
+        Carbon::setTestNow(now()->addWeek());
         $this->actingAs($this->magasinier)->delete(route('stock.fuel-transactions.destroy', $fill))->assertSessionHas('success');
         $this->assertEqualsWithDelta(1000, $this->onHand(), 0.01);
+        Carbon::setTestNow();
     }
 
     public function test_a_fill_up_of_another_farm_is_forbidden(): void
@@ -184,9 +184,9 @@ class FuelAndStockListsTest extends TestCase
         $this->actingAs($this->manager)->get(route('stock.movements.index', ['movement_type' => 'in']))
             ->assertInertia(fn (Assert $page) => $page->where('stockMovements.total', 1));
 
-        $this->actingAs($this->manager)->get(route('stock.manual-entries.index', ['statut' => 'a_verifier', 'from' => '2026-09-01']))
-            ->assertInertia(fn (Assert $page) => $page->where('manualStockEntries.total', 1)->where('aVerifier', 1));
-        $this->actingAs($this->manager)->get(route('stock.manual-entries.index', ['statut' => 'verifiee']))
+        $this->actingAs($this->manager)->get(route('stock.manual-entries.index', ['from' => '2026-09-01']))
+            ->assertInertia(fn (Assert $page) => $page->where('manualStockEntries.total', 1));
+        $this->actingAs($this->manager)->get(route('stock.manual-entries.index', ['entry_type' => 'consumption']))
             ->assertInertia(fn (Assert $page) => $page->where('manualStockEntries.total', 0));
     }
 }

@@ -7,6 +7,7 @@ import PrimaryButton from '@/Components/PrimaryButton';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Harvests({ auth, harvests, blocs, sectors = [], parcelles = [], varieties = [], grades = [], selectedFarmId, farm, farms = [], error }) {
     const [confirmingHarvestDeletion, setConfirmingHarvestDeletion] = useState(null);
@@ -515,7 +516,7 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                                                 {h.total_revenue_dh ? `${formatNumber(h.total_revenue_dh)} DH` : '-'}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-center">
-                                                {auth.user.role !== 'data_entry' && (
+                                                {peutSaisir(auth.user, 'pointage') && (
                                                     <div className="flex items-center justify-center gap-2">
                                                         <button
                                                             type="button"
