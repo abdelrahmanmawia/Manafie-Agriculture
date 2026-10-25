@@ -2,23 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Farm;
-use App\Models\ManualStockEntry;
-use App\Models\Product;
-use App\Models\Employee;
-use App\Models\Vehicle;
 use App\Models\Bloc;
-use App\Models\Sector;
+use App\Models\Employee;
+use App\Models\Farm;
+use App\Models\FuelTransaction;
+use App\Models\ManualStockEntry;
+use App\Models\Operation;
 use App\Models\Parcelle;
-use App\Models\Operation; // Assuming an Operation model exists
-use App\Models\StockMovement;
+use App\Models\Product;
+use App\Models\Sector;
+use App\Models\StockMovement; // Assuming an Operation model exists
+use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
 use Illuminate\Http\Request;
-use Inertia\Inertia;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class ManualStockEntryController extends Controller
 {
@@ -41,35 +42,35 @@ class ManualStockEntryController extends Controller
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $filters = $request->validate([
+            'entry_type' => 'nullable|string|max:50',
+            'statut' => 'nullable|in:a_verifier,verifiee',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+            'search' => 'nullable|string|max:100',
+        ]);
 
-        $query = ManualStockEntry::with('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
-            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId));
+        $query = ManualStockEntry::query()
+            ->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->when($filters['entry_type'] ?? null, fn ($q, $type) => $q->where('entry_type', $type))
+            ->when(($filters['statut'] ?? null) === 'a_verifier', fn ($q) => $q->where('is_verified', false))
+            ->when(($filters['statut'] ?? null) === 'verifiee', fn ($q) => $q->where('is_verified', true))
+            ->when($filters['from'] ?? null, fn ($q, $d) => $q->whereDate('date', '>=', $d))
+            ->when($filters['to'] ?? null, fn ($q, $d) => $q->whereDate('date', '<=', $d))
+            ->when($filters['search'] ?? null, fn ($q, $term) => $q->where(fn ($w) => $w
+                ->whereHas('product', fn ($p) => $p->where('name', 'like', "%{$term}%"))
+                ->orWhereHas('employee', fn ($e) => $e->where('full_name', 'like', "%{$term}%"))
+                ->orWhereHas('vehicle', fn ($v) => $v->where('name', 'like', "%{$term}%"))
+                ->orWhere('employee_name', 'like', "%{$term}%")
+                ->orWhere('notes', 'like', "%{$term}%")));
 
-        if ($request->has('entry_type')) {
-            $query->where('entry_type', $request->entry_type);
-        }
+        // Counted on the whole farm, whatever the filters: what is still waiting for a check.
+        $aVerifier = ManualStockEntry::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->where('is_verified', false)->count();
 
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
-        }
-
-        if ($request->has('employee_id')) {
-            $query->where('employee_id', $request->employee_id);
-        }
-
-        if ($request->has('vehicle_id')) {
-            $query->where('vehicle_id', $request->vehicle_id);
-        }
-
-        if ($request->has('from_date')) {
-            $query->where('date', '>=', $request->from_date);
-        }
-
-        if ($request->has('to_date')) {
-            $query->where('date', '<=', $request->to_date);
-        }
-
-        $manualStockEntries = $query->orderBy('date', 'desc')->get();
+        $manualStockEntries = $query->with('product', 'employee', 'vehicle', 'maintenanceLog', 'operation', 'bloc', 'sector', 'parcelle', 'enteredBy', 'verifiedBy')
+            ->orderBy('date', 'desc')->orderBy('id', 'desc')
+            ->paginate(50)
+            ->withQueryString();
 
         $products = Product::with('category')->when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
         $employees = Employee::where('is_active', true)
@@ -81,9 +82,10 @@ class ManualStockEntryController extends Controller
         $parcelles = Parcelle::when($farmId, fn ($q) => $q->whereHas('bloc', fn ($bq) => $bq->where('farm_id', $farmId)))->get(['id', 'name', 'bloc_id', 'sector_id']);
         $operations = Operation::when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name']);
 
-
         return Inertia::render('Stock/ManualStockEntries/Index', [
             'manualStockEntries' => $manualStockEntries,
+            'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
+            'aVerifier' => $aVerifier,
             'products' => $products,
             'employees' => $employees,
             'vehicles' => $vehicles,
@@ -139,6 +141,17 @@ class ManualStockEntryController extends Controller
         if (! empty($validated['maintenance_log_id'])) {
             $log = VehicleMaintenanceLog::findOrFail($validated['maintenance_log_id']);
             abort_unless($log->farm_id === $farmId && $log->vehicle_id == ($validated['vehicle_id'] ?? null), 403);
+        }
+
+        // Fuel consumed is a vehicle's fill-up: it goes to the Carburant page and the fuel cost per
+        // vehicle, not the sorties (a loss or theft of fuel stays a plain sortie).
+        $product = Product::with('category')->findOrFail($validated['product_id']);
+        if ($product->category?->is_carburant && $validated['entry_type'] === 'consumption') {
+            if (empty($validated['vehicle_id'])) {
+                throw ValidationException::withMessages(['vehicle_id' => 'Choisissez le véhicule ou matériel ravitaillé.']);
+            }
+
+            return $this->ravitaillement($request, $validated, $product, $farmId);
         }
 
         return DB::transaction(function () use ($validated, $request, $farmId) {
@@ -206,6 +219,62 @@ class ManualStockEntryController extends Controller
             StockAlertService::syncLowStock($product);
 
             return redirect()->back()->with('success', 'Sortie de stock enregistrée avec succès.');
+        });
+    }
+
+    /**
+     * A fuel sortie: a FuelTransaction ("Ravitaillement") with its "out" movement, at the fuel's
+     * CUMP, never more than the magasin holds — the same rules as any sortie.
+     */
+    private function ravitaillement(Request $request, array $validated, Product $product, int $farmId)
+    {
+        abort_unless($product->farm_id === $farmId, 403);
+
+        return DB::transaction(function () use ($request, $validated, $product, $farmId) {
+            $inventory = $this->lockedInventoryFor($product->id);
+            if ($validated['quantity'] > $inventory->quantity_on_hand) {
+                throw ValidationException::withMessages([
+                    'quantity' => 'Quantité insuffisante en stock. Disponible : '.max(0, $inventory->quantity_on_hand)." {$product->unit_type}.",
+                ]);
+            }
+            $price = (float) ($inventory->average_cost ?? $product->unit_cost ?? 0);
+
+            $transaction = FuelTransaction::create([
+                'farm_id' => $farmId,
+                'vehicle_id' => $validated['vehicle_id'],
+                'product_id' => $product->id,
+                'transaction_type' => 'fueling',
+                'quantity_liters' => $validated['quantity'],
+                'unit_price_per_liter' => $price,
+                'total_cost' => round($price * $validated['quantity'], 2),
+                'driver_id' => $validated['employee_id'] ?? null,
+                'performed_by' => $request->user()->id,
+                'date' => $validated['date'],
+                'odometer_km' => $validated['odometer_km'] ?? null,
+                'notes' => trim(($validated['employee_name'] ?? '') ? 'Chauffeur : '.$validated['employee_name'].'. '.($validated['notes'] ?? '') : ($validated['notes'] ?? '')) ?: null,
+                'operation_id' => $validated['operation_id'] ?? null,
+                'bloc_id' => $validated['bloc_id'] ?? null,
+                'sector_id' => $validated['sector_id'] ?? null,
+                'parcelle_id' => $validated['parcelle_id'] ?? null,
+            ]);
+            StockMovement::create([
+                'product_id' => $product->id,
+                'movement_type' => 'out',
+                'quantity' => $validated['quantity'],
+                'unit_cost' => $price,
+                'total_cost' => round($price * $validated['quantity'], 2),
+                'reference_type' => 'fuel_transaction',
+                'reference_id' => $transaction->id,
+                'performed_by' => $request->user()->id,
+                'date' => $validated['date'],
+                'notes' => $validated['notes'] ?? null,
+            ]);
+            $inventory->quantity_on_hand -= $validated['quantity'];
+            $inventory->save();
+
+            StockAlertService::syncLowStock($product);
+
+            return redirect()->back()->with('success', 'Ravitaillement enregistré — il apparaît dans Carburant.');
         });
     }
 
@@ -286,6 +355,14 @@ class ManualStockEntryController extends Controller
 
         $this->assertForeignKeysInScope($validated, $manualStockEntry->farm_id);
 
+        // A sortie can't be turned into a fill-up: that is a FuelTransaction, recorded as such
+        // (one recorded before the rule stays editable).
+        $isFuel = fn ($productId, $type) => $type === 'consumption' && Product::with('category')->find($productId)?->category?->is_carburant;
+        if ($isFuel($validated['product_id'] ?? $manualStockEntry->product_id, $validated['entry_type'] ?? $manualStockEntry->entry_type)
+            && ! $isFuel($manualStockEntry->product_id, $manualStockEntry->entry_type)) {
+            throw ValidationException::withMessages(['product_id' => 'Un plein de carburant ne se modifie pas depuis une sortie : supprimez-la et enregistrez le ravitaillement.']);
+        }
+
         // Same cross-check as store(): the intervention must belong to the vehicle this
         // sortie ends up attached to (whichever value — new or existing — wins).
         if (! empty($validated['maintenance_log_id'])) {
@@ -352,8 +429,8 @@ class ManualStockEntryController extends Controller
 
             // Update corresponding stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
-                                    ->where('reference_id', $manualStockEntry->id)
-                                    ->first();
+                ->where('reference_id', $manualStockEntry->id)
+                ->first();
             if ($movement) {
                 $movement->update([
                     'product_id' => $manualStockEntry->product_id,
@@ -397,7 +474,7 @@ class ManualStockEntryController extends Controller
         }
 
         $entry = ManualStockEntry::find($manualStockEntry);
-        if (!$entry) {
+        if (! $entry) {
             abort(404);
         }
 
@@ -416,8 +493,8 @@ class ManualStockEntryController extends Controller
 
             // Revert stock movement
             $movement = StockMovement::where('reference_type', 'manual_entry')
-                                    ->where('reference_id', $entry->id)
-                                    ->first();
+                ->where('reference_id', $entry->id)
+                ->first();
             if ($movement) {
                 $inventory = $this->lockedInventoryFor($entry->product_id);
                 $inventory->quantity_on_hand += $entry->quantity; // Add back to stock
@@ -484,22 +561,22 @@ class ManualStockEntryController extends Controller
     // for product_id/maintenance_log_id in store()/update().
     private function assertForeignKeysInScope(array $validated, int $farmId): void
     {
-        if (!empty($validated['employee_id'])) {
+        if (! empty($validated['employee_id'])) {
             abort_unless(Employee::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['employee_id'])->exists(), 403);
         }
-        if (!empty($validated['vehicle_id'])) {
+        if (! empty($validated['vehicle_id'])) {
             abort_unless(Vehicle::where('id', $validated['vehicle_id'])->where('farm_id', $farmId)->exists(), 403);
         }
-        if (!empty($validated['operation_id'])) {
+        if (! empty($validated['operation_id'])) {
             abort_unless(Operation::where('id', $validated['operation_id'])->where('farm_id', $farmId)->exists(), 403);
         }
-        if (!empty($validated['bloc_id'])) {
+        if (! empty($validated['bloc_id'])) {
             abort_unless(Bloc::where('id', $validated['bloc_id'])->where('farm_id', $farmId)->exists(), 403);
         }
-        if (!empty($validated['sector_id'])) {
+        if (! empty($validated['sector_id'])) {
             abort_unless(Sector::whereHas('bloc', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['sector_id'])->exists(), 403);
         }
-        if (!empty($validated['parcelle_id'])) {
+        if (! empty($validated['parcelle_id'])) {
             abort_unless(Parcelle::whereHas('bloc', fn ($q) => $q->where('farm_id', $farmId))->where('id', $validated['parcelle_id'])->exists(), 403);
         }
     }

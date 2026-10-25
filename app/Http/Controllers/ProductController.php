@@ -16,8 +16,8 @@ use App\Models\Supplier;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia; // Import Inertia
@@ -28,7 +28,7 @@ class ProductController extends Controller
     {
         return ProductCategory::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->orderBy('name')
-            ->get(['id', 'name', 'is_vehicle_related', 'is_active']);
+            ->get(['id', 'name', 'is_vehicle_related', 'is_carburant', 'is_active']);
     }
 
     public function index(Request $request)
@@ -87,7 +87,7 @@ class ProductController extends Controller
             'units',
             'boxes',
             'bags',
-            'rolls'
+            'rolls',
         ];
 
         return response()->json($unitTypes);
@@ -175,7 +175,7 @@ class ProductController extends Controller
         }
         $this->assertFarmScope($request, $product->farm_id);
 
-        $product->update(['is_active' => !$product->is_active]);
+        $product->update(['is_active' => ! $product->is_active]);
 
         return redirect()->back()->with('success', $product->is_active ? 'Produit activé.' : 'Produit désactivé.');
     }
@@ -255,12 +255,16 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $farmId)],
             'is_vehicle_related' => 'boolean',
+            'is_carburant' => 'boolean',
         ]);
 
+        // Fuel is always for vehicles.
+        $carburant = (bool) ($validated['is_carburant'] ?? false);
         ProductCategory::create([
             'farm_id' => $farmId,
             'name' => $validated['name'],
-            'is_vehicle_related' => $validated['is_vehicle_related'] ?? false,
+            'is_vehicle_related' => $carburant || ($validated['is_vehicle_related'] ?? false),
+            'is_carburant' => $carburant,
         ]);
 
         return redirect()->back()->with('success', 'Catégorie créée avec succès.');
@@ -276,8 +280,12 @@ class ProductController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $category->farm_id)->ignore($category->id)],
             'is_vehicle_related' => 'boolean',
+            'is_carburant' => 'boolean',
             'is_active' => 'boolean',
         ]);
+        if (! empty($validated['is_carburant'])) {
+            $validated['is_vehicle_related'] = true; // fuel is always for vehicles
+        }
 
         $category->update($validated);
 

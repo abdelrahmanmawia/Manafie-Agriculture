@@ -7,6 +7,8 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import Pagination from '@/Components/Pagination';
+import useListFilters from '@/utils/useListFilters';
 import { formatNumber, formatMAD } from '@/utils/number';
 import { MOVEMENT_TYPE_LABELS as MOVEMENT_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
@@ -19,8 +21,10 @@ function observationsOf(movement, exitTypes) {
     return exitTypes.find((t) => t.key === entryType)?.label || entryType;
 }
 
-export default function Index({ auth, stockMovements, products, suppliers, exitTypes = [] }) {
+export default function Index({ auth, stockMovements: paginator, filters = {}, products, suppliers, exitTypes = [] }) {
     const [isReceiving, setIsReceiving] = useState(false);
+    const { values, set, reset: resetFilters, active } = useListFilters('stock.movements.index', filters);
+    const stockMovements = paginator.data;
 
     const { data, setData, post, processing, reset, errors } = useForm({
         product_id: products.length > 0 ? products[0].id : '',
@@ -76,9 +80,54 @@ export default function Index({ auth, stockMovements, products, suppliers, exitT
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+                    <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                            <div className="md:col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
+                                <input
+                                    type="text"
+                                    placeholder="Produit, N° BL, note..."
+                                    value={values.search || ''}
+                                    onChange={(e) => set('search', e.target.value)}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                                <select value={values.movement_type || ''} onChange={(e) => set('movement_type', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Tous</option>
+                                    <option value="in">Entrées</option>
+                                    <option value="out">Sorties</option>
+                                    <option value="adjustment">Ajustements</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Produit</label>
+                                <select value={values.product_id || ''} onChange={(e) => set('product_id', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500">
+                                    <option value="">Tous</option>
+                                    {products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Du</label>
+                                <input type="date" value={values.from || ''} onChange={(e) => set('from', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Au</label>
+                                <input type="date" value={values.to || ''} onChange={(e) => set('to', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+                            </div>
+                        </div>
+                        {active && (
+                            <button type="button" onClick={resetFilters} className="mt-3 text-xs font-medium text-gray-500 hover:text-green-700">
+                                Effacer les filtres
+                            </button>
+                        )}
+                    </div>
+
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
-                        <div className="p-6 border-b border-gray-100">
+                        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                             <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Tous les Mouvements de Stock</h3>
+                            <span className="text-sm text-gray-500">{paginator.total} mouvement(s)</span>
                         </div>
 
                         {stockMovements.length === 0 ? (
@@ -86,7 +135,7 @@ export default function Index({ auth, stockMovements, products, suppliers, exitT
                                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                 </svg>
-                                <p className="mt-4 text-gray-500">Aucun mouvement de stock enregistré pour le moment.</p>
+                                <p className="mt-4 text-gray-500">{active ? 'Aucun mouvement pour ces filtres.' : 'Aucun mouvement de stock enregistré pour le moment.'}</p>
                                 <button onClick={() => setIsReceiving(true)} className="mt-4 text-green-600 hover:text-green-700 font-medium">
                                     Enregistrer une réception
                                 </button>
@@ -132,6 +181,7 @@ export default function Index({ auth, stockMovements, products, suppliers, exitT
                                 </table>
                             </div>
                         )}
+                        <Pagination paginator={paginator} />
                     </div>
                 </div>
             </div>

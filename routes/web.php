@@ -240,9 +240,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/alerts/unresolved-count', [StockAlertController::class, 'unresolvedCount'])->name('stock.alerts.unresolved-count');
 
     // Stock Management - Fuel Transactions
-    // Read-only history — new fuel/vehicle consumption is logged via Entrée Manuelle (stock.manual-entries.store)
+    // A fill-up is recorded from Sorties de Stock (stock.manual-entries.store with a Carburant product)
     Route::get('/stock/fuel-transactions', [FuelTransactionController::class, 'index'])->name('stock.fuel-transactions.index');
     Route::get('/stock/fuel-transactions/{transaction}', [FuelTransactionController::class, 'show'])->name('stock.fuel-transactions.show');
+    Route::delete('/stock/fuel-transactions/{transaction}', [FuelTransactionController::class, 'destroy'])->name('stock.fuel-transactions.destroy');
 
     // Stock Management - Manual Stock Entries
     Route::get('/stock/manual-entries', [ManualStockEntryController::class, 'index'])->name('stock.manual-entries.index');

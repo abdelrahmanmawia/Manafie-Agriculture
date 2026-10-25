@@ -18,41 +18,43 @@ class StockMovementController extends Controller
     public function index(Request $request)
     {
         $farmId = $this->scopedFarmId($request);
+        $filters = $request->validate([
+            'movement_type' => 'nullable|in:in,out,adjustment',
+            'product_id' => 'nullable|integer',
+            'from' => 'nullable|date',
+            'to' => 'nullable|date',
+            'search' => 'nullable|string|max:100',
+        ]);
 
         $query = StockMovement::with([
-                'product',
-                'performedBy',
-                'supplier',
-                'reference' => function ($morphTo) {
-                    $morphTo->morphWith([
-                        ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
-                        FuelTransaction::class => ['vehicle'],
-                    ]);
-                },
-            ])
+            'product',
+            'performedBy',
+            'supplier',
+            'reference' => function ($morphTo) {
+                $morphTo->morphWith([
+                    ManualStockEntry::class => ['bloc', 'sector', 'parcelle', 'vehicle', 'employee'],
+                    FuelTransaction::class => ['vehicle'],
+                ]);
+            },
+        ])
             ->when($farmId, function ($query) use ($farmId) {
                 $query->whereHas('product', fn ($q) => $q->where('farm_id', $farmId));
             });
 
-        if ($request->has('movement_type')) {
-            $query->where('movement_type', $request->movement_type);
-        }
-
-        if ($request->has('product_id')) {
-            $query->where('product_id', $request->product_id);
-        }
-
-        if ($request->has('from_date')) {
-            $query->where('date', '>=', $request->from_date);
-        }
-
-        if ($request->has('to_date')) {
-            $query->where('date', '<=', $request->to_date);
-        }
+        $query->when($filters['movement_type'] ?? null, fn ($q, $type) => $q->where('movement_type', $type))
+            ->when($filters['product_id'] ?? null, fn ($q, $id) => $q->where('product_id', $id))
+            ->when($filters['from'] ?? null, fn ($q, $d) => $q->whereDate('date', '>=', $d))
+            ->when($filters['to'] ?? null, fn ($q, $d) => $q->whereDate('date', '<=', $d))
+            ->when($filters['search'] ?? null, fn ($q, $term) => $q->where(fn ($w) => $w
+                ->whereHas('product', fn ($p) => $p->where('name', 'like', "%{$term}%"))
+                ->orWhere('notes', 'like', "%{$term}%")
+                ->orWhere('numero_bl', 'like', "%{$term}%")));
 
         $movements = $query->orderBy('date', 'desc')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->orderBy('id', 'desc')
+            ->paginate(50)
+            ->withQueryString();
 
         $products = Product::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('is_active', true)
@@ -61,6 +63,7 @@ class StockMovementController extends Controller
 
         return Inertia::render('Stock/Movements/Index', [
             'stockMovements' => $movements,
+            'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
             'products' => $products,
             'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->orderBy('name')

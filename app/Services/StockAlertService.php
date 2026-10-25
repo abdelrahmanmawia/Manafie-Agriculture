@@ -23,7 +23,8 @@ class StockAlertService
             ->where('is_resolved', false)
             ->first();
 
-        if ($currentStock <= $minStock) {
+        // No minimum set (0) means nothing to watch: no alert, and an old one is cleared.
+        if ($minStock > 0 && $currentStock <= $minStock) {
             if ($existing) {
                 $existing->update([
                     'threshold_value' => $minStock,

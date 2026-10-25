@@ -62,7 +62,7 @@ export default function Index({ auth, stockInventory, categories }) {
     const lowStockCount = stockInventory.filter((item) => {
         const qty = parseFloat(item.quantity_on_hand);
         const min = parseFloat(item.product.min_stock_level || 0);
-        return qty <= min;
+        return min > 0 && qty <= min; // same rule as Product::isLowStock()
     }).length;
 
     const totalValue = stockInventory.reduce((sum, item) => {

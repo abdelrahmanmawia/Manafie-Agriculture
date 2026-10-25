@@ -105,6 +105,12 @@ Every stock-affecting controller action (`StockMovementController::stockIn/stock
 
 Seeders: `StockRealDataSeeder` loads the farm's real magasin + matériel inventories (opening stock as "Inventaire initial" adjustments); `DemoStockSeeder` (calls it first, so it resets the farm's stock) adds demo consumables, suppliers and 90 days of réceptions, sorties, fuelings, maintenance, rental days and counts through the same stock rules — test data, not for a farm in production.
 
+Fuel goes out as a vehicle's fill-up, not a sortie: a "Consommation" sortie of a product whose category is `product_categories.is_carburant` (the farm's "Carburant") is recorded by `ManualStockEntryController::ravitaillement()` as a `FuelTransaction` (`fueling`, vehicle required, at the CUMP) with its `out` movement (`reference_type = 'fuel_transaction'`) — it shows on the Carburant page and in the vehicle's fuel cost; a loss/theft of fuel stays a sortie, and a sortie can't be edited into a fill-up. A fill-up is removed (liters back to the magasin) by a manager any time, by whoever recorded it the same day (`FuelTransactionController::destroy`).
+
+"Stock faible" means at or under a minimum someone set: a product with `min_stock_level` 0 is never low and gets no alert, even at 0 (`Product::isLowStock()`, `StockAlertService::syncLowStock()`, the inventory's low_stock filter and its counter all use that rule).
+
+The Mouvements, Sorties and Carburant lists are paginated on the server (50 per page, `paginate()->withQueryString()`) with their filters in the URL (`from`/`to` dates, type, search; sorties also `statut`, fuel also `vehicle_id`) through `useListFilters()` + `Components/Pagination.jsx` — don't load a whole history into a page again; the Carburant totals are computed over every matching row, not the page.
+
 A sortie (`ManualStockEntry`) is editable/deletable only while unverified. Anyone with Stock access — the magasinier included — can verify it; once verified it is locked for everyone until a `farm_manager`/`super_admin` unlocks it (`ManualStockEntryController::unverify`). Réceptions (`stockIn`) and inventory counts have no edit/delete at all. Every stock write locks its `StockInventory` row through `Controller::lockedInventoryFor()` (one row per product, `unique(product_id)`).
 
 ### "Aujourd'hui" is the day's starting point

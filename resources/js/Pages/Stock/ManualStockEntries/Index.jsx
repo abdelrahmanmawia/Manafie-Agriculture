@@ -8,13 +8,15 @@ import DangerButton from '@/Components/DangerButton';
 import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
+import Pagination from '@/Components/Pagination';
 import { formatNumber } from '@/utils/number';
+import useListFilters from '@/utils/useListFilters';
 import { ENTRY_TYPE_LABELS, UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 
-export default function Index({ auth, manualStockEntries, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
+export default function Index({ auth, manualStockEntries, filters = {}, aVerifier = 0, products, employees, vehicles, blocs, sectors, parcelles, operations, vehicleMaintenanceLogs, exitTypes }) {
     const [isCreating, setIsCreating] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [selectedType, setSelectedType] = useState('');
+    const { values, set, reset: resetFilters, active } = useListFilters('stock.manual-entries.index', filters);
+    const filteredEntries = manualStockEntries.data;
     const [deletingEntry, setDeletingEntry] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isManagingTypes, setIsManagingTypes] = useState(false);
@@ -73,21 +75,14 @@ export default function Index({ auth, manualStockEntries, products, employees, v
     // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
     const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
     const isVehicleConsumable = Boolean(selectedProduct?.category?.is_vehicle_related);
+    // Fuel consumed is a fill-up: recorded on the Carburant page, for the vehicle (required).
+    const isRavitaillement = Boolean(selectedProduct?.category?.is_carburant) && data.entry_type === 'consumption';
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
         const date = new Date(dateString);
         return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
     };
-
-    const filteredEntries = manualStockEntries.filter(entry => {
-        const matchesSearch = entry.product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             entry.employee?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             entry.employee_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             entry.vehicle?.name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesType = !selectedType || entry.entry_type === selectedType;
-        return matchesSearch && matchesType;
-    });
 
     const getEntryTypeColor = (type) => {
         const colors = {
@@ -181,15 +176,15 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
                     {/* Filters */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Rechercher</label>
                                 <div className="relative">
                                     <input
                                         type="text"
-                                        placeholder="Rechercher par produit, employé ou véhicule..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        placeholder="Produit, employé, véhicule..."
+                                        value={values.search || ''}
+                                        onChange={(e) => set('search', e.target.value)}
                                         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                     />
                                     <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -200,8 +195,8 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">Type de Sortie</label>
                                 <select
-                                    value={selectedType}
-                                    onChange={(e) => setSelectedType(e.target.value)}
+                                    value={values.entry_type || ''}
+                                    onChange={(e) => set('entry_type', e.target.value)}
                                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                 >
                                     <option value="">Tous les types</option>
@@ -210,6 +205,34 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     ))}
                                 </select>
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Statut</label>
+                                <select value={values.statut || ''} onChange={(e) => set('statut', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                    <option value="">Tous</option>
+                                    <option value="a_verifier">À vérifier</option>
+                                    <option value="verifiee">Vérifiées</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Du</label>
+                                <input type="date" value={values.from || ''} onChange={(e) => set('from', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Au</label>
+                                <input type="date" value={values.to || ''} onChange={(e) => set('to', e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+                            </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
+                            {aVerifier > 0 && values.statut !== 'a_verifier' && (
+                                <button type="button" onClick={() => set('statut', 'a_verifier')} className="font-semibold text-amber-700 hover:underline">
+                                    {aVerifier} sortie(s) à vérifier
+                                </button>
+                            )}
+                            {active && (
+                                <button type="button" onClick={resetFilters} className="font-medium text-gray-500 hover:text-primary-600">
+                                    Effacer les filtres
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -218,7 +241,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                         <div className="p-6 border-b border-gray-100">
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Sorties</h3>
-                                <span className="text-sm text-gray-500">{filteredEntries.length} sortie(s)</span>
+                                <span className="text-sm text-gray-500">{manualStockEntries.total} sortie(s)</span>
                             </div>
                         </div>
 
@@ -228,7 +251,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                                 </svg>
                                 <p className="mt-4 text-gray-500">Aucune sortie trouvée</p>
-                                {auth.user.role !== 'data_entry' && (
+                                {auth.user.role !== 'data_entry' && !active && (
                                     <button
                                         onClick={() => setIsCreating(true)}
                                         className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
@@ -391,6 +414,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                 </table>
                             </div>
                         )}
+                        <Pagination paginator={manualStockEntries} />
                     </div>
                 </div>
             </div>
@@ -533,7 +557,7 @@ export default function Index({ auth, manualStockEntries, products, employees, v
 
                             {isVehicleConsumable && (
                                 <div>
-                                    <InputLabel htmlFor="vehicle_id" value="Véhicule" />
+                                    <InputLabel htmlFor="vehicle_id" value={isRavitaillement ? 'Véhicule / matériel ravitaillé *' : 'Véhicule'} />
                                     <select
                                         id="vehicle_id"
                                         className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
@@ -546,6 +570,11 @@ export default function Index({ auth, manualStockEntries, products, employees, v
                                         ))}
                                     </select>
                                     <InputError message={errors.vehicle_id} className="mt-2" />
+                                    {isRavitaillement && (
+                                        <p className="mt-2 text-xs text-orange-700">
+                                            Ce plein est enregistré comme ravitaillement : il apparaît dans Carburant (coût du véhicule), pas dans les sorties.
+                                        </p>
+                                    )}
                                 </div>
                             )}
 

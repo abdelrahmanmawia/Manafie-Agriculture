@@ -72,6 +72,8 @@ class Product extends Model
 
     public function isLowStock()
     {
-        return $this->current_stock <= $this->min_stock_level;
+        // Low only against a minimum someone set: a product with none (0) is never "low", even
+        // at 0 — the inventory shows it "Épuisé" / "Seuil non défini" instead.
+        return (float) $this->min_stock_level > 0 && $this->current_stock <= $this->min_stock_level;
     }
 }

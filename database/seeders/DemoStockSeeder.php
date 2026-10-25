@@ -129,7 +129,7 @@ class DemoStockSeeder extends Seeder
             $product = Product::create([
                 'farm_id' => $this->farm->id, 'name' => $name, 'unit_type' => $unit, 'unit_cost' => $cost, 'min_stock_level' => $min, 'is_active' => true,
                 'category_id' => ProductCategory::firstOrCreate(['farm_id' => $this->farm->id, 'name' => self::LABELS[$category]],
-                    ['is_vehicle_related' => in_array($category, ['fuel', 'vehicle_needs'], true)])->id,
+                    ['is_vehicle_related' => in_array($category, ['fuel', 'vehicle_needs'], true), 'is_carburant' => $category === 'fuel'])->id,
             ]);
             StockInventory::create(['product_id' => $product->id, 'quantity_on_hand' => 0, 'quantity_reserved' => 0, 'average_cost' => $cost]);
             $this->reception($product, $qty, $cost, $suppliers[$supplier], $opening, 'Stock de départ (démo)');

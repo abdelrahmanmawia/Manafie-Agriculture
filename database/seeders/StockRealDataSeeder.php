@@ -43,8 +43,9 @@ class StockRealDataSeeder extends Seeder
     public function run(): void
     {
         $farm = Farm::where('name', 'Persealand')->first();
-        if (!$farm) {
+        if (! $farm) {
             $this->command->warn('Persealand farm not found — skipping StockRealDataSeeder.');
+
             return;
         }
 
@@ -206,9 +207,10 @@ class StockRealDataSeeder extends Seeder
             if (! isset($categoryIdsByKey[$key])) {
                 $categoryIdsByKey[$key] = ProductCategory::firstOrCreate(
                     ['farm_id' => $farm->id, 'name' => $legacyLabels[$key] ?? ucfirst($key)],
-                    ['is_vehicle_related' => in_array($key, $vehicleRelatedKeys, true)]
+                    ['is_vehicle_related' => in_array($key, $vehicleRelatedKeys, true), 'is_carburant' => $key === 'fuel']
                 )->id;
             }
+
             return $categoryIdsByKey[$key];
         };
 
@@ -298,6 +300,6 @@ class StockRealDataSeeder extends Seeder
             ]);
         }
 
-        $this->command->info('Done: ' . count($productsData) . ' produits, ' . count($assetsData) . ' matériel.');
+        $this->command->info('Done: '.count($productsData).' produits, '.count($assetsData).' matériel.');
     }
 }

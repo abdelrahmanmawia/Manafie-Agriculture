@@ -7,9 +7,9 @@ use App\Exports\StockMovementsExport;
 use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
+use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\StockInventory;
-use App\Models\Product;
 use App\Services\StockAlertService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -38,7 +38,8 @@ class StockInventoryController extends Controller
             // products — whereColumn inside whereHas previously compared both names against
             // the products table alone, which has no quantity_on_hand column.
             $query->whereHas('product', function ($q) {
-                $q->whereColumn('products.min_stock_level', '>=', 'stock_inventory.quantity_on_hand');
+                $q->where('products.min_stock_level', '>', 0)
+                    ->whereColumn('products.min_stock_level', '>=', 'stock_inventory.quantity_on_hand');
             });
         }
 
@@ -118,7 +119,7 @@ class StockInventoryController extends Controller
     {
         $category = $this->exportCategoryFor($request);
         $farm = Farm::find($this->scopedFarmId($request));
-        $filename = ($category ? Str::slug($category->name) : 'Inventaire') . '_' . now()->format('Y-m-d') . '.xlsx';
+        $filename = ($category ? Str::slug($category->name) : 'Inventaire').'_'.now()->format('Y-m-d').'.xlsx';
 
         return Excel::download(
             new StockInventoryExport($this->farmInventory($request), $category?->name, $farm),
@@ -137,7 +138,7 @@ class StockInventoryController extends Controller
             'generatedAt' => now(),
         ])->setPaper('a4', 'portrait');
 
-        $filename = ($category ? Str::slug($category->name) : 'Inventaire') . '_' . now()->format('Y-m-d') . '.pdf';
+        $filename = ($category ? Str::slug($category->name) : 'Inventaire').'_'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
     }
@@ -148,7 +149,7 @@ class StockInventoryController extends Controller
         $this->loadMovementRelations($inventory);
 
         $exitTypesByKey = $this->exitTypesFor($inventory->product->farm_id)->pluck('label', 'key')->toArray();
-        $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.xlsx';
+        $filename = 'Mouvements_'.Str::slug($inventory->product->name).'_'.now()->format('Y-m-d').'.xlsx';
 
         return Excel::download(new StockMovementsExport($inventory, $exitTypesByKey), $filename);
     }
@@ -170,7 +171,7 @@ class StockInventoryController extends Controller
             'generatedAt' => now(),
         ])->setPaper('a4', 'portrait');
 
-        $filename = 'Mouvements_' . Str::slug($inventory->product->name) . '_' . now()->format('Y-m-d') . '.pdf';
+        $filename = 'Mouvements_'.Str::slug($inventory->product->name).'_'.now()->format('Y-m-d').'.pdf';
 
         return $pdf->download($filename);
     }
