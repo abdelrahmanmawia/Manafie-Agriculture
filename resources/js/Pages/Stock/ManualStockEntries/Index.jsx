@@ -42,10 +42,11 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
     const [employeeInputMode, setEmployeeInputMode] = useState('list');
     const canManageTypes = auth.user.role !== 'data_entry';
 
+    // Several products can leave at once: one line each, the rest of the form shared by all.
+    const emptyLine = () => ({ product_id: '', quantity: '' });
     const { data, setData, post, processing, reset, errors } = useForm({
-        product_id: products.length > 0 ? products[0].id : '',
+        lignes: [emptyLine()],
         entry_type: 'consumption',
-        quantity: '',
         employee_id: '',
         employee_name: '',
         vehicle_id: '',
@@ -89,10 +90,21 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
     };
 
     // Only fuel/oil/parts-type products are tied to a specific vehicle when they leave the magasin.
-    const selectedProduct = products.find((p) => String(p.id) === String(data.product_id));
-    const isVehicleConsumable = Boolean(selectedProduct?.category?.is_vehicle_related);
+    const productOf = (ligne) => products.find((p) => String(p.id) === String(ligne.product_id));
+    const lineProducts = data.lignes.map(productOf).filter(Boolean);
+    const isVehicleConsumable = lineProducts.some((p) => p.category?.is_vehicle_related);
     // Fuel consumed is a fill-up: recorded on the Carburant page, for the vehicle (required).
-    const isRavitaillement = Boolean(selectedProduct?.category?.is_carburant) && data.entry_type === 'consumption';
+    const isRavitaillement = data.entry_type === 'consumption' && lineProducts.some((p) => p.category?.is_carburant);
+
+    const setLine = (index, field, value) => setData((prev) => {
+        const lignes = prev.lignes.map((l, i) => (i === index ? { ...l, [field]: value } : l));
+        // No vehicle-related product left: no vehicle to keep.
+        const stillVehicle = lignes.some((l) => productOf(l)?.category?.is_vehicle_related);
+        return { ...prev, lignes, vehicle_id: stillVehicle ? prev.vehicle_id : '', maintenance_log_id: stillVehicle ? prev.maintenance_log_id : '' };
+    });
+    const addLine = () => setData((prev) => ({ ...prev, lignes: [...prev.lignes, emptyLine()] }));
+    const removeLine = (index) => setData((prev) => ({ ...prev, lignes: prev.lignes.filter((_, i) => i !== index) }));
+    const chosenIds = data.lignes.map((l) => String(l.product_id)).filter(Boolean);
 
     const formatDate = (dateString) => {
         if (!dateString) return 'N/A';
@@ -489,29 +501,69 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                     <form onSubmit={submit} className="space-y-6">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                            <div>
-                                <InputLabel htmlFor="product_id" value="Produit *" />
-                                <select
-                                    id="product_id"
-                                    className="mt-1 block w-full border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm"
-                                    value={data.product_id}
-                                    onChange={(e) => {
-                                        const nextProduct = products.find((p) => String(p.id) === e.target.value);
-                                        const nextIsVehicleConsumable = Boolean(nextProduct?.category?.is_vehicle_related);
-                                        setData((prev) => ({
-                                            ...prev,
-                                            product_id: e.target.value,
-                                            vehicle_id: nextIsVehicleConsumable ? prev.vehicle_id : '',
-                                        }));
-                                    }}
-                                    required
-                                >
-                                    <option value="">-- Sélectionner un produit --</option>
-                                    {products.map((product) => (
-                                        <option key={product.id} value={product.id}>{product.name} ({UNIT_TYPE_LABELS[product.unit_type] || product.unit_type})</option>
-                                    ))}
-                                </select>
-                                <InputError message={errors.product_id} className="mt-2" />
+                            <div className="md:col-span-2">
+                                <InputLabel value="Produits sortis *" />
+                                <div className="mt-1 space-y-2">
+                                    {data.lignes.map((ligne, index) => {
+                                        const product = productOf(ligne);
+                                        const unit = product ? (UNIT_TYPE_LABELS[product.unit_type] || product.unit_type) : '';
+                                        const over = product && Number(ligne.quantity) > Number(product.quantity_on_hand ?? 0);
+                                        return (
+                                            <div key={index}>
+                                                <div className="flex items-start gap-2">
+                                                    <select
+                                                        aria-label={`Produit ${index + 1}`}
+                                                        className="flex-1 min-w-0 border-gray-300 focus:border-primary-500 focus:ring-primary-500 rounded-lg shadow-sm text-sm"
+                                                        value={ligne.product_id}
+                                                        onChange={(e) => setLine(index, 'product_id', e.target.value)}
+                                                        required
+                                                    >
+                                                        <option value="">-- Produit --</option>
+                                                        {products.map((p) => (
+                                                            <option key={p.id} value={p.id} disabled={chosenIds.includes(String(p.id)) && String(p.id) !== String(ligne.product_id)}>
+                                                                {p.name} — dispo {formatNumber(p.quantity_on_hand ?? 0)} {UNIT_TYPE_LABELS[p.unit_type] || p.unit_type}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <div className="w-36 shrink-0">
+                                                        <div className="relative">
+                                                            <input
+                                                                aria-label={`Quantité ${index + 1}`}
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0.01"
+                                                                className={`block w-full rounded-lg shadow-sm text-sm pr-14 ${over ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-primary-500 focus:ring-primary-500'}`}
+                                                                value={ligne.quantity}
+                                                                onChange={(e) => setLine(index, 'quantity', e.target.value)}
+                                                                placeholder="Qté"
+                                                                required
+                                                            />
+                                                            <span className="absolute right-3 top-2 text-xs text-gray-400">{unit}</span>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeLine(index)}
+                                                        disabled={data.lignes.length === 1}
+                                                        className="mt-2 text-gray-400 hover:text-red-600 disabled:opacity-20"
+                                                        title="Retirer ce produit"
+                                                    >
+                                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                                {over && <p className="mt-1 text-xs text-red-600">Plus que le stock disponible ({formatNumber(product.quantity_on_hand ?? 0)} {unit}).</p>}
+                                                <InputError message={errors[`lignes.${index}.product_id`]} className="mt-1" />
+                                                <InputError message={errors[`lignes.${index}.quantity`]} className="mt-1" />
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <button type="button" onClick={addLine} className="mt-2 text-sm font-bold text-primary-600 hover:text-primary-800">
+                                    + Ajouter un produit
+                                </button>
+                                <InputError message={errors.lignes} className="mt-2" />
                             </div>
 
                             <div>
@@ -535,22 +587,6 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                     ))}
                                 </select>
                                 <InputError message={errors.entry_type} className="mt-2" />
-                            </div>
-
-                            <div>
-                                <InputLabel htmlFor="quantity" value="Quantité *" />
-                                <TextInput
-                                    id="quantity"
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    className="mt-1 block w-full"
-                                    value={data.quantity}
-                                    onChange={(e) => setData('quantity', e.target.value)}
-                                    required
-                                    placeholder="Ex: 25.5"
-                                />
-                                <InputError message={errors.quantity} className="mt-2" />
                             </div>
 
                             <div>
@@ -754,7 +790,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                         <div className="flex justify-end gap-4 pt-6 border-t mt-6">
                             <SecondaryButton onClick={() => setIsCreating(false)}>Annuler</SecondaryButton>
                             <PrimaryButton disabled={processing} className="bg-primary-600 hover:bg-primary-700">
-                                {processing ? 'Enregistrement...' : 'Enregistrer la Sortie'}
+                                {processing ? 'Enregistrement...' : data.lignes.length > 1 ? `Enregistrer les ${data.lignes.length} produits` : 'Enregistrer la Sortie'}
                             </PrimaryButton>
                         </div>
                     </form>

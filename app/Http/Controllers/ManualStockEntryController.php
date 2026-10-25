@@ -11,7 +11,8 @@ use App\Models\Operation;
 use App\Models\Parcelle;
 use App\Models\Product;
 use App\Models\Sector;
-use App\Models\StockMovement; // Assuming an Operation model exists
+use App\Models\StockInventory;
+use App\Models\StockMovement;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
 use App\Services\StockAlertService;
@@ -72,7 +73,13 @@ class ManualStockEntryController extends Controller
             ->paginate(50)
             ->withQueryString();
 
-        $products = Product::with('category')->when($farmId, fn ($q) => $q->where('farm_id', $farmId))->get(['id', 'name', 'category_id', 'unit_type', 'unit_cost']);
+        // With what the magasin holds, so the form shows it beside each product line.
+        $products = Product::with('category')->when($farmId, fn ($q) => $q->where('farm_id', $farmId))
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->select('id', 'name', 'category_id', 'unit_type', 'unit_cost')
+            ->addSelect(['quantity_on_hand' => StockInventory::select('quantity_on_hand')->whereColumn('product_id', 'products.id')->limit(1)])
+            ->get();
         $employees = Employee::where('is_active', true)
             ->when($farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))
             ->get(['id', 'full_name']);
@@ -98,6 +105,11 @@ class ManualStockEntryController extends Controller
         ]);
     }
 
+    /**
+     * A sortie: one product, or several taken at once (`lignes`: product + quantity each) sharing
+     * the same date, person, type, destination and vehicle — one entry and one movement per
+     * product, all saved or none. A fuel consumption line is a fill-up (ravitaillement()).
+     */
     public function store(Request $request)
     {
         if (! $request->user()->canAccessStock()) {
@@ -108,13 +120,17 @@ class ManualStockEntryController extends Controller
         $exitTypeKeys = $this->exitTypesFor($farmId)->pluck('key');
 
         $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
+            // One product (product_id + quantity) or several (lignes).
+            'product_id' => 'required_without:lignes|exists:products,id',
+            'quantity' => 'required_without:lignes|numeric|min:0.01',
+            'lignes' => 'sometimes|array|min:1|max:50',
+            'lignes.*.product_id' => 'required|distinct|exists:products,id',
+            'lignes.*.quantity' => 'required|numeric|min:0.01',
             // 'transfer' removed: bloc-to-bloc transfers don't happen in this business — see the
             // deleted StockMovementController::transfer() and CLAUDE.md's Stock domain notes. A
             // sortie has no receiving side, so labeling one "Transfert" implied stock went
             // somewhere trackable when it just left the magasin like any other consumption.
             'entry_type' => ['required', Rule::in($exitTypeKeys)],
-            'quantity' => 'required|numeric|min:0.01',
             'employee_id' => 'nullable|exists:employees,id',
             // Free-text fallback for someone who took stock but isn't in the Employee list — the
             // form only ever sends one of the two (a toggle switches which field is active), but
@@ -130,6 +146,9 @@ class ManualStockEntryController extends Controller
             'date' => 'required|date',
             'notes' => 'nullable|string',
             'odometer_km' => 'nullable|numeric|min:0',
+        ], [
+            'lignes.*.product_id.distinct' => 'Ce produit est déjà dans la liste.',
+            'lignes.*.quantity.required' => 'Quantité ?',
         ]);
 
         $this->validateLocationHierarchy($validated['bloc_id'] ?? null, $validated['sector_id'] ?? null, $validated['parcelle_id'] ?? null);
@@ -143,139 +162,141 @@ class ManualStockEntryController extends Controller
             abort_unless($log->farm_id === $farmId && $log->vehicle_id == ($validated['vehicle_id'] ?? null), 403);
         }
 
+        $plusieurs = isset($validated['lignes']);
+        $lignes = collect($validated['lignes'] ?? [['product_id' => $validated['product_id'], 'quantity' => $validated['quantity']]]);
+        $products = Product::with('category')->whereIn('id', $lignes->pluck('product_id'))->get()->keyBy('id');
+        abort_unless($products->every(fn ($p) => $p->farm_id === $farmId), 403);
+
         // Fuel consumed is a vehicle's fill-up: it goes to the Carburant page and the fuel cost per
         // vehicle, not the sorties (a loss or theft of fuel stays a plain sortie).
-        $product = Product::with('category')->findOrFail($validated['product_id']);
-        if ($product->category?->is_carburant && $validated['entry_type'] === 'consumption') {
-            if (empty($validated['vehicle_id'])) {
-                throw ValidationException::withMessages(['vehicle_id' => 'Choisissez le véhicule ou matériel ravitaillé.']);
-            }
-
-            return $this->ravitaillement($request, $validated, $product, $farmId);
+        $isPlein = fn (Product $product) => $product->category?->is_carburant && $validated['entry_type'] === 'consumption';
+        if (empty($validated['vehicle_id']) && $products->contains($isPlein)) {
+            throw ValidationException::withMessages(['vehicle_id' => 'Choisissez le véhicule ou matériel ravitaillé.']);
         }
 
-        return DB::transaction(function () use ($validated, $request, $farmId) {
-            $product = Product::findOrFail($validated['product_id']);
-            abort_unless($product->farm_id === $farmId, 403);
+        $pleins = DB::transaction(function () use ($lignes, $products, $isPlein, $plusieurs, $validated, $request, $farmId) {
+            $pleins = 0;
+            // Locked in product order, so two sorties sharing products can't deadlock.
+            foreach ($lignes->sortBy('product_id', SORT_NUMERIC, false) as $index => $ligne) {
+                $product = $products[$ligne['product_id']];
+                $quantity = (float) $ligne['quantity'];
+                $errorKey = $plusieurs ? "lignes.{$index}.quantity" : 'quantity';
+                $inventory = $this->lockedInventoryFor($product->id);
 
-            // Cost basis is the CUMP (weighted-average cost built up from every réception),
-            // not a price re-entered here — a sortie shouldn't ask what was already paid in.
-            $inventory = $this->lockedInventoryFor($product->id);
-            $unitCost = $inventory->average_cost ?? $product->unit_cost ?? 0;
+                // A sortie can never take out more than the magasin physically holds.
+                if ($quantity > $inventory->quantity_on_hand) {
+                    $available = max(0, (float) $inventory->quantity_on_hand);
+                    throw ValidationException::withMessages([
+                        $errorKey => "Quantité insuffisante en stock. Disponible : {$available} {$product->unit_type}.",
+                    ]);
+                }
 
-            // A sortie can never take out more than the magasin physically holds.
-            if ($validated['quantity'] > $inventory->quantity_on_hand) {
-                $available = max(0, $inventory->quantity_on_hand);
-                throw ValidationException::withMessages([
-                    'quantity' => "Quantité insuffisante en stock. Disponible : {$available} {$product->unit_type}.",
-                ]);
+                if ($isPlein($product)) {
+                    $this->ravitaillement($request, $validated, $product, $farmId, $inventory, $quantity);
+                    $pleins++;
+                } else {
+                    $this->sortie($request, $validated, $product, $farmId, $inventory, $quantity);
+                }
+                StockAlertService::syncLowStock($product);
             }
 
-            $entry = ManualStockEntry::create([
-                'farm_id' => $farmId,
-                'product_id' => $validated['product_id'],
-                'entry_type' => $validated['entry_type'],
-                'quantity' => $validated['quantity'],
-                'employee_id' => $validated['employee_id'] ?? null,
-                'employee_name' => $validated['employee_name'] ?? null,
-                'vehicle_id' => $validated['vehicle_id'] ?? null,
-                'maintenance_log_id' => $validated['maintenance_log_id'] ?? null,
-                'pointage_record_id' => $validated['pointage_record_id'] ?? null,
-                'operation_id' => $validated['operation_id'] ?? null,
-                'bloc_id' => $validated['bloc_id'] ?? null,
-                'sector_id' => $validated['sector_id'] ?? null,
-                'parcelle_id' => $validated['parcelle_id'] ?? null,
-                'date' => $validated['date'],
-                'entered_by' => $request->user()->id,
-                'notes' => $validated['notes'] ?? null,
-                'odometer_km' => $validated['odometer_km'] ?? null,
-            ]);
-
-            // Create corresponding stock movement
-            StockMovement::create([
-                'product_id' => $product->id,
-                'movement_type' => 'out', // Manual entries are typically 'out' movements
-                'quantity' => $validated['quantity'],
-                'unit_cost' => $unitCost,
-                'total_cost' => $unitCost * $validated['quantity'],
-                'reference_type' => 'manual_entry',
-                'reference_id' => $entry->id,
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                // Was hardcoded to "Manual entry: {$validated['entry_type']}" — silently
-                // discarding whatever the user actually typed in the sortie's own Notes field
-                // (it was still saved on ManualStockEntry.notes, but never surfaced anywhere the
-                // movement itself is shown: Inventory/Show.jsx, Movements/Index.jsx, or the Stock
-                // exports). The entry_type is already properly labeled on the dedicated Sorties
-                // de Stock page (ManualStockEntries/Show.jsx) — no need to duplicate it here.
-                // Mirrors StockMovementController::stockIn()'s own notes handling.
-                'notes' => $validated['notes'] ?? null,
-            ]);
-
-            // Update inventory
-            $inventory->quantity_on_hand -= $validated['quantity'];
-            $inventory->save();
-
-            StockAlertService::syncLowStock($product);
-
-            return redirect()->back()->with('success', 'Sortie de stock enregistrée avec succès.');
+            return $pleins;
         });
+
+        if (! $plusieurs) {
+            return redirect()->back()->with('success', $pleins ? 'Ravitaillement enregistré — il apparaît dans Carburant.' : 'Sortie de stock enregistrée avec succès.');
+        }
+
+        return redirect()->back()->with('success', $lignes->count().' produit(s) sorti(s)'
+            .($pleins ? ", dont {$pleins} ravitaillement(s) (dans Carburant)" : '').'.');
+    }
+
+    /** One product's sortie: the entry, its "out" movement at the CUMP, the stock taken out. */
+    private function sortie(Request $request, array $validated, Product $product, int $farmId, StockInventory $inventory, float $quantity): void
+    {
+        // Cost basis is the CUMP (weighted-average cost built up from every réception),
+        // not a price re-entered here — a sortie shouldn't ask what was already paid in.
+        $unitCost = (float) ($inventory->average_cost ?? $product->unit_cost ?? 0);
+
+        $entry = ManualStockEntry::create([
+            'farm_id' => $farmId,
+            'product_id' => $product->id,
+            'entry_type' => $validated['entry_type'],
+            'quantity' => $quantity,
+            'employee_id' => $validated['employee_id'] ?? null,
+            'employee_name' => $validated['employee_name'] ?? null,
+            'vehicle_id' => $validated['vehicle_id'] ?? null,
+            'maintenance_log_id' => $validated['maintenance_log_id'] ?? null,
+            'pointage_record_id' => $validated['pointage_record_id'] ?? null,
+            'operation_id' => $validated['operation_id'] ?? null,
+            'bloc_id' => $validated['bloc_id'] ?? null,
+            'sector_id' => $validated['sector_id'] ?? null,
+            'parcelle_id' => $validated['parcelle_id'] ?? null,
+            'date' => $validated['date'],
+            'entered_by' => $request->user()->id,
+            'notes' => $validated['notes'] ?? null,
+            'odometer_km' => $validated['odometer_km'] ?? null,
+        ]);
+
+        StockMovement::create([
+            'product_id' => $product->id,
+            'movement_type' => 'out',
+            'quantity' => $quantity,
+            'unit_cost' => $unitCost,
+            'total_cost' => $unitCost * $quantity,
+            'reference_type' => 'manual_entry',
+            'reference_id' => $entry->id,
+            'performed_by' => $request->user()->id,
+            'date' => $validated['date'],
+            // The sortie's own note, shown wherever the movement is (Inventory/Show.jsx,
+            // Movements/Index.jsx, the Stock exports) — mirrors stockIn()'s notes handling.
+            'notes' => $validated['notes'] ?? null,
+        ]);
+
+        $inventory->quantity_on_hand -= $quantity;
+        $inventory->save();
     }
 
     /**
      * A fuel sortie: a FuelTransaction ("Ravitaillement") with its "out" movement, at the fuel's
-     * CUMP, never more than the magasin holds — the same rules as any sortie.
+     * CUMP — the same rules as any sortie.
      */
-    private function ravitaillement(Request $request, array $validated, Product $product, int $farmId)
+    private function ravitaillement(Request $request, array $validated, Product $product, int $farmId, StockInventory $inventory, float $quantity): void
     {
-        abort_unless($product->farm_id === $farmId, 403);
+        $price = (float) ($inventory->average_cost ?? $product->unit_cost ?? 0);
 
-        return DB::transaction(function () use ($request, $validated, $product, $farmId) {
-            $inventory = $this->lockedInventoryFor($product->id);
-            if ($validated['quantity'] > $inventory->quantity_on_hand) {
-                throw ValidationException::withMessages([
-                    'quantity' => 'Quantité insuffisante en stock. Disponible : '.max(0, $inventory->quantity_on_hand)." {$product->unit_type}.",
-                ]);
-            }
-            $price = (float) ($inventory->average_cost ?? $product->unit_cost ?? 0);
-
-            $transaction = FuelTransaction::create([
-                'farm_id' => $farmId,
-                'vehicle_id' => $validated['vehicle_id'],
-                'product_id' => $product->id,
-                'transaction_type' => 'fueling',
-                'quantity_liters' => $validated['quantity'],
-                'unit_price_per_liter' => $price,
-                'total_cost' => round($price * $validated['quantity'], 2),
-                'driver_id' => $validated['employee_id'] ?? null,
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                'odometer_km' => $validated['odometer_km'] ?? null,
-                'notes' => trim(($validated['employee_name'] ?? '') ? 'Chauffeur : '.$validated['employee_name'].'. '.($validated['notes'] ?? '') : ($validated['notes'] ?? '')) ?: null,
-                'operation_id' => $validated['operation_id'] ?? null,
-                'bloc_id' => $validated['bloc_id'] ?? null,
-                'sector_id' => $validated['sector_id'] ?? null,
-                'parcelle_id' => $validated['parcelle_id'] ?? null,
-            ]);
-            StockMovement::create([
-                'product_id' => $product->id,
-                'movement_type' => 'out',
-                'quantity' => $validated['quantity'],
-                'unit_cost' => $price,
-                'total_cost' => round($price * $validated['quantity'], 2),
-                'reference_type' => 'fuel_transaction',
-                'reference_id' => $transaction->id,
-                'performed_by' => $request->user()->id,
-                'date' => $validated['date'],
-                'notes' => $validated['notes'] ?? null,
-            ]);
-            $inventory->quantity_on_hand -= $validated['quantity'];
-            $inventory->save();
-
-            StockAlertService::syncLowStock($product);
-
-            return redirect()->back()->with('success', 'Ravitaillement enregistré — il apparaît dans Carburant.');
-        });
+        $transaction = FuelTransaction::create([
+            'farm_id' => $farmId,
+            'vehicle_id' => $validated['vehicle_id'],
+            'product_id' => $product->id,
+            'transaction_type' => 'fueling',
+            'quantity_liters' => $quantity,
+            'unit_price_per_liter' => $price,
+            'total_cost' => round($price * $quantity, 2),
+            'driver_id' => $validated['employee_id'] ?? null,
+            'performed_by' => $request->user()->id,
+            'date' => $validated['date'],
+            'odometer_km' => $validated['odometer_km'] ?? null,
+            'notes' => trim(($validated['employee_name'] ?? '') ? 'Chauffeur : '.$validated['employee_name'].'. '.($validated['notes'] ?? '') : ($validated['notes'] ?? '')) ?: null,
+            'operation_id' => $validated['operation_id'] ?? null,
+            'bloc_id' => $validated['bloc_id'] ?? null,
+            'sector_id' => $validated['sector_id'] ?? null,
+            'parcelle_id' => $validated['parcelle_id'] ?? null,
+        ]);
+        StockMovement::create([
+            'product_id' => $product->id,
+            'movement_type' => 'out',
+            'quantity' => $quantity,
+            'unit_cost' => $price,
+            'total_cost' => round($price * $quantity, 2),
+            'reference_type' => 'fuel_transaction',
+            'reference_id' => $transaction->id,
+            'performed_by' => $request->user()->id,
+            'date' => $validated['date'],
+            'notes' => $validated['notes'] ?? null,
+        ]);
+        $inventory->quantity_on_hand -= $quantity;
+        $inventory->save();
     }
 
     public function show(Request $request, ManualStockEntry $manualStockEntry)
