@@ -533,6 +533,32 @@ class ManualStockEntryController extends Controller
         return back()->with('success', 'Entrée vérifiée avec succès.');
     }
 
+    /** The sorties ticked on the page, verified at once (same rule as verify(): first check stands). */
+    public function verifyBulk(Request $request)
+    {
+        abort_unless($request->user()->canAccessStock(), 403);
+        $farmId = $this->scopedFarmId($request);
+        $validated = $request->validate([
+            'ids' => 'required|array|min:1|max:200',
+            'ids.*' => 'integer|distinct',
+        ], ['ids.required' => 'Cochez au moins une sortie.']);
+
+        $verifiees = DB::transaction(function () use ($request, $validated, $farmId) {
+            $entries = ManualStockEntry::whereIn('id', $validated['ids'])->lockForUpdate()->get();
+            abort_unless($entries->count() === count($validated['ids']) && $entries->every(fn ($e) => $e->farm_id === $farmId), 403);
+
+            $aVerifier = $entries->where('is_verified', false);
+            foreach ($aVerifier as $entry) {
+                $entry->update(['is_verified' => true, 'verified_by' => $request->user()->id, 'verified_at' => now()]);
+            }
+
+            return $aVerifier->count();
+        });
+
+        return back()->with('success', $verifiees.' sortie(s) vérifiée(s).'
+            .($verifiees < count($validated['ids']) ? ' '.(count($validated['ids']) - $verifiees).' déjà vérifiée(s).' : ''));
+    }
+
     /**
      * "Déverrouiller": takes a verified sortie back to unverified so a mistake can be corrected
      * (edit/destroy refuse a verified entry), after which it gets verified again. Manager-level

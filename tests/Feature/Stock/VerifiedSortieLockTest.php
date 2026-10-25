@@ -21,8 +21,11 @@ class VerifiedSortieLockTest extends TestCase
     use RefreshDatabase;
 
     private User $manager;
+
     private User $magasinier;
+
     private Product $product;
+
     private ManualStockEntry $entry;
 
     protected function setUp(): void
@@ -143,5 +146,39 @@ class VerifiedSortieLockTest extends TestCase
             ->assertSessionMissing('error');
         $this->assertDatabaseMissing('manual_stock_entries', ['id' => $this->entry->id]);
         $this->assertEquals(100, $this->onHand());
+    }
+
+    public function test_ticked_sorties_are_verified_at_once_keeping_a_first_verifier(): void
+    {
+        $this->verifyAs($this->manager); // already verified: keeps the manager
+        foreach ([5, 3] as $quantity) {
+            $this->actingAs($this->magasinier)->post(route('stock.manual-entries.store'), [
+                'product_id' => $this->product->id, 'entry_type' => 'consumption', 'quantity' => $quantity, 'date' => now()->toDateString(),
+            ]);
+        }
+
+        $this->actingAs($this->magasinier)->post(route('stock.manual-entries.verify-bulk'), ['ids' => ManualStockEntry::pluck('id')->all()])
+            ->assertSessionHas('success', '2 sortie(s) vérifiée(s). 1 déjà vérifiée(s).');
+
+        $this->assertSame(3, ManualStockEntry::where('is_verified', true)->count());
+        $this->assertSame($this->manager->id, $this->entry->fresh()->verified_by);
+        $this->assertSame(2, ManualStockEntry::where('verified_by', $this->magasinier->id)->count());
+    }
+
+    public function test_bulk_verification_refuses_another_farms_sortie_and_a_user_without_stock(): void
+    {
+        $other = Farm::create(['name' => 'Other']);
+        $foreign = ManualStockEntry::create([
+            'farm_id' => $other->id, 'product_id' => $this->product->id, 'entry_type' => 'consumption', 'quantity' => 1,
+            'entered_by' => $this->manager->id, 'date' => now()->toDateString(),
+        ]);
+        $this->actingAs($this->magasinier)->post(route('stock.manual-entries.verify-bulk'), ['ids' => [$this->entry->id, $foreign->id]])
+            ->assertForbidden();
+
+        $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->manager->farm_id, 'can_access_pointage' => true, 'can_access_stock' => false]);
+        $this->actingAs($pointeur)->post(route('stock.manual-entries.verify-bulk'), ['ids' => [$this->entry->id]])->assertForbidden();
+        $this->actingAs($this->magasinier)->post(route('stock.manual-entries.verify-bulk'), ['ids' => []])->assertSessionHasErrors('ids');
+
+        $this->assertFalse((bool) $this->entry->fresh()->is_verified);
     }
 }

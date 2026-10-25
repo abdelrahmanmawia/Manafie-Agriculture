@@ -253,6 +253,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Manual Stock Entries
     Route::get('/stock/manual-entries', [ManualStockEntryController::class, 'index'])->name('stock.manual-entries.index');
     Route::post('/stock/manual-entries', [ManualStockEntryController::class, 'store'])->name('stock.manual-entries.store');
+    Route::post('/stock/manual-entries/verify-bulk', [ManualStockEntryController::class, 'verifyBulk'])->name('stock.manual-entries.verify-bulk');
     Route::get('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'show'])->name('stock.manual-entries.show');
     Route::get('/stock/manual-entries/{manualStockEntry}/edit', [ManualStockEntryController::class, 'edit'])->name('stock.manual-entries.edit');
     Route::put('/stock/manual-entries/{manualStockEntry}', [ManualStockEntryController::class, 'update'])->name('stock.manual-entries.update');

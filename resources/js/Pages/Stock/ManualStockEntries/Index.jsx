@@ -1,6 +1,6 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, useForm, router } from '@inertiajs/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -17,6 +17,22 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
     const [isCreating, setIsCreating] = useState(false);
     const { values, set, reset: resetFilters, active } = useListFilters('stock.manual-entries.index', filters);
     const filteredEntries = manualStockEntries.data;
+
+    // Ticked sorties to verify at once (verifyBulk); only unverified ones on this page can be ticked.
+    const [selected, setSelected] = useState([]);
+    const [verifyingBulk, setVerifyingBulk] = useState(false);
+    const selectable = filteredEntries.filter((e) => !e.is_verified).map((e) => e.id);
+    useEffect(() => setSelected([]), [manualStockEntries]); // a new page or a reload starts empty
+    const toggle = (id) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+    const allSelected = selectable.length > 0 && selectable.every((id) => selected.includes(id));
+    const verifySelected = () => {
+        setVerifyingBulk(true);
+        router.post(route('stock.manual-entries.verify-bulk'), { ids: selected }, {
+            preserveScroll: true,
+            onSuccess: () => setSelected([]),
+            onFinish: () => setVerifyingBulk(false),
+        });
+    };
     const [deletingEntry, setDeletingEntry] = useState(null);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isManagingTypes, setIsManagingTypes] = useState(false);
@@ -239,9 +255,26 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                     {/* Entries Table */}
                     <div className="bg-white shadow-sm sm:rounded-2xl border border-gray-100 overflow-hidden">
                         <div className="p-6 border-b border-gray-100">
-                            <div className="flex justify-between items-center">
+                            <div className="flex flex-wrap justify-between items-center gap-3">
                                 <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Historique des Sorties</h3>
-                                <span className="text-sm text-gray-500">{manualStockEntries.total} sortie(s)</span>
+                                {selected.length > 0 ? (
+                                    <div className="flex items-center gap-3">
+                                        <span className="text-sm text-gray-600">{selected.length} sélectionnée(s)</span>
+                                        <button type="button" onClick={() => setSelected([])} className="text-xs font-medium text-gray-500 hover:text-gray-800">
+                                            Désélectionner
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={verifyingBulk}
+                                            onClick={verifySelected}
+                                            className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-xs font-black uppercase tracking-widest"
+                                        >
+                                            {verifyingBulk ? 'Vérification...' : 'Vérifier la sélection'}
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span className="text-sm text-gray-500">{manualStockEntries.total} sortie(s)</span>
+                                )}
                             </div>
                         </div>
 
@@ -265,6 +298,16 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                 <table className="min-w-full divide-y divide-gray-200">
                                     <thead className="bg-gray-50">
                                         <tr>
+                                            <th scope="col" className="pl-6 pr-2 py-3 w-8">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={allSelected}
+                                                    disabled={selectable.length === 0}
+                                                    onChange={() => setSelected(allSelected ? [] : selectable)}
+                                                    title="Sélectionner les sorties à vérifier de cette page"
+                                                    className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
+                                                />
+                                            </th>
                                             <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                                 Date
                                             </th>
@@ -293,7 +336,17 @@ export default function Index({ auth, manualStockEntries, filters = {}, aVerifie
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {filteredEntries.map((entry) => (
-                                            <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
+                                            <tr key={entry.id} className={`hover:bg-gray-50 transition-colors ${selected.includes(entry.id) ? 'bg-green-50/60' : ''}`}>
+                                                <td className="pl-6 pr-2 py-4">
+                                                    {!entry.is_verified && (
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selected.includes(entry.id)}
+                                                            onChange={() => toggle(entry.id)}
+                                                            className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                                        />
+                                                    )}
+                                                </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                                     {formatDate(entry.date)}
                                                 </td>
