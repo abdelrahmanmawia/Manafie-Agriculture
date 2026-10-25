@@ -159,9 +159,12 @@ export default function Show({ auth, supplier, stats }) {
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {movements.map((movement) => (
-                                        <tr key={movement.id}>
+                                        <tr key={movement.id} className={movement.annulation_id ? 'text-gray-400 line-through decoration-gray-300' : ''}>
                                             <td className="px-6 py-3 text-gray-600">{formatDate(movement.date)}</td>
-                                            <td className="px-6 py-3 font-medium text-gray-800">{movement.product?.name ?? '—'}</td>
+                                            <td className="px-6 py-3 font-medium text-gray-800">
+                                                {movement.product?.name ?? '—'}
+                                                {movement.annulation_id && <span className="ml-2 no-underline inline-block text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">Annulée</span>}
+                                            </td>
                                             <td className="px-6 py-3 text-gray-600">{movement.numero_bl || '—'}</td>
                                             <td className="px-6 py-3 text-right">
                                                 {formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[movement.product?.unit_type] || movement.product?.unit_type}

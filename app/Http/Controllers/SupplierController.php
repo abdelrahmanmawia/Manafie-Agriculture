@@ -29,14 +29,16 @@ class SupplierController extends Controller
         $this->assertFarmScope($request, $supplier->farm_id);
 
         $supplier->load(['stockMovements' => fn ($q) => $q->orderByDesc('date')->with('product')]);
+        // A cancelled réception stays listed (marked) but delivered nothing.
+        $delivered = $supplier->stockMovements->whereNull('annulation_id');
 
         return Inertia::render('Stock/Suppliers/Show', [
             'supplier' => $supplier,
             'stats' => [
-                'total_deliveries' => $supplier->stockMovements->count(),
-                'total_value' => (float) $supplier->stockMovements->sum('total_cost'),
-                'distinct_products' => $supplier->stockMovements->pluck('product_id')->unique()->count(),
-                'last_delivery_date' => $supplier->stockMovements->max('date'),
+                'total_deliveries' => $delivered->count(),
+                'total_value' => (float) $delivered->sum('total_cost'),
+                'distinct_products' => $delivered->pluck('product_id')->unique()->count(),
+                'last_delivery_date' => $delivered->max('date'),
             ],
         ]);
     }

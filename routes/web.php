@@ -237,6 +237,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Management - Movements
     Route::get('/stock/movements', [StockMovementController::class, 'index'])->name('stock.movements.index');
     Route::post('/stock/movements/in', [StockMovementController::class, 'stockIn'])->name('stock.movements.in');
+    Route::post('/stock/movements/{movement}/annuler', [StockMovementController::class, 'annuler'])->name('stock.movements.annuler');
 
     // Stock Management - Stock Alerts
     Route::get('/stock/alerts', [StockAlertController::class, 'index'])->name('stock.alerts.index');

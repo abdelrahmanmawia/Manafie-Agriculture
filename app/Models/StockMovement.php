@@ -19,6 +19,7 @@ class StockMovement extends Model
         'total_cost',
         'reference_type',
         'reference_id',
+        'annulation_id',
         'performed_by',
         'date',
         'notes',

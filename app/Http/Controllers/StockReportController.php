@@ -378,6 +378,8 @@ class StockReportController extends Controller
         $ending = $this->quantitiesAt($productIds, $to);
 
         $movementSums = StockMovement::whereIn('product_id', $productIds)
+            // A cancelled réception bought nothing (its cancelling adjustment evens the quantities).
+            ->where(fn ($q) => $q->where('movement_type', '!=', 'in')->orWhereNull('annulation_id'))
             ->whereDate('date', '>=', $from->toDateString())
             ->whereDate('date', '<=', $to->toDateString())
             ->selectRaw('product_id, movement_type, SUM(quantity) as total_quantity, SUM(total_cost) as total_cost_sum')

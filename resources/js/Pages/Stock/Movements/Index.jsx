@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
 import { useEffect, useState } from 'react';
 import Modal from '@/Components/Modal';
 import PrimaryButton from '@/Components/PrimaryButton';
@@ -21,8 +21,23 @@ function observationsOf(movement, exitTypes) {
     return exitTypes.find((t) => t.key === entryType)?.label || entryType;
 }
 
-export default function Index({ auth, stockMovements: paginator, filters = {}, products, suppliers, exitTypes = [] }) {
+export default function Index({ auth, stockMovements: paginator, filters = {}, canAnnuler = false, products, suppliers, exitTypes = [] }) {
     const [isReceiving, setIsReceiving] = useState(false);
+    // Cancelling a wrong réception (manager only): StockMovementController::annuler().
+    const [annulant, setAnnulant] = useState(null);
+    const annulerForm = useForm({ motif: '' });
+    const ouvrirAnnulation = (movement) => {
+        annulerForm.reset();
+        annulerForm.clearErrors();
+        setAnnulant(movement);
+    };
+    const annuler = (e) => {
+        e.preventDefault();
+        annulerForm.post(route('stock.movements.annuler', annulant.id), {
+            preserveScroll: true,
+            onSuccess: () => setAnnulant(null),
+        });
+    };
     const { values, set, reset: resetFilters, active } = useListFilters('stock.movements.index', filters);
     const stockMovements = paginator.data;
 
@@ -154,17 +169,19 @@ export default function Index({ auth, stockMovements: paginator, filters = {}, p
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Pris par</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Destination</th>
                                             <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Notes</th>
+                                            {canAnnuler && <th className="px-6 py-3"><span className="sr-only">Actions</span></th>}
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
                                         {stockMovements.map((movement) => {
                                             const meta = MOVEMENT_LABELS[movement.movement_type] ?? { label: movement.movement_type, className: 'bg-gray-100 text-gray-700' };
                                             return (
-                                                <tr key={movement.id} className="hover:bg-gray-50 transition-colors">
+                                                <tr key={movement.id} className={`hover:bg-gray-50 transition-colors ${movement.annulation_id ? 'opacity-60' : ''}`}>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(movement.date).toLocaleDateString('fr-FR')}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{movement.product?.name ?? 'Produit supprimé'}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
+                                                        {movement.annulation_id && <span className="ml-1.5 text-xs font-semibold px-2 py-1 rounded-full bg-red-50 text-red-700">Annulée</span>}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatNumber(movement.quantity)} {UNIT_TYPE_LABELS[movement.product?.unit_type] || movement.product?.unit_type}</td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{movement.total_cost ? formatMAD(movement.total_cost) : 'N/A'}</td>
@@ -174,6 +191,15 @@ export default function Index({ auth, stockMovements: paginator, filters = {}, p
                                                         {[movement.reference?.bloc?.name, movement.reference?.sector?.name, movement.reference?.parcelle?.name].filter(Boolean).join(' / ') || movement.reference?.vehicle?.name || 'N/A'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{observationsOf(movement, exitTypes)}</td>
+                                                    {canAnnuler && (
+                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                                            {movement.movement_type === 'in' && !movement.reference_type && !movement.annulation_id && (
+                                                                <button type="button" onClick={() => ouvrirAnnulation(movement)} className="text-xs font-medium text-gray-400 hover:text-red-600">
+                                                                    Annuler
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                    )}
                                                 </tr>
                                             );
                                         })}
@@ -185,6 +211,35 @@ export default function Index({ auth, stockMovements: paginator, filters = {}, p
                     </div>
                 </div>
             </div>
+
+            <Modal show={Boolean(annulant)} onClose={() => setAnnulant(null)} maxWidth="md">
+                {annulant && (
+                    <form onSubmit={annuler} className="p-6">
+                        <h3 className="text-lg font-black text-gray-800">Annuler cette réception ?</h3>
+                        <p className="mt-2 text-sm text-gray-600">
+                            {annulant.product?.name} : {formatNumber(annulant.quantity)} {UNIT_TYPE_LABELS[annulant.product?.unit_type] || annulant.product?.unit_type}
+                            {' '}reçus le {new Date(annulant.date).toLocaleDateString('fr-FR')}{annulant.numero_bl ? ` (BL ${annulant.numero_bl})` : ''}, {formatMAD(annulant.total_cost)}.
+                            La quantité sort du stock par un ajustement et le CUMP est recalculé sans elle. La réception reste visible, marquée « Annulée ».
+                        </p>
+                        <div className="mt-4">
+                            <InputLabel htmlFor="motif" value="Motif *" />
+                            <TextInput
+                                id="motif"
+                                className="mt-1 block w-full"
+                                value={annulerForm.data.motif}
+                                onChange={(e) => annulerForm.setData('motif', e.target.value)}
+                                placeholder="Ex : quantité saisie deux fois"
+                                autoFocus
+                            />
+                            <InputError message={annulerForm.errors.motif} className="mt-2" />
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            <SecondaryButton type="button" onClick={() => setAnnulant(null)}>Retour</SecondaryButton>
+                            <PrimaryButton disabled={annulerForm.processing} className="bg-red-600 hover:bg-red-700">Annuler la réception</PrimaryButton>
+                        </div>
+                    </form>
+                )}
+            </Modal>
 
             {/* RECEPTION MODAL */}
             <Modal show={isReceiving} onClose={() => setIsReceiving(false)}>

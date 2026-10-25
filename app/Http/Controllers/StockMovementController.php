@@ -11,6 +11,7 @@ use App\Services\StockAlertService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia; // Import Inertia
 
 class StockMovementController extends Controller
@@ -64,6 +65,7 @@ class StockMovementController extends Controller
         return Inertia::render('Stock/Movements/Index', [
             'stockMovements' => $movements,
             'filters' => (object) array_filter($filters, fn ($v) => $v !== null && $v !== ''),
+            'canAnnuler' => in_array($request->user()->role, ['farm_manager', 'super_admin'], true),
             'products' => $products,
             'suppliers' => Supplier::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
                 ->orderBy('name')
@@ -125,5 +127,57 @@ class StockMovementController extends Controller
         });
 
         return redirect()->back()->with('success', 'Réception de stock enregistrée avec succès.');
+    }
+
+    /**
+     * Cancels a wrong réception (manager only): a negative adjustment at the réception's own
+     * cost takes its quantity and value back out, and the CUMP is recomputed without it. Refused
+     * once part of it has already gone out — fix that with a count instead.
+     */
+    public function annuler(Request $request, StockMovement $movement)
+    {
+        abort_unless(in_array($request->user()->role, ['farm_manager', 'super_admin'], true), 403);
+        $this->assertFarmScope($request, $movement->product()->first()?->farm_id);
+        $validated = $request->validate(['motif' => 'required|string|max:255'], ['motif.required' => 'Indiquez pourquoi la réception est annulée.']);
+
+        DB::transaction(function () use ($movement, $validated, $request) {
+            $inventory = $this->lockedInventoryFor($movement->product_id);
+            $movement = StockMovement::lockForUpdate()->findOrFail($movement->id);
+            if ($movement->movement_type !== 'in' || $movement->reference_type !== null || $movement->annulation_id) {
+                throw ValidationException::withMessages(['motif' => $movement->annulation_id ? 'Cette réception est déjà annulée.' : 'Seule une réception peut être annulée.']);
+            }
+
+            $quantity = (float) $movement->quantity;
+            $onHand = (float) $inventory->quantity_on_hand;
+            if ($quantity > $onHand + 0.001) {
+                throw ValidationException::withMessages(['motif' => 'Une partie est déjà sortie du magasin (reste '.number_format($onHand, 2, ',', ' ').' en stock) : corrigez par un comptage.']);
+            }
+
+            // The stock's value without this réception, spread over what is left.
+            $cost = (float) $movement->unit_cost;
+            $remaining = round($onHand - $quantity, 2);
+            if ($remaining > 0) {
+                $inventory->average_cost = max(0, $onHand * (float) $inventory->average_cost - $quantity * $cost) / $remaining;
+            }
+            $inventory->quantity_on_hand = $remaining;
+            $inventory->save();
+
+            $annulation = StockMovement::create([
+                'product_id' => $movement->product_id,
+                'movement_type' => 'adjustment',
+                'quantity' => -$quantity,
+                'unit_cost' => $cost,
+                'total_cost' => round(-$quantity * $cost, 2),
+                'performed_by' => $request->user()->id,
+                'date' => now()->toDateString(),
+                'notes' => 'Annulation de la réception du '.$movement->date->format('d/m/Y')
+                    .($movement->numero_bl ? ' (BL '.$movement->numero_bl.')' : '').' : '.$validated['motif'],
+            ]);
+            $movement->update(['annulation_id' => $annulation->id]);
+
+            StockAlertService::syncLowStock($movement->product);
+        });
+
+        return redirect()->back()->with('success', 'Réception annulée : la quantité est retirée du stock et le CUMP recalculé.');
     }
 }
