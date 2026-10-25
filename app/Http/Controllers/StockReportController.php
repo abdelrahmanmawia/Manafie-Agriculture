@@ -13,6 +13,7 @@ use App\Models\StockInventory;
 use App\Models\StockMovement;
 use App\Models\Vehicle;
 use App\Models\VehicleMaintenanceLog;
+use App\Services\StockHistory;
 use App\Services\StockReportPeriod;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -30,23 +31,9 @@ class StockReportController extends Controller
         return StockReportPeriod::fromInput($request->only('periode', 'mois', 'quinzaine', 'from', 'to'));
     }
 
-    /**
-     * Each product's quantity at the end of $date: today's quantity minus every movement dated
-     * after it (an "out" counts negative, an adjustment carries its own sign). Today when null.
-     */
     private function quantitiesAt(Collection $productIds, ?Carbon $date): Collection
     {
-        $now = StockInventory::whereIn('product_id', $productIds)->pluck('quantity_on_hand', 'product_id')->map(fn ($q) => (float) $q);
-        if (! $date || $date->gte(Carbon::today())) {
-            return $now;
-        }
-        $after = StockMovement::whereIn('product_id', $productIds)
-            ->whereDate('date', '>', $date->toDateString())
-            ->selectRaw("product_id, SUM(CASE WHEN movement_type = 'out' THEN -quantity ELSE quantity END) as delta")
-            ->groupBy('product_id')
-            ->pluck('delta', 'product_id');
-
-        return $now->map(fn ($q, $id) => $q - (float) ($after[$id] ?? 0));
+        return StockHistory::quantitiesAt($productIds, $date);
     }
 
     public function index(Request $request)

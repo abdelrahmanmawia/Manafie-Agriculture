@@ -225,6 +225,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/inventory', [StockInventoryController::class, 'index'])->name('stock.inventory.index');
     Route::get('/stock/inventory/export/excel', [StockInventoryController::class, 'exportExcel'])->name('stock.inventory.export-excel');
     Route::get('/stock/inventory/export/pdf', [StockInventoryController::class, 'exportPdf'])->name('stock.inventory.export-pdf');
+    // Whole-magasin count (before {inventory}, which would swallow /comptage)
+    Route::get('/stock/inventory/comptage', [StockInventoryController::class, 'comptage'])->name('stock.inventory.comptage');
+    Route::post('/stock/inventory/comptage', [StockInventoryController::class, 'storeComptage'])->name('stock.inventory.comptage.store');
+    Route::get('/stock/inventory/comptage/pdf', [StockInventoryController::class, 'comptagePdf'])->name('stock.inventory.comptage.pdf');
     Route::get('/stock/inventory/{inventory}', [StockInventoryController::class, 'show'])->name('stock.inventory.show');
     Route::get('/stock/inventory/{inventory}/export/excel', [StockInventoryController::class, 'exportMovementsExcel'])->name('stock.inventory.export-movements-excel');
     Route::get('/stock/inventory/{inventory}/export/pdf', [StockInventoryController::class, 'exportMovementsPdf'])->name('stock.inventory.export-movements-pdf');

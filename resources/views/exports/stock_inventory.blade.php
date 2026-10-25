@@ -33,7 +33,7 @@
     </tr>
     <tr>
         <th colspan="2" style="text-align: left; font-size: 14px; color: #1d4ed8; padding: 8px; border: 1px solid #000;">
-            {{ $categoryName ? 'Catégorie : ' . strtoupper($categoryName) : 'Inventaire Général' }}
+            {{ $categoryName ? 'Catégorie : ' . mb_strtoupper($categoryName) : 'Inventaire Général' }}
         </th>
     </tr>
     <tr>
@@ -48,7 +48,7 @@
         @if ($groupName !== '')
             <tr>
                 <td colspan="2" style="font-weight: bold; font-size: 15px; background-color: #1e293b; color: #ffffff; padding: 8px; border: 1px solid #000;">
-                    {{ strtoupper($groupName) }}
+                    {{ mb_strtoupper($groupName) }}
                 </td>
             </tr>
             <tr><td colspan="2" style="padding: 4px;"></td></tr> {{-- SPACING --}}

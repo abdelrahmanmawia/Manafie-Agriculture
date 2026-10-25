@@ -99,6 +99,15 @@ export default function Index({ auth, stockInventory, categories }) {
                             PDF{selectedCategory ? ` (${categories.find((c) => String(c.id) === selectedCategory)?.name ?? ''})` : ''}
                         </a>
                         <Link
+                            href={route('stock.inventory.comptage', selectedCategory ? { category_id: selectedCategory } : {})}
+                            className="bg-white hover:bg-gray-50 text-green-700 border border-green-200 px-4 py-3 rounded-xl font-black uppercase tracking-widest shadow-sm transition-all flex items-center gap-2 text-xs"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                            </svg>
+                            Comptage
+                        </Link>
+                        <Link
                             href={route('stock.movements.index') + '?action=receive'}
                             className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-black uppercase tracking-widest shadow-md transition-all flex items-center gap-2"
                         >
