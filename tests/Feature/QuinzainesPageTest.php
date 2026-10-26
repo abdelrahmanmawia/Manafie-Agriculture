@@ -143,4 +143,19 @@ class QuinzainesPageTest extends TestCase
             ->assertRedirect()->assertSessionHasErrors('start_date');
         $this->assertSame('2026-11-16', $other->fresh()->start_date->toDateString());
     }
+
+    public function test_only_an_empty_period_can_be_deleted(): void
+    {
+        $pointee = Quinzaine::create(['enterprise_id' => $this->a->id, 'label' => '1QZ', 'start_date' => '2026-11-01', 'end_date' => '2026-11-15', 'is_closed' => false]);
+        $vide = Quinzaine::create(['enterprise_id' => $this->b->id, 'label' => '1QZ', 'start_date' => '2026-11-01', 'end_date' => '2026-11-15', 'is_closed' => false]);
+        $worker = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'matricule' => '9', 'full_name' => 'W9', 'base_rate' => 97.44, 'is_active' => true]);
+        PointageRecord::create(['employee_id' => $worker->id, 'quinzaine_id' => $pointee->id, 'date' => '2026-11-02', 'present' => true, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 90.87]);
+
+        $this->actingAs($this->manager)->delete(route('settings.quinzaine.delete', $pointee))->assertSessionHasErrors('quinzaine');
+        $this->assertDatabaseHas('quinzaines', ['id' => $pointee->id]);
+        $this->assertSame(1, PointageRecord::where('quinzaine_id', $pointee->id)->count());
+
+        $this->actingAs($this->manager)->delete(route('settings.quinzaine.delete', $vide))->assertSessionHas('success');
+        $this->assertDatabaseMissing('quinzaines', ['id' => $vide->id]);
+    }
 }

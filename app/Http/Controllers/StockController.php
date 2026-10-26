@@ -6,6 +6,7 @@ use App\Models\Product;
 use App\Models\StockAlert;
 use App\Models\StockMovement;
 use App\Models\Vehicle;
+use App\Services\FuelConsumptionService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -34,7 +35,26 @@ class StockController extends Controller
             ->where('is_active', true)
             ->get();
 
-        $lowStockCount = $products->filter(fn ($product) => $product->isLowStock())->count();
+        $lowStock = $products->filter(fn ($product) => $product->isLowStock());
+        $lowStockCount = $lowStock->count();
+
+        // What the magasin holds, at the CUMP (the catalog price only before any réception).
+        $valeur = $products->sum(function ($product) {
+            $inventory = $product->stockInventory->first();
+
+            return (float) ($inventory?->quantity_on_hand ?? 0) * (float) ($inventory?->average_cost ?? $product->unit_cost ?? 0);
+        });
+
+        // This month's sorties (fill-ups included), at what they cost when they went out.
+        $sortiesMois = (float) StockMovement::where('movement_type', 'out')
+            ->when($farmId, fn ($q) => $q->whereHas('product', fn ($q) => $q->where('farm_id', $farmId)))
+            ->whereDate('date', '>=', now()->startOfMonth()->toDateString())
+            ->sum('total_cost');
+
+        // This month's fill-ups that don't fit their vehicle's meter or habits.
+        $fills = FuelConsumptionService::farmFillUps($farmId);
+        $analysis = FuelConsumptionService::analyse($fills);
+        $pleinsAVerifier = $fills->filter(fn ($f) => $f->date->gte(now()->startOfMonth()) && ($analysis[$f->id]['alertes'] ?? []))->count();
 
         $vehicleCount = Vehicle::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->where('is_active', true)
@@ -44,13 +64,6 @@ class StockController extends Controller
             ->where('asset_type', 'equipment')
             ->where('status', 'in_repair')
             ->count();
-
-        $recentAlerts = StockAlert::with('product')
-            ->when($farmId, fn ($q) => $q->whereHas('product', fn ($q) => $q->where('farm_id', $farmId)))
-            ->where('is_resolved', false)
-            ->orderBy('created_at', 'desc')
-            ->limit(5)
-            ->get();
 
         $unresolvedAlertCount = StockAlert::when($farmId, fn ($q) => $q->whereHas('product', fn ($q) => $q->where('farm_id', $farmId)))
             ->where('is_resolved', false)
@@ -70,8 +83,16 @@ class StockController extends Controller
                 'vehicles' => $vehicleCount,
                 'equipmentDown' => $equipmentDownCount,
                 'alerts' => $unresolvedAlertCount,
+                'valeur' => round($valeur, 2),
+                'sortiesMois' => round($sortiesMois, 2),
+                'pleinsAVerifier' => $pleinsAVerifier,
             ],
-            'recentAlerts' => $recentAlerts,
+            // What to reorder first: the furthest under their minimum.
+            'lowStockList' => $lowStock
+                ->sortBy(fn ($p) => $p->current_stock / max((float) $p->min_stock_level, 0.01))
+                ->take(8)
+                ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'unit_type' => $p->unit_type, 'quantity' => (float) $p->current_stock, 'min' => (float) $p->min_stock_level])
+                ->values(),
             'recentMovements' => $recentMovements,
         ];
     }

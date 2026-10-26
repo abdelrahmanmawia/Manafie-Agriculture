@@ -1,5 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { t } from '@/Helpers/i18n';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
@@ -8,9 +8,8 @@ import DangerButton from '@/Components/DangerButton';
 import PrimaryButton from '@/Components/PrimaryButton';
 import { peutSaisir } from '@/utils/acces';
 
-export default function Settings({ auth, enterprise, quinzaines }) {
+export default function Settings({ auth, enterprise }) {
     const [confirmingDivisionDeletion, setConfirmingDivisionDeletion] = useState(false);
-    const [confirmingQuinzaineClosure, setConfirmingQuinzaineClosure] = useState(null);
 
     const editForm = useForm({
         name: enterprise.name,
@@ -20,9 +19,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
         mo_declaree: enterprise.mo_declaree ?? true,
     });
 
-    const qForm = useForm({ start_date: '', end_date: '', enterprise_id: enterprise.id });
     const { delete: destroyDivision, processing: divisionProcessing } = useForm();
-    const { post: closeQuinzaine, processing: closureProcessing } = useForm();
 
     const submitEdit = (e) => {
         e.preventDefault();
@@ -44,28 +41,6 @@ export default function Settings({ auth, enterprise, quinzaines }) {
 
     const closeDivisionModal = () => {
         setConfirmingDivisionDeletion(false);
-    };
-
-    const confirmQuinzaineClosure = (q) => {
-        setConfirmingQuinzaineClosure(q);
-    };
-
-    const closeQuinzaineModal = () => {
-        setConfirmingQuinzaineClosure(null);
-    };
-
-    const submitQuinzaineClosure = (e) => {
-        e.preventDefault();
-        closeQuinzaine(route('settings.quinzaine.close', confirmingQuinzaineClosure.id), {
-            onSuccess: () => closeQuinzaineModal(),
-            onError: () => closeQuinzaineModal(),
-            onFinish: () => closeQuinzaineModal(),
-        });
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
 
     return (
@@ -186,58 +161,18 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                         )}
                     </div>
 
-                    {/* QUINZAINE MANAGEMENT */}
-                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-green-500">
-                        <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-4">{t('manage_periods')}</h3>
-                        <form onSubmit={(e) => { e.preventDefault(); qForm.post(route('settings.quinzaine')); }} className="flex flex-wrap gap-4 items-end mb-6 bg-gray-50 p-4 rounded-xl">
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700">{t('start_date')}</label>
-                                <input type="date" className="rounded border-gray-300" value={qForm.data.start_date} onChange={e => qForm.setData('start_date', e.target.value)} />
-                                {qForm.errors.start_date && <div className="text-red-500 text-xs mt-1">{qForm.errors.start_date}</div>}
-                            </div>
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700">{t('end_date')}</label>
-                                <input type="date" className="rounded border-gray-300" value={qForm.data.end_date} onChange={e => qForm.setData('end_date', e.target.value)} />
-                                {qForm.errors.end_date && <div className="text-red-500 text-xs mt-1">{qForm.errors.end_date}</div>}
-                            </div>
-                            <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors">{t('open_new_period')}</button>
-                        </form>
-
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200 text-sm">
-                                <thead>
-                                    <tr className="text-left font-bold text-gray-500 uppercase tracking-wider text-xs">
-                                        <th className="px-4 py-2">{t('period')}</th>
-                                        <th className="px-4 py-2">{t('status')}</th>
-                                        <th className="px-4 py-2 text-right">{t('actions')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                    {quinzaines.map(q => (
-                                        <tr key={q.id}>
-                                            <td className="px-4 py-3">{formatDate(q.start_date)} {t('to')} {formatDate(q.end_date)}</td>
-                                            <td className="px-4 py-3">
-                                                {q.is_closed ?
-                                                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-[10px] font-bold">{t('closed')}</span> :
-                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[10px] font-bold">{t('open')}</span>
-                                                }
-                                            </td>
-                                            <td className="px-4 py-3 text-right">
-                                                {!q.is_closed && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => confirmQuinzaineClosure(q)}
-                                                        className="text-red-600 font-bold hover:underline"
-                                                    >
-                                                        {t('close_period')}
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                    {/* Periods are opened, closed and deleted on the Quinzaines page, for every division at once. */}
+                    <div className="bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-green-500 flex flex-wrap items-center justify-between gap-4">
+                        <div>
+                            <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">{t('manage_periods')}</h3>
+                            <p className="text-sm text-gray-500 mt-1">Les périodes s'ouvrent et se clôturent sur la page Quinzaines, pour toutes les divisions à la fois.</p>
                         </div>
+                        <Link
+                            href={route('pointage.quinzaines', { enterprise_id: enterprise.id })}
+                            className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-black uppercase text-xs tracking-widest shadow-md transition-colors"
+                        >
+                            Quinzaines →
+                        </Link>
                     </div>
 
                 </div>
@@ -256,7 +191,7 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                         </h2>
                     </div>
                     <p className="text-gray-600 mb-6">
-                        ATTENTION : cette action supprimera <strong>définitivement</strong> la division <strong>{enterprise.name}</strong>, toutes ses quinzaines et pointages. Les salariés rattachés seront conservés mais détachés de cette division.
+                        La division <strong>{enterprise.name}</strong> sera supprimée <strong>définitivement</strong>. Ce n'est possible que si elle n'a encore aucun jour pointé ni période clôturée ; ses salariés sont conservés, détachés de la division.
                     </p>
                     <div className="flex justify-end gap-3">
                         <SecondaryButton type="button" onClick={closeDivisionModal}>Annuler</SecondaryButton>
@@ -267,31 +202,6 @@ export default function Settings({ auth, enterprise, quinzaines }) {
                 </form>
             </Modal>
 
-            <Modal show={confirmingQuinzaineClosure !== null} onClose={closeQuinzaineModal}>
-                {confirmingQuinzaineClosure && (
-                    <form onSubmit={submitQuinzaineClosure} className="p-8">
-                        <div className="flex items-center gap-4 mb-4">
-                            <div className="h-12 w-12 bg-amber-100 rounded-full flex items-center justify-center">
-                                <svg className="h-6 w-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">
-                                Clôturer la période
-                            </h2>
-                        </div>
-                        <p className="text-gray-600 mb-6">
-                            Clôturer la période <strong>{formatDate(confirmingQuinzaineClosure.start_date)} {t('to')} {formatDate(confirmingQuinzaineClosure.end_date)}</strong> ? Le pointage ne pourra plus être modifié une fois clôturée.
-                        </p>
-                        <div className="flex justify-end gap-3">
-                            <SecondaryButton type="button" onClick={closeQuinzaineModal}>Annuler</SecondaryButton>
-                            <PrimaryButton className="rounded-xl !bg-amber-600 hover:!bg-amber-700 focus:!bg-amber-700 active:!bg-amber-900" disabled={closureProcessing}>
-                                {closureProcessing ? 'Clôture...' : 'Clôturer'}
-                            </PrimaryButton>
-                        </div>
-                    </form>
-                )}
-            </Modal>
         </AuthenticatedLayout>
     );
 }

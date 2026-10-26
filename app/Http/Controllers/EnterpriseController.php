@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Employee;
-use App\Models\Operation;
 use App\Models\Bloc;
-use App\Models\Harvest;
-use App\Models\PointageRecord;
-use App\Models\Quinzaine;
+use App\Models\Employee;
 use App\Models\Enterprise;
 use App\Models\Farm;
+use App\Models\Harvest;
+use App\Models\Operation;
+use App\Models\PointageRecord;
+use App\Models\Quinzaine;
 use App\Models\User;
 use App\Services\PayrollService;
 use App\Services\TransportService;
@@ -20,6 +20,7 @@ use Inertia\Inertia;
 class EnterpriseController extends Controller
 {
     protected $payrollService;
+
     protected $transportService;
 
     public function __construct(PayrollService $payrollService, TransportService $transportService)
@@ -87,7 +88,7 @@ class EnterpriseController extends Controller
                 return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                     'farm' => $farm,
                     'stats' => $this->farmStats($farm),
-                    'isSuperAdmin' => true
+                    'isSuperAdmin' => true,
                 ]));
             }
 
@@ -97,14 +98,15 @@ class EnterpriseController extends Controller
         }
 
         if ($user->role === 'farm_manager') {
-            if (!$user->farm_id) {
+            if (! $user->farm_id) {
                 return Inertia::render('Admin/FarmDashboard', [
                     'farm' => null,
                     'stats' => ['employees_count' => 0, 'open_quinzaines' => 0, 'pointes_periode' => 0, 'overdue_quinzaines' => 0],
-                    'error' => 'Aucune ferme ne vous est assignée.'
+                    'error' => 'Aucune ferme ne vous est assignée.',
                 ]);
             }
             $farm = \App\Models\Farm::findOrFail($user->farm_id);
+
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
                 'stats' => $this->farmStats($farm),
@@ -112,15 +114,16 @@ class EnterpriseController extends Controller
         }
 
         // Data Entry or other roles
-        if ($user->role === 'data_entry' && !$user->enterprise_id && $user->farm_id) {
+        if ($user->role === 'data_entry' && ! $user->enterprise_id && $user->farm_id) {
             $farm = \App\Models\Farm::findOrFail($user->farm_id);
+
             return Inertia::render('Admin/FarmDashboard', array_merge($this->farmDashboardExtras($farm), [
                 'farm' => $farm,
                 'stats' => $this->farmStats($farm),
             ]));
         }
 
-        if (!$user->enterprise_id) {
+        if (! $user->enterprise_id) {
             return Inertia::render('Admin/Dashboard', [
                 'enterprise' => null,
                 'stats' => [
@@ -129,7 +132,7 @@ class EnterpriseController extends Controller
                     'pointes_periode' => 0,
                     'overdue_quinzaines' => 0,
                 ],
-                'error' => 'Aucune division ne vous est assignée.'
+                'error' => 'Aucune division ne vous est assignée.',
             ]);
         }
 
@@ -149,7 +152,7 @@ class EnterpriseController extends Controller
      */
     private function farmStats(Farm $farm): array
     {
-        $scopeToFarm = fn($q) => $q->where('farm_id', $farm->id);
+        $scopeToFarm = fn ($q) => $q->where('farm_id', $farm->id);
 
         return ['employees_count' => Employee::whereHas('enterprise', $scopeToFarm)->count()]
             + $this->periodStats(Enterprise::where('farm_id', $farm->id)->pluck('id'));
@@ -170,12 +173,12 @@ class EnterpriseController extends Controller
         // would show duplicate/fragmented points instead of one combined total per period. Grouped
         // by actual date range rather than the free-text label, which different divisions can
         // enter slightly differently for what is otherwise the same real-world period.
-        $farmQuinzaines = Quinzaine::whereHas('enterprise', fn($q) => $q->where('farm_id', $farm->id))
+        $farmQuinzaines = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farm->id))
             ->orderByDesc('start_date')
             ->get(['id', 'start_date', 'end_date', 'label']);
 
         $payrollTrend = $farmQuinzaines
-            ->groupBy(fn ($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
+            ->groupBy(fn ($q) => $q->start_date->format('Y-m-d').'_'.$q->end_date->format('Y-m-d'))
             ->map(function ($group) {
                 $totals = PointageRecord::whereIn('quinzaine_id', $group->pluck('id'))
                     ->selectRaw('COALESCE(SUM(net),0) as total_net, COALESCE(SUM(hours),0) as total_hours')
@@ -206,6 +209,26 @@ class EnterpriseController extends Controller
                 'total_revenue' => (float) (clone $harvestQuery)->sum('total_revenue_dh'),
             ],
             'stockStats' => StockController::summaryFor($farm->id)['stats'],
+            'pointageDuJour' => $this->pointageDuJour($farm),
+        ];
+    }
+
+    /**
+     * Where the pointage stands, farm-wide: today (who came, who still has no operation) and the
+     * open periods (days pointed, net so far, days still "à préciser").
+     */
+    private function pointageDuJour(Farm $farm): array
+    {
+        $quinzaineIds = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farm->id))->pluck('id');
+        $openIds = Quinzaine::whereIn('id', $quinzaineIds)->where('is_closed', false)->pluck('id');
+        $jours = fn ($ids) => PointageRecord::whereIn('quinzaine_id', $ids)->where('nature', PointageRecord::NATURE_JOUR)->where('present', true);
+
+        return [
+            'presents' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->distinct()->count('employee_id'),
+            'a_preciser_jour' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->whereNull('operation_id')->count(),
+            'jours_periode' => (clone $jours($openIds))->count(),
+            'net_periode' => round((float) PointageRecord::whereIn('quinzaine_id', $openIds)->sum('net'), 2),
+            'a_preciser_periode' => (clone $jours($openIds))->whereNull('operation_id')->count(),
         ];
     }
 
@@ -229,7 +252,7 @@ class EnterpriseController extends Controller
             'default_brut_rate' => $request->default_brut_rate,
             'invoiced_to_client' => $request->boolean('invoiced_to_client'),
             'mo_declaree' => $request->boolean('mo_declaree', true),
-            'settings' => ['currency' => 'DH']
+            'settings' => ['currency' => 'DH'],
         ]);
 
         return redirect()->back()->with('success', 'Division créée.');
@@ -240,12 +263,13 @@ class EnterpriseController extends Controller
         abort_unless($request->user()->canAccessPointage(), 403);
 
         $enterpriseId = $request->user()->enterprise_id ?? $request->query('enterprise_id');
-        
-        if (!$enterpriseId) {
+
+        if (! $enterpriseId) {
             // If farm manager but no enterprise selected, they can't manage enterprise settings yet
             if ($request->user()->role === 'farm_manager') {
                 return redirect()->route('dashboard')->with('error', 'Veuillez choisir une division pour gérer ses paramètres.');
             }
+
             return redirect()->route('dashboard');
         }
 
@@ -256,11 +280,8 @@ class EnterpriseController extends Controller
         // lets either read/manage any other farm's division settings.
         $this->assertEnterpriseManagerAccess($request, $enterprise);
 
-        $quinzaines = Quinzaine::where('enterprise_id', $enterprise->id)->latest()->get();
-
         return Inertia::render('Admin/Settings', [
             'enterprise' => $enterprise,
-            'quinzaines' => $quinzaines,
         ]);
     }
 
@@ -426,8 +447,9 @@ class EnterpriseController extends Controller
         Operation::create([
             'name' => $request->name,
             'abbreviation' => $request->abbreviation,
-            'farm_id' => $enterprise->farm_id
+            'farm_id' => $enterprise->farm_id,
         ]);
+
         return redirect()->back();
     }
 
@@ -439,8 +461,9 @@ class EnterpriseController extends Controller
 
         Bloc::create([
             'name' => $request->name,
-            'farm_id' => $enterprise->farm_id
+            'farm_id' => $enterprise->farm_id,
         ]);
+
         return redirect()->back();
     }
 
@@ -530,7 +553,7 @@ class EnterpriseController extends Controller
         $hasRecordsOutsideRange = PointageRecord::where('quinzaine_id', $quinzaine->id)
             ->where(function ($query) use ($request) {
                 $query->whereDate('date', '<', $request->start_date)
-                      ->orWhereDate('date', '>', $request->end_date);
+                    ->orWhereDate('date', '>', $request->end_date);
             })
             ->exists();
 
@@ -552,6 +575,13 @@ class EnterpriseController extends Controller
         abort_if($quinzaine->is_closed, 403, 'Cannot delete a closed quinzaine.');
 
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
+
+        // Deleting a period cascades its days away in the database, past the change history:
+        // only an empty one (opened by mistake) goes. Its automatic fixed-salary rows don't count.
+        $jours = PointageRecord::where('quinzaine_id', $quinzaine->id)->where('nature', 'jour')->count();
+        if ($jours > 0) {
+            return redirect()->back()->withErrors(['quinzaine' => "« {$quinzaine->label} » a déjà {$jours} jour(s) pointé(s) : elle ne peut pas être supprimée. Corrigez ses dates, ou effacez les jours dans la grille."]);
+        }
 
         $quinzaine->delete();
 

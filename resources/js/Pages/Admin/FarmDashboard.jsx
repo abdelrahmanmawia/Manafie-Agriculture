@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import StatCard from '@/Components/StatCard';
 import DashboardHeader from '@/Components/DashboardHeader';
 import QuickActions from '@/Components/QuickActions';
+import AttentionList from '@/Components/AttentionList';
 import { formatInt, formatNumber, formatMAD } from '@/utils/number';
 import { peutConsulter } from '@/utils/acces';
 
@@ -15,7 +16,8 @@ export default function FarmDashboard({
     isSuperAdmin = false,
     payrollTrend = [],
     harvestSummary = { total_kg: 0, total_revenue: 0 },
-    stockStats = { products: 0, lowStock: 0, vehicles: 0, alerts: 0 },
+    stockStats = { products: 0, lowStock: 0, vehicles: 0, alerts: 0, valeur: 0, sortiesMois: 0, pleinsAVerifier: 0 },
+    pointageDuJour = { presents: 0, a_preciser_jour: 0, jours_periode: 0, net_periode: 0, a_preciser_periode: 0 },
     error = null,
 }) {
     // A farm_manager with no farm_id assigned yet has nothing to render a dashboard for —
@@ -65,12 +67,14 @@ export default function FarmDashboard({
                                     Changer de Ferme
                                 </Link>
                             )}
-                            <Link
-                                href={route('farms.settings', farm.id)}
-                                className="text-xs bg-primary-600 text-white hover:bg-primary-700 px-3 py-1 rounded font-bold transition-colors"
-                            >
-                                {t('settings')} {t('fermes')}
-                            </Link>
+                            {canAccessPointage && (
+                                <Link
+                                    href={route('farms.settings', farm.id)}
+                                    className="text-xs bg-primary-600 text-white hover:bg-primary-700 px-3 py-1 rounded font-bold transition-colors"
+                                >
+                                    {t('settings')} {t('fermes')}
+                                </Link>
+                            )}
                         </>
                     }
                 />
@@ -81,48 +85,64 @@ export default function FarmDashboard({
             <div className="py-12">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-10">
 
-                    {/* VUE D'ENSEMBLE — headline numbers only; the detail for each lives one click away
-                        on that zone's own dashboard, not repeated here. */}
+                    {/* VUE D'ENSEMBLE — where things stand today, for whoever follows the farm without
+                        running it: the detail is one click away on each zone's own pages. */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                        <StatCard
-                            label="Total Salariés"
-                            value={formatInt(stats.employees_count)}
-                            tone="green"
-                            href={route('employees.index')}
-                            trend={stats.open_quinzaines > 0 ? { direction: 'calm', label: `${stats.pointes_periode} pointé(s) cette période` } : { direction: 'flat', label: 'Aucune période ouverte' }}
-                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />}
-                        />
                         {canAccessPointage && (
                             <StatCard
-                                label="Périodes Ouvertes"
-                                value={formatInt(stats.open_quinzaines)}
+                                label="Présents aujourd'hui"
+                                value={formatInt(pointageDuJour.presents)}
+                                tone="green"
+                                href={route('pointage.today')}
+                                trend={pointageDuJour.a_preciser_jour > 0
+                                    ? { direction: 'down', label: `${pointageDuJour.a_preciser_jour} sans opération` }
+                                    : { direction: 'calm', label: `${formatInt(stats.employees_count)} salariés` }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />}
+                            />
+                        )}
+                        {canAccessPointage && (
+                            <StatCard
+                                label="Paie de la période"
+                                value={formatMAD(pointageDuJour.net_periode, 0)}
                                 tone="blue"
                                 href={route('pointage.quinzaines')}
-                                trend={stats.overdue_quinzaines > 0 ? { direction: 'down', label: `${stats.overdue_quinzaines} à clôturer` } : { direction: 'calm', label: 'À jour' }}
+                                trend={stats.open_quinzaines > 0
+                                    ? { direction: 'calm', label: `${formatInt(pointageDuJour.jours_periode)} jours pointés` }
+                                    : { direction: 'flat', label: 'Aucune période ouverte' }}
                                 icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
                             />
                         )}
                         {canAccessStock && (
                             <StatCard
-                                label="Stock Faible"
-                                value={formatInt(stockStats.lowStock)}
-                                tone="red"
-                                href={route('stock.alerts.index', { alert_type: 'low_stock' })}
-                                trend={stockStats.lowStock === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
+                                label="Valeur du stock"
+                                value={formatMAD(stockStats.valeur, 0)}
+                                tone="green"
+                                href={route('stock.reports.inventory-value')}
+                                trend={{ direction: 'calm', label: `${formatInt(stockStats.products)} produits` }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />}
                             />
                         )}
                         {canAccessStock && (
                             <StatCard
-                                label="Alertes Stock"
-                                value={formatInt(stockStats.alerts)}
+                                label="Sorties du mois"
+                                value={formatMAD(stockStats.sortiesMois, 0)}
                                 tone="orange"
-                                href={route('stock.alerts.index')}
-                                trend={stockStats.alerts === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
-                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
+                                href={route('stock.reports.consumption-by-operation')}
+                                trend={{ direction: 'flat', label: 'Consommations et pleins' }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />}
                             />
                         )}
                     </div>
+
+                    {/* À SURVEILLER — only what needs someone's attention, each opening its list. */}
+                    <AttentionList
+                        points={[
+                            canAccessPointage && stats.overdue_quinzaines > 0 && { href: route('pointage.quinzaines'), text: `${stats.overdue_quinzaines} période(s) terminée(s) à clôturer` },
+                            canAccessPointage && pointageDuJour.a_preciser_periode > 0 && { href: route('pointage.today'), text: `${formatInt(pointageDuJour.a_preciser_periode)} jour(s) « à préciser » dans les périodes ouvertes` },
+                            canAccessStock && stockStats.lowStock > 0 && { href: route('stock.inventory.index', { low_stock: 1 }), text: `${stockStats.lowStock} produit(s) en stock faible` },
+                            canAccessStock && stockStats.pleinsAVerifier > 0 && { href: route('stock.fuel-transactions.index', { anomalies: 1 }), text: `${stockStats.pleinsAVerifier} plein(s) de carburant à vérifier ce mois` },
+                        ].filter(Boolean)}
+                    />
 
                     {/* POINTAGE & PAIE — farm-wide financial pulse (all divisions combined); this is
                         unique to the Hub, it has no per-zone equivalent. */}
@@ -191,7 +211,7 @@ export default function FarmDashboard({
                                 color: 'teal',
                                 icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10',
                             },
-                            {
+                            canAccessPointage && {
                                 href: route('employees.index'),
                                 label: 'Employés',
                                 color: 'green',

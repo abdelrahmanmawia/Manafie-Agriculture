@@ -1,13 +1,10 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link } from '@inertiajs/react';
-import { formatInt, formatNumber } from '@/utils/number';
+import { formatInt, formatNumber, formatMAD } from '@/utils/number';
+import { UNIT_TYPE_LABELS } from '@/utils/stockLabels';
 import StatCard from '@/Components/StatCard';
 import DashboardHeader from '@/Components/DashboardHeader';
 import { peutSaisir } from '@/utils/acces';
-
-const ALERT_LABELS = {
-    low_stock: { label: 'Stock faible', className: 'bg-red-100 text-red-700' },
-};
 
 const MOVEMENT_LABELS = {
     in: { label: 'Entrée', className: 'bg-green-100 text-green-700', sign: '+' },
@@ -18,7 +15,7 @@ const MOVEMENT_LABELS = {
     adjustment: { label: 'Ajustement', className: 'bg-primary-100 text-primary-700', sign: '' },
 };
 
-export default function Dashboard({ auth, stats, recentAlerts, recentMovements }) {
+export default function Dashboard({ auth, stats, recentMovements, lowStockList = [] }) {
     return (
         <AuthenticatedLayout
             user={auth.user}
@@ -40,76 +37,74 @@ export default function Dashboard({ auth, stats, recentAlerts, recentMovements }
 
             <div className="py-8">
                 <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        <StatCard
-                            label="Produits Actifs"
-                            value={formatInt(stats.products)}
-                            tone="blue"
-                            href={route('stock.products.index')}
-                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />}
-                        />
+                    {/* The magasinier's day: what to reorder, what the magasin is worth, what went out
+                        this month, the fill-ups that don't add up, the matériel out of service. */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                         <StatCard
                             label="Stock Faible"
                             value={formatInt(stats.lowStock)}
                             tone="red"
-                            href={route('stock.alerts.index', { alert_type: 'low_stock' })}
-                            trend={stats.lowStock === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
+                            href={route('stock.inventory.index', { low_stock: 1 })}
+                            trend={stats.lowStock === 0 ? { direction: 'calm', label: 'Rien à commander' } : { direction: 'down', label: 'À commander' }}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />}
                         />
                         <StatCard
-                            label="Véhicules"
-                            value={formatInt(stats.vehicles)}
-                            tone="gray"
-                            href={route('stock.vehicles.index')}
-                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />}
+                            label="Valeur du stock"
+                            value={formatMAD(stats.valeur, 0)}
+                            tone="blue"
+                            href={route('stock.reports.inventory-value')}
+                            trend={{ direction: 'flat', label: `${formatInt(stats.products)} produits actifs` }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4m0-10l8-4m-8 4L4 7m8 4v10" />}
                         />
                         <StatCard
-                            label="Équipement en Panne"
+                            label="Sorties du mois"
+                            value={formatMAD(stats.sortiesMois, 0)}
+                            tone="gray"
+                            href={route('stock.manual-entries.index')}
+                            trend={{ direction: 'flat', label: 'Consommations et pleins' }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" />}
+                        />
+                        <StatCard
+                            label="Pleins à vérifier"
+                            value={formatInt(stats.pleinsAVerifier)}
+                            tone="orange"
+                            href={route('stock.fuel-transactions.index', { anomalies: 1 })}
+                            trend={stats.pleinsAVerifier === 0 ? { direction: 'calm', label: 'Ce mois : rien' } : { direction: 'down', label: 'Ce mois' }}
+                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />}
+                        />
+                        <StatCard
+                            label="Matériel en panne"
                             value={formatInt(stats.equipmentDown)}
                             tone="orange"
                             href={route('stock.vehicles.index', { asset_type: 'equipment', status: 'in_repair' })}
-                            trend={stats.equipmentDown === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
+                            trend={stats.equipmentDown === 0 ? { direction: 'calm', label: 'Tout tourne' } : { direction: 'down', label: 'En réparation' }}
                             icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />}
-                        />
-                        <StatCard
-                            label="Alertes"
-                            value={formatInt(stats.alerts)}
-                            tone="orange"
-                            href={route('stock.alerts.index')}
-                            trend={stats.alerts === 0 ? { direction: 'calm', label: 'Tout va bien' } : { direction: 'down', label: 'À surveiller' }}
-                            icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />}
                         />
                     </div>
 
-                    {/* Alerts + Recent Movements */}
+                    {/* To reorder + Recent Movements */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Recent Alerts */}
+                        {/* To reorder: the furthest under their minimum first. */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                             <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                                <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">Alertes récentes</h3>
-                                <Link href={route('stock.alerts.index')} className="text-sm font-medium text-primary-600 hover:text-primary-800">
+                                <h3 className="text-base font-black text-gray-800 uppercase tracking-tighter">À commander</h3>
+                                <Link href={route('stock.inventory.index', { low_stock: 1 })} className="text-sm font-medium text-primary-600 hover:text-primary-800">
                                     Tout voir
                                 </Link>
                             </div>
                             <div className="divide-y divide-gray-100">
-                                {recentAlerts.length === 0 && (
-                                    <p className="p-5 text-sm text-gray-500">Aucune alerte non résolue.</p>
+                                {lowStockList.length === 0 && (
+                                    <p className="p-5 text-sm text-gray-500">Aucun produit sous son stock minimum.</p>
                                 )}
-                                {recentAlerts.map((alert) => {
-                                    const meta = ALERT_LABELS[alert.alert_type] ?? { label: alert.alert_type, className: 'bg-gray-100 text-gray-700' };
-                                    return (
-                                        <div key={alert.id} className="p-4 flex items-center justify-between">
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-800">{alert.product?.name ?? 'Produit supprimé'}</p>
-                                                <p className="text-xs text-gray-500 mt-0.5">
-                                                    {new Date(alert.created_at).toLocaleDateString('fr-FR')}
-                                                </p>
-                                            </div>
-                                            <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${meta.className}`}>{meta.label}</span>
-                                        </div>
-                                    );
-                                })}
+                                {lowStockList.map((product) => (
+                                    <div key={product.id} className="p-4 flex items-center justify-between">
+                                        <p className="text-sm font-medium text-gray-800">{product.name}</p>
+                                        <p className="text-sm text-right">
+                                            <span className="font-semibold text-red-700">{formatNumber(product.quantity)}</span>
+                                            <span className="text-gray-400"> / min {formatNumber(product.min)} {UNIT_TYPE_LABELS[product.unit_type] || product.unit_type}</span>
+                                        </p>
+                                    </div>
+                                ))}
                             </div>
                         </div>
 
