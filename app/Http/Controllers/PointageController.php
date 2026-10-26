@@ -735,6 +735,8 @@ class PointageController extends Controller
             'dates.*' => 'date',
             'hours' => 'nullable|numeric|min:0',
             'is_jf' => 'nullable|boolean',
+            // No operation + present: the days are pasted as "P" (present, operation à préciser).
+            'present' => 'nullable|boolean',
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
@@ -764,8 +766,10 @@ class PointageController extends Controller
 
     private function writeCellBulk(array $validated, Quinzaine $quinzaine, Employee $employee)
     {
-        // If operation_id is null, this is a clear operation - delete all records for the dates
-        if (! $validated['operation_id'] || ! $validated['bloc_id']) {
+        $presentSeulement = (! $validated['operation_id'] || ! $validated['bloc_id']) && ! empty($validated['present']);
+
+        // No operation and not "present": a clear — delete all records for the dates
+        if ((! $validated['operation_id'] || ! $validated['bloc_id']) && ! $presentSeulement) {
             foreach ($validated['dates'] as $date) {
                 PointageRecord::where('employee_id', $employee->id)
                     ->where('quinzaine_id', $quinzaine->id)
@@ -777,8 +781,10 @@ class PointageController extends Controller
             return back();
         }
 
-        $operation = Operation::find($validated['operation_id']);
-        abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
+        if (! $presentSeulement) {
+            $operation = Operation::find($validated['operation_id']);
+            abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
+        }
 
         // All or nothing: a day already present in another division stops the whole paste.
         $repartition = app(RepartitionService::class);
@@ -788,7 +794,7 @@ class PointageController extends Controller
             }
         }
 
-        $hs = $validated['hours'] ?? 0;
+        $hs = $presentSeulement ? 0 : ($validated['hours'] ?? 0);
 
         $calc = $this->payrollService->calculate(
             $quinzaine->enterprise->contract_type,
@@ -808,8 +814,8 @@ class PointageController extends Controller
                 ],
                 [
                     'present' => true,
-                    'operation_id' => $validated['operation_id'],
-                    'bloc_id' => $validated['bloc_id'],
+                    'operation_id' => $presentSeulement ? null : $validated['operation_id'],
+                    'bloc_id' => $presentSeulement ? null : $validated['bloc_id'],
                     'hours' => $hs,
                     'quantity' => null,
                     'is_jf' => false,

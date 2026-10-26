@@ -276,4 +276,43 @@ class PresenceRepartitionTest extends TestCase
         $this->assertSame($this->irr->id, $this->record($ali)->operation_id);
         $this->assertNull($this->record($badr)->operation_id);
     }
+
+    public function test_a_p_day_pasted_on_several_days_makes_them_present_a_preciser(): void
+    {
+        $ali = $this->worker('Ali', $this->divA);
+        $this->cell($ali, '2026-10-06', ['operation_id' => $this->irr->id, 'bloc_id' => $this->b1->id]);
+
+        $this->actingAs($this->manager)->post(route('pointage.cell.bulk'), [
+            'employee_id' => $ali->id, 'quinzaine_id' => $this->qa->id,
+            'dates' => ['2026-10-05', '2026-10-07'], 'operation_id' => null, 'bloc_id' => null, 'hours' => 0, 'present' => true,
+        ])->assertSessionHasNoErrors();
+
+        foreach (['2026-10-05', '2026-10-07'] as $date) {
+            $day = $this->record($ali, $date);
+            $this->assertTrue($day->present);
+            $this->assertNull($day->operation_id);
+            $this->assertGreaterThan(0, (float) $day->net); // paid like any worked day
+        }
+        $this->assertSame($this->irr->id, $this->record($ali, '2026-10-06')->operation_id); // not in the paste
+
+        // Without "present", the same paste still clears the days.
+        $this->actingAs($this->manager)->post(route('pointage.cell.bulk'), [
+            'employee_id' => $ali->id, 'quinzaine_id' => $this->qa->id,
+            'dates' => ['2026-10-05'], 'operation_id' => null, 'bloc_id' => null, 'hours' => 0,
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(0, PointageRecord::where('employee_id', $ali->id)->whereDate('date', '2026-10-05')->count());
+    }
+
+    public function test_a_p_paste_is_refused_where_the_worker_is_present_in_another_division(): void
+    {
+        $ali = $this->worker('Ali', $this->divA);
+        $this->cell($ali, '2026-10-05', ['operation_id' => $this->irr->id, 'bloc_id' => $this->b1->id]);
+        $ali->update(['enterprise_id' => $this->divB->id]);
+
+        $this->actingAs($this->manager)->post(route('pointage.cell.bulk'), [
+            'employee_id' => $ali->id, 'quinzaine_id' => $this->qb->id,
+            'dates' => ['2026-10-05', '2026-10-06'], 'operation_id' => null, 'bloc_id' => null, 'hours' => 0, 'present' => true,
+        ])->assertSessionHasErrors('date');
+        $this->assertSame(0, PointageRecord::where('quinzaine_id', $this->qb->id)->count());
+    }
 }

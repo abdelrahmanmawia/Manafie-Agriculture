@@ -236,11 +236,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         });
     };
 
-    // Copies a cell's Operation+Bloc so it can be pasted onto other days.
-    // Can also copy empty cells to facilitate clearing days.
+    // Copies a cell's Operation+Bloc so it can be pasted onto other days — or a "P" day
+    // (present, operation à préciser), pasted as such. Can also copy empty cells to clear days.
     const copyCell = (e, employeeId, date) => {
         e.stopPropagation();
         const record = existingRecords[employeeId]?.[date]?.[0];
+        if (record && isAPreciser(record)) {
+            setClipboard({ operationId: null, blocId: null, label: 'P (présent, opération à préciser)', isEmpty: false, presentOnly: true });
+            return;
+        }
         if (!record || !record.operation_id) {
             // Copy empty cell for cleaning
             setClipboard({
@@ -286,6 +290,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             bloc_id: clipboard.blocId,
             hours: clipboard.isEmpty ? 0 : (clipboard.hours || 0),
             is_jf: clipboard.isEmpty ? false : undefined,
+            ...(clipboard.presentOnly ? { present: true, is_jf: false } : {}),
         }, {
             preserveScroll: true,
             onSuccess: fetchSummary,
@@ -314,6 +319,28 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 bloc_id: null,
                 hours: 0,
                 is_jf: false,
+            }, {
+                preserveScroll: true,
+                onSuccess: fetchSummary,
+                onFinish: () => setPasting(false),
+            });
+            return;
+        }
+
+        // "P": only the days with nothing yet — a day already pointed keeps its operation.
+        if (clipboard.presentOnly) {
+            const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0]);
+            if (emptyDays.length === 0) return;
+            if (!confirm(`Marquer cet ouvrier présent (P) sur ses ${emptyDays.length} jour(s) vides ?`)) return;
+            setPasting(true);
+            router.post(route('pointage.cell.bulk'), {
+                employee_id: employeeId,
+                quinzaine_id: qidFor(employeeId),
+                dates: emptyDays,
+                operation_id: null,
+                bloc_id: null,
+                hours: 0,
+                present: true,
             }, {
                 preserveScroll: true,
                 onSuccess: fetchSummary,
@@ -389,6 +416,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             operation_id: clipboard.isEmpty ? null : clipboard.operationId,
             bloc_id: clipboard.isEmpty ? null : clipboard.blocId,
             hours: clipboard.isEmpty ? 0 : (clipboard.hours || 0),
+            ...(clipboard.presentOnly ? { present: true } : {}),
         }, {
             preserveScroll: true,
             onSuccess: fetchSummary,
@@ -883,7 +911,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 {days.map(day => {
                                                     const record = employeeRecords[day]?.[0];
                                                     const recordOp = record ? operations.find(o => o.id === record.operation_id) : null;
-                                                    const canCopy = (!record && !clipboard) || (record && record.operation_id && !recordOp?.unit_rate);
+                                                    const canCopy = (!record && !clipboard) || (record && record.operation_id && !recordOp?.unit_rate) || (record && isAPreciser(record));
                                                     const isDragHighlighted = dragRange && dragRange.employeeId === emp.id && dragRange.dates.includes(day);
                                                     return (
                                                         <td
