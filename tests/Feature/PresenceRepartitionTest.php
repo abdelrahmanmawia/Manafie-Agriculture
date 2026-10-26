@@ -315,4 +315,50 @@ class PresenceRepartitionTest extends TestCase
         ])->assertSessionHasErrors('date');
         $this->assertSame(0, PointageRecord::where('quinzaine_id', $this->qb->id)->count());
     }
+
+    public function test_an_operation_without_its_bloc_is_refused_and_the_day_kept(): void
+    {
+        $ali = $this->worker('Ali', $this->divA);
+        $this->present([$ali]);
+
+        $this->cell($ali, '2026-10-05', ['operation_id' => $this->irr->id, 'present' => false])->assertSessionHasErrors('bloc_id');
+        $this->cell($ali, '2026-10-05', ['bloc_id' => $this->b1->id])->assertSessionHasErrors('operation_id');
+
+        // Before, the day was silently deleted (not present) or left "à préciser".
+        $day = $this->record($ali);
+        $this->assertTrue($day->present);
+        $this->assertNull($day->operation_id);
+    }
+
+    public function test_the_grid_summary_follows_the_equipe_across_divisions(): void
+    {
+        $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'T1']);
+        $ali = $this->worker('Ali', $this->divA, $equipe);
+        $badr = $this->worker('Badr', $this->divB, $equipe);
+        $horsEquipe = $this->worker('Chama', $this->divA);
+        $this->cell($ali, '2026-10-05', ['operation_id' => $this->irr->id, 'bloc_id' => $this->b1->id]);
+        $this->cell($badr, '2026-10-05', ['operation_id' => $this->irr->id, 'bloc_id' => $this->b1->id]);
+        $this->cell($horsEquipe, '2026-10-05', ['operation_id' => $this->irr->id, 'bloc_id' => $this->b1->id]);
+        $net = fn (Employee $e) => (float) $this->record($e)->net;
+
+        $division = $this->actingAs($this->manager)->getJson(route('pointage.summary', $this->qa->id))->json();
+        $this->assertEqualsWithDelta($net($ali) + $net($horsEquipe), $division['daily_totals']['2026-10-05'], 0.01);
+
+        $equipeTotals = $this->actingAs($this->manager)->getJson(route('pointage.summary', $this->qa->id).'?'.http_build_query(['employee_ids' => [$ali->id, $badr->id]]))->json();
+        $this->assertEqualsWithDelta($net($ali) + $net($badr), $equipeTotals['daily_totals']['2026-10-05'], 0.01);
+        $this->assertEqualsWithDelta($net($ali) + $net($badr), $equipeTotals['bloc_matrices']['B1']['Irrigation']['2026-10-05'], 0.01);
+        $this->assertEquals(0, $equipeTotals['salaires']);
+    }
+
+    public function test_pasting_a_piece_rate_operation_is_a_message_not_an_error_page(): void
+    {
+        $ali = $this->worker('Ali', $this->divA);
+        $piece = Operation::create(['farm_id' => $this->farm->id, 'name' => 'Cueillette', 'abbreviation' => 'Cu', 'unit_rate' => 2]);
+
+        $this->actingAs($this->manager)->post(route('pointage.cell.bulk'), [
+            'employee_id' => $ali->id, 'quinzaine_id' => $this->qa->id, 'dates' => ['2026-10-05', '2026-10-06'],
+            'operation_id' => $piece->id, 'bloc_id' => $this->b1->id, 'hours' => 0,
+        ])->assertRedirect()->assertSessionHasErrors('date');
+        $this->assertSame(0, PointageRecord::count());
+    }
 }

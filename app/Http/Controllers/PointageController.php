@@ -415,6 +415,13 @@ class PointageController extends Controller
             // Present, operation still to be entered ("à préciser") — the équipe step.
             'present' => 'nullable|boolean',
         ]);
+        // An operation without its bloc (or the reverse) used to be dropped silently — the day
+        // then became "à préciser", or was deleted when it wasn't present.
+        if (filled($validated['operation_id'] ?? null) xor filled($validated['bloc_id'] ?? null)) {
+            throw \Illuminate\Validation\ValidationException::withMessages(filled($validated['operation_id'] ?? null)
+                ? ['bloc_id' => "Choisissez le bloc de l'opération."]
+                : ['operation_id' => "Choisissez l'opération faite sur ce bloc."]);
+        }
 
         $validated += ['operation_id' => null, 'bloc_id' => null];
 
@@ -798,7 +805,9 @@ class PointageController extends Controller
 
         if (! $presentSeulement) {
             $operation = Operation::find($validated['operation_id']);
-            abort_if($operation->unit_rate, 422, 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.');
+            if ($operation->unit_rate) {
+                return redirect()->back()->withErrors(['date' => 'Impossible de coller une opération à la quantité sur plusieurs jours — chaque jour a sa propre quantité.']);
+            }
         }
 
         // All or nothing: a day already present in another division stops the whole paste.
@@ -891,11 +900,25 @@ class PointageController extends Controller
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
+        $request->validate(['employee_ids' => 'sometimes|array', 'employee_ids.*' => 'integer']);
+
+        // The équipe Grid (employee_ids: its workers) sums those workers across their divisions'
+        // quinzaines for the same dates, like its rows — not the reference division.
+        $quinzaineIds = [$quinzaine->id];
+        $employeeIds = null;
+        if ($request->filled('employee_ids')) {
+            $quinzaineIds = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $quinzaine->enterprise->farm_id))
+                ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
+                ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
+                ->pluck('id')->all();
+            $employeeIds = $request->input('employee_ids');
+        }
 
         // Inner-joining operations/blocs would silently drop paid-holiday records that have no
         // operation/bloc (see PointageController::updateCell()) from dailyTotals — left join so
         // their net still counts toward the total, they just can't be placed in the matrix below.
-        $records = PointageRecord::where('quinzaine_id', $quinzaineId)
+        $records = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
+            ->when($employeeIds !== null, fn ($q) => $q->whereIn('pointage_records.employee_id', $employeeIds))
             ->leftJoin('operations', 'pointage_records.operation_id', '=', 'operations.id')
             ->leftJoin('blocs', 'pointage_records.bloc_id', '=', 'blocs.id')
             ->join('employees', 'pointage_records.employee_id', '=', 'employees.id')
@@ -929,8 +952,16 @@ class PointageController extends Controller
         }
 
         $dailyTotals = array_fill_keys($days, 0);
+        $salaires = 0.0;
 
         foreach ($records as $record) {
+            // A fixed monthly salary isn't a day's pay: it's added to the total, not to its day.
+            if ($record->nature === PointageRecord::NATURE_SALAIRE) {
+                $salaires += (float) $record->net;
+
+                continue;
+            }
+
             // Skip records that fall outside the current date range (e.g., after editing quinzaine dates)
             $dateKey = $record->date->format('Y-m-d');
             if (! in_array($dateKey, $days)) {
@@ -955,6 +986,7 @@ class PointageController extends Controller
             'operations' => $allOps,
             'days' => $days,
             'daily_totals' => $dailyTotals,
+            'salaires' => round($salaires, 2),
         ]);
     }
 }

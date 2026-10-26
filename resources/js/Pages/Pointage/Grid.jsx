@@ -7,6 +7,7 @@ import SecondaryButton from '@/Components/SecondaryButton';
 import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
+import OperationPicker from '@/Components/OperationPicker';
 
 export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
     const [selectedCell, setSelectedCell] = useState(null);
@@ -41,6 +42,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const payload = { quinzaine_id: quinzaine.id, date: jourFerieDay };
         const options = {
             preserveScroll: true,
+            preserveState: 'errors',
             onStart: () => setJourFerieProcessing(true),
             onFinish: () => { setJourFerieProcessing(false); setJourFerieDay(null); },
         };
@@ -50,7 +52,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             router.post(route('pointage.jour-ferie.store'), payload, options);
         }
     };
-    const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {} });
+    const [summaryData, setSummaryData] = useState({ bloc_matrices: {}, blocs: [], operations: [], days: [], daily_totals: {}, salaires: 0 });
     const [isMobile, setIsMobile] = useState(false);
     // Opens on today when it falls in the period (the day being pointed), else its first day.
     // The local calendar day — toISOString() is UTC and gives yesterday's date before 1 a.m. here.
@@ -62,8 +64,6 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [globalBloc, setGlobalBloc] = useState('');
     const [globalHours, setGlobalHours] = useState(0);
     const [searchTerm, setSearchTerm] = useState('');
-    const [operationSearchTerm, setOperationSearchTerm] = useState('');
-    const [showOperationDropdown, setShowOperationDropdown] = useState(false);
     // 'all' | 'zero' (not pointé at all yet) | 'worked' (already has at least 1 day)
     const [dayFilter, setDayFilter] = useState('all');
     // { operationId, blocId, label } of a copied cell, or null — while set, clicking any other
@@ -114,7 +114,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const openMode = (m, t) => router.get(
         route('pointage.grid', quinzaine.id),
         m === 'equipe' ? { mode: 'equipe', ...(t ? { equipe: t } : {}) } : {},
-        { preserveScroll: true },
+        { preserveScroll: true, preserveState: 'errors' },
     );
 
     const filteredEmployees = employees.filter(emp => {
@@ -173,13 +173,6 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         <p className="text-center text-xs font-bold text-gray-400 uppercase py-6">Choisissez une équipe pour afficher ses ouvriers.</p>
     );
 
-    const filteredOperations = operations.filter(op => {
-        const term = operationSearchTerm.trim().toLowerCase();
-        if (!term) return true;
-        return op.name.toLowerCase().includes(term)
-            || (op.abbreviation || '').toLowerCase().includes(term);
-    });
-
     // Excel/PDF exports are plain <a target="_blank"> links, not Inertia visits — there's no
     // JS-observable "download finished" event, so this just gives brief visual feedback that
     // the click registered while the file generates server-side.
@@ -197,7 +190,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    const { data, setData, post, processing, reset, errors } = useForm({
+    const { data, setData, post, processing, reset, errors, clearErrors } = useForm({
         employee_id: '',
         quinzaine_id: quinzaine.id,
         operation_id: '',
@@ -221,8 +214,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
         const record = existingRecords[employeeId]?.[date]?.[0];
         setSelectedCell({ employeeId, date });
-        setOperationSearchTerm('');
-        setShowOperationDropdown(false);
+        clearErrors(); // a previous cell's error isn't this one's
         setData({
             employee_id: employeeId,
             quinzaine_id: qidFor(employeeId),
@@ -293,6 +285,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             ...(clipboard.presentOnly ? { present: true, is_jf: false } : {}),
         }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -321,6 +314,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 is_jf: false,
             }, {
                 preserveScroll: true,
+            preserveState: 'errors',
                 onSuccess: fetchSummary,
                 onFinish: () => setPasting(false),
             });
@@ -343,6 +337,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 present: true,
             }, {
                 preserveScroll: true,
+            preserveState: 'errors',
                 onSuccess: fetchSummary,
                 onFinish: () => setPasting(false),
             });
@@ -365,6 +360,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             dates: allDays,
         }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -419,6 +415,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             ...(clipboard.presentOnly ? { present: true } : {}),
         }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -434,7 +431,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 date: currentDate,
                 operation_id: '',
                 bloc_id: '',
-            }, { preserveScroll: true });
+            }, { preserveScroll: true, preserveState: 'errors' });
             return;
         }
 
@@ -452,7 +449,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 date: currentDate,
                 present: true,
                 hours: globalHours || 0,
-            }, { preserveScroll: true });
+            }, { preserveScroll: true, preserveState: 'errors' });
             return;
         }
 
@@ -464,7 +461,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             bloc_id: blocId,
             hours: globalHours || (existingRecords[employeeId]?.[currentDate]?.[0]?.hours || 0),
             is_jf: existingRecords[employeeId]?.[currentDate]?.[0]?.is_jf || false,
-        }, { preserveScroll: true });
+        }, { preserveScroll: true, preserveState: 'errors' });
     };
 
     // "Tous présents": everyone listed (search/filters applied) with nothing that day yet.
@@ -472,7 +469,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const ids = filteredEmployees.filter(e => !closedFor(e.id) && e.quinzaine_id !== null && !existingRecords[e.id]?.[day]?.[0]).map(e => e.id);
         if (!ids.length) return;
         if (!window.confirm(`Marquer ${ids.length} ouvrier(s) présent(s) le ${day.split('-').reverse().join('/')} ? L'opération restera « à préciser ».`)) return;
-        router.post(route('pointage.presence'), { quinzaine_id: quinzaine.id, date: day, employee_ids: ids }, { preserveScroll: true, onSuccess: fetchSummary });
+        router.post(route('pointage.presence'), { quinzaine_id: quinzaine.id, date: day, employee_ids: ids }, { preserveScroll: true, preserveState: 'errors', onSuccess: fetchSummary });
     };
 
     // The day's headcount per bloc/operation, from the workers already assigned.
@@ -504,6 +501,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             ...(mode === 'equipe' ? { employee_ids: employees.filter(e => !closedFor(e.id)).map(e => e.id) } : {}),
         }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onStart: () => setRepartitionProcessing(true),
             onFinish: () => setRepartitionProcessing(false),
             onSuccess: () => { setRepartitionDay(null); fetchSummary(); },
@@ -512,7 +510,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
     const fetchSummary = async () => {
         try {
-            const response = await axios.get(route('pointage.summary', quinzaine.id));
+            // In the équipe Grid, the équipe's workers across their divisions — like the rows.
+            const response = await axios.get(route('pointage.summary', quinzaine.id), {
+                params: mode === 'equipe' ? { employee_ids: employees.map(e => e.id) } : {},
+            });
             setSummaryData(response.data);
         } catch (error) {
             if (error.response?.status === 404 || error.response?.status === 500) {
@@ -525,6 +526,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         if (!window.confirm("Marquer cet ouvrier absent ce jour-là ? Le jour sera effacé (il reste dans l'historique).")) return;
         router.post(route('pointage.cell'), { ...data, operation_id: '', bloc_id: '', quantity: '', hours: 0, is_jf: false, present: false }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onSuccess: () => { setSelectedCell(null); fetchSummary(); },
         });
     };
@@ -532,20 +534,21 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const savePresent = () => {
         router.post(route('pointage.cell'), { ...data, operation_id: '', bloc_id: '', quantity: '', present: true }, {
             preserveScroll: true,
+            preserveState: 'errors',
             onSuccess: () => { setSelectedCell(null); fetchSummary(); },
         });
     };
 
     const submit = (e) => {
         e.preventDefault();
-        setOperationSearchTerm('');
-        setShowOperationDropdown(false);
         post(route('pointage.cell'), {
             onSuccess: () => {
                 setSelectedCell(null);
                 fetchSummary();
             },
             preserveScroll: true,
+            // On an error the page must stay as it is, or the form closes with its message.
+            preserveState: 'errors',
         });
     };
 
@@ -875,12 +878,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     )}
                                     {filteredEmployees.map(emp => {
                                         const employeeRecords = existingRecords[emp.id] || {};
-                                        const totalJours = Object.keys(employeeRecords).length;
+                                        // Days worked (present), as on the fiche — an unworked holiday isn't one.
+                                        const totalJours = Object.values(employeeRecords).filter(dayRecords => dayRecords[0]?.present).length;
                                         // A fixed monthly salary (paid in the month's 2nd quinzaine) is not a day: it comes apart.
                                         const salaireFixe = parseFloat(salairesFixes[emp.id] || 0);
                                         const totalNet = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.net || 0), 0) + salaireFixe;
                                         const totalHs = Object.values(employeeRecords).reduce((sum, dayRecords) => sum + parseFloat(dayRecords[0]?.hours || 0), 0);
-                                        const salNetJ = entFor(emp).contract_type === 'avec_contrat'
+                                        const salNetJ = emp.salaire_mensuel != null ? 0 : entFor(emp).contract_type === 'avec_contrat'
                                             ? (parseFloat(entFor(emp).default_brut_rate) * (1 - 0.0674)) + parseFloat(emp.complement || 0)
                                             : parseFloat(entFor(emp).default_brut_rate);
 
@@ -964,14 +968,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                 </tbody>
                                 <tfoot>
                                     <tr className="bg-yellow-50 font-black">
-                                        <td className="p-3 border border-gray-300 sticky left-0 z-10 bg-yellow-50 text-right uppercase text-[8px] tracking-widest text-orange-900">Total Charges TTC (Par Jour)</td>
+                                        <td className="p-3 border border-gray-300 sticky left-0 z-10 bg-yellow-50 text-right uppercase text-[8px] tracking-widest text-orange-900">Net par jour</td>
                                         {days.map(day => (
                                             <td key={day} className="border border-gray-300 p-1 text-center text-orange-800 text-[8px] shadow-inner">
                                                 {summaryData.daily_totals[day] > 0 ? formatNumber(summaryData.daily_totals[day], 1) : '-'}
                                             </td>
                                         ))}
                                         <td colSpan="4" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
-                                            TOTAL NET : {formatNumber(Object.values(summaryData.daily_totals).reduce((a,b) => a+b, 0))} DH
+                                            TOTAL NET : {formatNumber(Object.values(summaryData.daily_totals).reduce((a, b) => a + b, 0) + (summaryData.salaires || 0))} DH
+                                            {summaryData.salaires > 0 && <span className="block text-[9px] opacity-80">dont salaires fixes {formatNumber(summaryData.salaires)}</span>}
                                         </td>
                                     </tr>
                                 </tfoot>
@@ -1085,47 +1090,14 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     <div className="space-y-6">
                                         <div className="relative">
                                             <label htmlFor="cell_operation_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Activité / Mission</label>
-                                            <input
+                                            <OperationPicker
                                                 id="cell_operation_id"
+                                                operations={operations}
+                                                value={data.operation_id}
+                                                onChange={(id) => setData('operation_id', id)}
+                                                error={errors.operation_id}
                                                 className="block w-full rounded-2xl border-2 border-gray-100 bg-gray-50 font-black text-gray-800 focus:border-primary-500 focus:ring-0 py-4 px-6 text-sm uppercase transition-all"
-                                                value={data.operation_id ? operations.find(o => o.id === data.operation_id)?.name.toUpperCase() + (operations.find(o => o.id === data.operation_id)?.abbreviation ? ` (${operations.find(o => o.id === data.operation_id).abbreviation.toUpperCase()})` : '') : operationSearchTerm}
-                                                onChange={e => {
-                                                    setOperationSearchTerm(e.target.value);
-                                                    setShowOperationDropdown(true);
-                                                }}
-                                                onFocus={() => setShowOperationDropdown(true)}
-                                                placeholder="Rechercher par nom ou abréviation..."
-                                                readOnly={!!data.operation_id}
                                             />
-                                            {showOperationDropdown && (
-                                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            setData('operation_id', '');
-                                                            setOperationSearchTerm('');
-                                                            setShowOperationDropdown(false);
-                                                        }}
-                                                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors font-black text-sm border-b border-gray-100"
-                                                    >
-                                                        ABSENCE
-                                                    </button>
-                                                    {filteredOperations.map(o => (
-                                                        <button
-                                                            key={o.id}
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setData('operation_id', o.id);
-                                                                setOperationSearchTerm('');
-                                                                setShowOperationDropdown(false);
-                                                            }}
-                                                            className="w-full text-left px-4 py-3 hover:bg-primary-50 transition-colors font-black text-sm"
-                                                        >
-                                                            {o.name.toUpperCase()} {o.abbreviation ? `(${o.abbreviation.toUpperCase()})` : ''}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div>
                                         <div className="relative">
                                             <label htmlFor="cell_bloc_id" className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em] mb-2 block ml-1">Lieu / Parcelle</label>
@@ -1133,6 +1105,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 <option value="">-- CHOISIR UN BLOC --</option>
                                                 {blocs.map(b => <option key={b.id} value={b.id}>🏠 {b.name.toUpperCase()}</option>)}
                                             </select>
+                                            {errors.bloc_id && <p className="mt-2 ml-1 text-xs font-bold text-red-600">{errors.bloc_id}</p>}
                                         </div>
 
                                         {isPieceRate ? (
