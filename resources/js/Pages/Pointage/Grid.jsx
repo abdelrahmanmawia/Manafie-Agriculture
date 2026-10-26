@@ -260,6 +260,20 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         });
     };
 
+    // The copy stays until "Annuler" or Échap — the pastes keep the page state (preserveState:
+    // true) so it survives each one.
+    useEffect(() => {
+        if (!clipboard) return;
+        const onKey = (e) => {
+            if (e.key !== 'Escape') return;
+            setClipboard(null);
+            setDragAnchor(null);
+            setDragRange(null);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [clipboard]);
+
     // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
     // is held; see the day-cell onClick below. Replaces existing data if present.
     const pasteToCell = (employeeId, date) => {
@@ -285,7 +299,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             ...(clipboard.presentOnly ? { present: true, is_jf: false } : {}),
         }, {
             preserveScroll: true,
-            preserveState: 'errors',
+            preserveState: true,
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -314,7 +328,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 is_jf: false,
             }, {
                 preserveScroll: true,
-            preserveState: 'errors',
+                preserveState: true,
                 onSuccess: fetchSummary,
                 onFinish: () => setPasting(false),
             });
@@ -337,7 +351,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 present: true,
             }, {
                 preserveScroll: true,
-            preserveState: 'errors',
+                preserveState: true,
                 onSuccess: fetchSummary,
                 onFinish: () => setPasting(false),
             });
@@ -360,7 +374,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             dates: allDays,
         }, {
             preserveScroll: true,
-            preserveState: 'errors',
+            preserveState: true,
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -415,7 +429,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             ...(clipboard.presentOnly ? { present: true } : {}),
         }, {
             preserveScroll: true,
-            preserveState: 'errors',
+            preserveState: true,
             onSuccess: fetchSummary,
             onFinish: () => setPasting(false),
         });
@@ -803,8 +817,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         {clipboard && (
                             <div className="px-6 py-3 bg-primary-600 text-white flex flex-wrap items-center gap-3 text-xs font-bold">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                                <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller, ou glissez sur plusieurs jours de la même ligne</span>
-                                <button type="button" onClick={() => setClipboard(null)} className="ml-auto bg-primary-800 hover:bg-primary-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler</button>
+                                <span className="uppercase tracking-wide">Copié : {clipboard.label} — cliquez sur un jour pour coller, ou glissez sur plusieurs jours de la même ligne — la copie reste jusqu'à « Annuler » ou Échap</span>
+                                <button type="button" onClick={() => setClipboard(null)} title="Échap" className="ml-auto bg-primary-800 hover:bg-primary-900 px-3 py-1 rounded-full uppercase tracking-widest transition-colors">Annuler (Échap)</button>
                             </div>
                         )}
                         <div className="flex items-center gap-2 px-4 pt-3">
