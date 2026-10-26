@@ -43,7 +43,7 @@ class EquipeController extends Controller
                 ->orderBy('full_name')
                 ->get(['id', 'matricule', 'full_name', 'equipe_id', 'enterprise_id']),
             'vehicles' => TransportVehicle::where('farm_id', $farmId)->where('is_active', true)->orderBy('code')->get(['id', 'code']),
-            'canManage' => ! $request->user()->enterprise_id,
+            'canManage' => $request->user()->peutSaisir('pointage') && ! $request->user()->enterprise_id,
         ]);
     }
 

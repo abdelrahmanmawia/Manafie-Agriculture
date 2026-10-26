@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
+import { peutSaisir } from '@/utils/acces';
 
 const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', price_per_person: '', fixed_net_per_day: '' };
 
@@ -22,6 +23,8 @@ const priceLabel = (vehicle) => vehicle.fixed_net_per_day !== null
 // Its daily cost is computed from the pointage: riders who worked that day × price per person
 // (or the optional flat daily rate), see the Grille Transport.
 export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
+    // Changed by the pointeur (Pointage saisie); everyone else only consults.
+    const canWrite = peutSaisir(auth.user, 'pointage');
     const [editingId, setEditingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
 
@@ -196,18 +199,22 @@ Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouve
                                                     </Link>
                                                     <span className="flex items-center gap-2" title={vehicle.is_active ? 'Désactiver le véhicule' : 'Réactiver le véhicule'}>
                                                         <span className={`text-xs font-semibold ${vehicle.is_active ? 'text-green-700' : 'text-gray-400'}`}>{vehicle.is_active ? 'Actif' : 'Inactif'}</span>
-                                                        <ToggleSwitch checked={vehicle.is_active} onChange={() => toggleActive(vehicle)} />
+                                                        <ToggleSwitch checked={vehicle.is_active} onChange={() => toggleActive(vehicle)} disabled={!canWrite} />
                                                     </span>
-                                                    <button type="button" onClick={() => startEdit(vehicle)} className="text-gray-400 hover:text-gray-700 transition-colors" title="Modifier">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button type="button" onClick={() => setConfirmingDeleteId(vehicle.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Supprimer">
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                        </svg>
-                                                    </button>
+                                                    {canWrite && (
+                                                        <button type="button" onClick={() => startEdit(vehicle)} className="text-gray-400 hover:text-gray-700 transition-colors" title="Modifier">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
+                                                    {canWrite && (
+                                                        <button type="button" onClick={() => setConfirmingDeleteId(vehicle.id)} className="text-gray-400 hover:text-red-600 transition-colors" title="Supprimer">
+                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                            </svg>
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -219,35 +226,37 @@ Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouve
                             ))}
                         </div>
 
-                        <form onSubmit={submitCreate} className="border-t mt-6 pt-6 space-y-3">
-                            <InputLabel value="Nouveau Véhicule" />
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <TextInput className="block w-full" value={createForm.data.code} onChange={(e) => createForm.setData('code', e.target.value)} placeholder="Code / Matricule" required />
-                                    <InputError message={createForm.errors.code} />
+                        {canWrite && (
+                            <form onSubmit={submitCreate} className="border-t mt-6 pt-6 space-y-3">
+                                <InputLabel value="Nouveau Véhicule" />
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <TextInput className="block w-full" value={createForm.data.code} onChange={(e) => createForm.setData('code', e.target.value)} placeholder="Code / Matricule" required />
+                                        <InputError message={createForm.errors.code} />
+                                    </div>
+                                    <div>
+                                        <CompanySelect form={createForm} />
+                                        <InputError message={createForm.errors.transport_company_id} />
+                                    </div>
+                                    <div>
+                                        <TextInput className="block w-full" value={createForm.data.driver_name} onChange={(e) => createForm.setData('driver_name', e.target.value)} placeholder="Chauffeur" />
+                                    </div>
+                                    <div>
+                                        <TextInput className="block w-full" value={createForm.data.driver_phone} onChange={(e) => createForm.setData('driver_phone', e.target.value)} placeholder="Téléphone (GSM)" />
+                                    </div>
+                                    <div>
+                                        <TextInput type="number" min="0" className="block w-full" value={createForm.data.capacity} onChange={(e) => createForm.setData('capacity', e.target.value)} placeholder="Capacité (places)" />
+                                    </div>
+                                    <div>
+                                        <TextInput type="number" step="0.01" min="0" className="block w-full" value={createForm.data.price_per_person} onChange={(e) => createForm.setData('price_per_person', e.target.value)} placeholder="Prix par personne (dh)" />
+                                        <InputError message={createForm.errors.price_per_person} />
+                                    </div>
+                                    <div className="flex items-start">
+                                        <PrimaryButton disabled={createForm.processing || companies.length === 0}>Ajouter</PrimaryButton>
+                                    </div>
                                 </div>
-                                <div>
-                                    <CompanySelect form={createForm} />
-                                    <InputError message={createForm.errors.transport_company_id} />
-                                </div>
-                                <div>
-                                    <TextInput className="block w-full" value={createForm.data.driver_name} onChange={(e) => createForm.setData('driver_name', e.target.value)} placeholder="Chauffeur" />
-                                </div>
-                                <div>
-                                    <TextInput className="block w-full" value={createForm.data.driver_phone} onChange={(e) => createForm.setData('driver_phone', e.target.value)} placeholder="Téléphone (GSM)" />
-                                </div>
-                                <div>
-                                    <TextInput type="number" min="0" className="block w-full" value={createForm.data.capacity} onChange={(e) => createForm.setData('capacity', e.target.value)} placeholder="Capacité (places)" />
-                                </div>
-                                <div>
-                                    <TextInput type="number" step="0.01" min="0" className="block w-full" value={createForm.data.price_per_person} onChange={(e) => createForm.setData('price_per_person', e.target.value)} placeholder="Prix par personne (dh)" />
-                                    <InputError message={createForm.errors.price_per_person} />
-                                </div>
-                                <div className="flex items-start">
-                                    <PrimaryButton disabled={createForm.processing || companies.length === 0}>Ajouter</PrimaryButton>
-                                </div>
-                            </div>
-                        </form>
+                            </form>
+                        )}
                     </div>
                 </div>
             </div>

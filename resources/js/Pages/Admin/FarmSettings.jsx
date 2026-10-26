@@ -5,6 +5,7 @@ import { t } from '@/Helpers/i18n';
 import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import DangerButton from '@/Components/DangerButton';
+import { peutSaisir } from '@/utils/acces';
 
 // Same path strings as AuthenticatedLayout.jsx's ICONS.sliders/pencil/map — reused directly
 // rather than picking new emoji, so this page's tabs match the app's SVG icon system instead
@@ -16,6 +17,8 @@ const TAB_ICONS = {
 };
 
 export default function FarmSettings({ auth, farm, operations, blocs }) {
+    // Changed by the pointeur (Pointage saisie); everyone else only consults.
+    const canWrite = peutSaisir(auth.user, 'pointage');
     const [activeTab, setActiveTab] = useState('general');
     const [expandedBlocs, setExpandedBlocs] = useState({});
     const [expandedSectors, setExpandedSectors] = useState({});
@@ -113,7 +116,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                 <div className="flex justify-between items-center w-full">
                     <div className="flex flex-col">
                         <h2 className="font-semibold text-xl text-gray-800 leading-tight">{t('settings')} - {farm.name}</h2>
-                        <button
+                        {auth.user.role === 'super_admin' && <button
                             type="button"
                             onClick={() => confirmDelete({
                                 routeName: 'farms.destroy',
@@ -124,7 +127,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                             className="text-[10px] text-red-500 hover:text-red-700 font-bold uppercase text-left mt-1"
                         >
                             Supprimer cette Ferme
-                        </button>
+                        </button>}
                     </div>
                     <Link
                         href={route('dashboard', { farm_id: farm.id })}
@@ -170,7 +173,8 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                         {activeTab === 'general' && (
                             <div>
                                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Paramètres Généraux</h3>
-                                <form onSubmit={submitFarmSettings} className="max-w-2xl space-y-4">
+                                <form onSubmit={submitFarmSettings} className="max-w-2xl">
+                                    <fieldset disabled={!canWrite} className="space-y-4">
                                     <div>
                                         <label htmlFor="farm_name" className="block text-xs font-black uppercase text-gray-500 mb-1">
                                             Nom de la ferme
@@ -204,10 +208,13 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                         {farmSettingsForm.errors.box_weight_kg && <div className="text-red-500 text-xs mt-1">{farmSettingsForm.errors.box_weight_kg}</div>}
                                     </div>
                                     <div>
-                                        <button type="submit" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors" disabled={farmSettingsForm.processing}>
-                                            Mettre à jour
-                                        </button>
+                                        {canWrite && (
+                                            <button type="submit" className="bg-primary-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-primary-700 transition-colors" disabled={farmSettingsForm.processing}>
+                                                Mettre à jour
+                                            </button>
+                                        )}
                                     </div>
+                                    </fieldset>
                                 </form>
                             </div>
                         )}
@@ -215,33 +222,35 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                         {activeTab === 'operations' && (
                             <div>
                                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter mb-6">Gérer les Opérations</h3>
-                                <form onSubmit={submitOp} className="flex gap-2 mb-6 max-w-2xl">
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: Récolte, Taille..."
-                                        className="flex-1 rounded-lg border-gray-300 text-sm"
-                                        value={opForm.data.name}
-                                        onChange={e => opForm.setData('name', e.target.value)}
-                                        required
-                                    />
-                                    <input
-                                        type="text"
-                                        placeholder="Abréviation (ex: REC)"
-                                        className="w-32 rounded-lg border-gray-300 text-sm"
-                                        value={opForm.data.abbreviation}
-                                        onChange={e => opForm.setData('abbreviation', e.target.value)}
-                                    />
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        placeholder="Prix/unité (DH)"
-                                        className="w-36 rounded-lg border-gray-300 text-sm"
-                                        value={opForm.data.unit_rate}
-                                        onChange={e => opForm.setData('unit_rate', e.target.value)}
-                                    />
-                                    <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
-                                </form>
+                                {canWrite && (
+                                    <form onSubmit={submitOp} className="flex gap-2 mb-6 max-w-2xl">
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: Récolte, Taille..."
+                                            className="flex-1 rounded-lg border-gray-300 text-sm"
+                                            value={opForm.data.name}
+                                            onChange={e => opForm.setData('name', e.target.value)}
+                                            required
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="Abréviation (ex: REC)"
+                                            className="w-32 rounded-lg border-gray-300 text-sm"
+                                            value={opForm.data.abbreviation}
+                                            onChange={e => opForm.setData('abbreviation', e.target.value)}
+                                        />
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            placeholder="Prix/unité (DH)"
+                                            className="w-36 rounded-lg border-gray-300 text-sm"
+                                            value={opForm.data.unit_rate}
+                                            onChange={e => opForm.setData('unit_rate', e.target.value)}
+                                        />
+                                        <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold" disabled={opForm.processing}>Ajouter</button>
+                                    </form>
+                                )}
                                 {Object.keys(opForm.errors).length > 0 && (
                                     <div className="text-red-500 text-xs mb-3 max-w-2xl">{Object.values(opForm.errors).join(' ')}</div>
                                 )}
@@ -322,7 +331,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                         </td>
                                                         <td className="px-4 py-3 text-right whitespace-nowrap">
                                                             <div className="flex items-center justify-end gap-3">
-                                                                <button
+                                                                {canWrite && <button
                                                                     type="button"
                                                                     onClick={() => startEditOp(op)}
                                                                     title="Modifier"
@@ -331,8 +340,8 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                                                     </svg>
-                                                                </button>
-                                                                <button
+                                                                </button>}
+                                                                {canWrite && <button
                                                                     type="button"
                                                                     onClick={() => confirmDelete({
                                                                         routeName: 'farms.operations.destroy',
@@ -346,7 +355,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                                     </svg>
-                                                                </button>
+                                                                </button>}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -375,19 +384,21 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                         </svg>
                                         Ajouter un nouveau Bloc
                                     </h4>
-                                    <form onSubmit={submitBloc} className="flex gap-2">
-                                        <input
-                                            type="text"
-                                            placeholder="Nom du bloc (ex: Bloc A)"
-                                            className="flex-1 rounded-lg border-green-300 text-sm focus:ring-green-500 focus:border-green-500"
-                                            value={blocForm.data.name}
-                                            onChange={e => blocForm.setData('name', e.target.value)}
-                                            required
-                                        />
-                                        <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors" disabled={blocForm.processing}>
-                                            Ajouter
-                                        </button>
-                                    </form>
+                                    {canWrite && (
+                                        <form onSubmit={submitBloc} className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                placeholder="Nom du bloc (ex: Bloc A)"
+                                                className="flex-1 rounded-lg border-green-300 text-sm focus:ring-green-500 focus:border-green-500"
+                                                value={blocForm.data.name}
+                                                onChange={e => blocForm.setData('name', e.target.value)}
+                                                required
+                                            />
+                                            <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm transition-colors" disabled={blocForm.processing}>
+                                                Ajouter
+                                            </button>
+                                        </form>
+                                    )}
                                     {blocForm.errors.name && <div className="text-red-500 text-xs mt-2">{blocForm.errors.name}</div>}
                                 </div>
 
@@ -418,7 +429,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                 <span className="text-xs text-green-600 ml-2">({blocSectors.length} secteur{blocSectors.length !== 1 ? 's' : ''})</span>
                                                             </div>
                                                         </div>
-                                                        <button
+                                                        {canWrite && <button
                                                             type="button"
                                                             onClick={() => confirmDelete({
                                                                 routeName: 'farms.blocs.destroy',
@@ -432,53 +443,55 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                             </svg>
-                                                        </button>
+                                                        </button>}
                                                     </div>
 
                                                     {/* BLOC CONTENT - SECTEURS */}
                                                     {isExpanded && (
                                                         <div className="p-4 bg-white">
                                                             {/* ADD SECTEUR FORM */}
-                                                            <div className="mb-4 bg-purple-50 p-3 rounded-lg border border-purple-200">
-                                                                <h5 className="text-xs font-bold text-purple-800 mb-2">Ajouter un secteur à {bloc.name}</h5>
-                                                                <form onSubmit={(e) => {
-                                                                    e.preventDefault();
-                                                                    sectorForm.setData('bloc_id', bloc.id);
-                                                                    submitSector(e);
-                                                                }} className="space-y-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        placeholder="Nom du secteur"
-                                                                        className="w-full rounded-lg border-purple-300 text-xs focus:ring-purple-500 focus:border-purple-500"
-                                                                        value={sectorForm.data.name}
-                                                                        onChange={e => sectorForm.setData('name', e.target.value)}
-                                                                        required
-                                                                    />
-                                                                    {sectorForm.errors.name && <div className="text-red-500 text-[10px]">{sectorForm.errors.name}</div>}
-                                                                    <div className="grid grid-cols-3 gap-2">
+                                                            {canWrite && (
+                                                                <div className="mb-4 bg-purple-50 p-3 rounded-lg border border-purple-200">
+                                                                    <h5 className="text-xs font-bold text-purple-800 mb-2">Ajouter un secteur à {bloc.name}</h5>
+                                                                    <form onSubmit={(e) => {
+                                                                        e.preventDefault();
+                                                                        sectorForm.setData('bloc_id', bloc.id);
+                                                                        submitSector(e);
+                                                                    }} className="space-y-2">
                                                                         <input
-                                                                            type="number"
-                                                                            placeholder="Surface ha"
-                                                                            className="rounded-lg border-purple-300 text-xs"
-                                                                            value={sectorForm.data.area_ha}
-                                                                            onChange={e => sectorForm.setData('area_ha', e.target.value)}
+                                                                            type="text"
+                                                                            placeholder="Nom du secteur"
+                                                                            className="w-full rounded-lg border-purple-300 text-xs focus:ring-purple-500 focus:border-purple-500"
+                                                                            value={sectorForm.data.name}
+                                                                            onChange={e => sectorForm.setData('name', e.target.value)}
+                                                                            required
                                                                         />
-                                                                        <input
-                                                                            type="number"
-                                                                            placeholder="Nb arbres"
-                                                                            className="rounded-lg border-purple-300 text-xs"
-                                                                            value={sectorForm.data.total_trees}
-                                                                            onChange={e => sectorForm.setData('total_trees', e.target.value)}
-                                                                        />
-                                                                        <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors" disabled={sectorForm.processing}>
-                                                                            Ajouter
-                                                                        </button>
-                                                                    </div>
-                                                                    {(sectorForm.errors.area_ha || sectorForm.errors.total_trees) && (
-                                                                        <div className="text-red-500 text-[10px]">{sectorForm.errors.area_ha || sectorForm.errors.total_trees}</div>
-                                                                    )}
-                                                                </form>
-                                                            </div>
+                                                                        {sectorForm.errors.name && <div className="text-red-500 text-[10px]">{sectorForm.errors.name}</div>}
+                                                                        <div className="grid grid-cols-3 gap-2">
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="Surface ha"
+                                                                                className="rounded-lg border-purple-300 text-xs"
+                                                                                value={sectorForm.data.area_ha}
+                                                                                onChange={e => sectorForm.setData('area_ha', e.target.value)}
+                                                                            />
+                                                                            <input
+                                                                                type="number"
+                                                                                placeholder="Nb arbres"
+                                                                                className="rounded-lg border-purple-300 text-xs"
+                                                                                value={sectorForm.data.total_trees}
+                                                                                onChange={e => sectorForm.setData('total_trees', e.target.value)}
+                                                                            />
+                                                                            <button type="submit" className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors" disabled={sectorForm.processing}>
+                                                                                Ajouter
+                                                                            </button>
+                                                                        </div>
+                                                                        {(sectorForm.errors.area_ha || sectorForm.errors.total_trees) && (
+                                                                            <div className="text-red-500 text-[10px]">{sectorForm.errors.area_ha || sectorForm.errors.total_trees}</div>
+                                                                        )}
+                                                                    </form>
+                                                                </div>
+                                                            )}
 
                                                             {/* SECTEURS LIST */}
                                                             {blocSectors.length === 0 ? (
@@ -507,7 +520,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                     </div>
                                                                                     <div className="flex items-center gap-2">
                                                                                         <span className="text-xs text-gray-500">{sector.area_ha} Ha • {sector.total_trees} arbres</span>
-                                                                                        <button
+                                                                                        {canWrite && <button
                                                                                             type="button"
                                                                                             onClick={() => confirmDelete({
                                                                                                 routeName: 'farms.sectors.destroy',
@@ -521,7 +534,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                                                             </svg>
-                                                                                        </button>
+                                                                                        </button>}
                                                                                     </div>
                                                                                 </div>
 
@@ -529,72 +542,74 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                 {isSectorExpanded && (
                                                                                     <div className="p-3 bg-white">
                                                                                         {/* ADD PARCELLE FORM */}
-                                                                                        <div className="mb-3 bg-orange-50 p-3 rounded-lg border border-orange-200">
-                                                                                            <h5 className="text-xs font-bold text-orange-800 mb-2">Ajouter une parcelle à {sector.name}</h5>
-                                                                                            <form onSubmit={(e) => {
-                                                                                                e.preventDefault();
-                                                                                                parcelleForm.setData('bloc_id', bloc.id);
-                                                                                                parcelleForm.setData('sector_id', sector.id);
-                                                                                                submitParcelle(e);
-                                                                                            }} className="space-y-2">
-                                                                                                <input
-                                                                                                    type="text"
-                                                                                                    placeholder="Nom de la parcelle"
-                                                                                                    className="w-full rounded-lg border-orange-300 text-xs focus:ring-orange-500 focus:border-orange-500"
-                                                                                                    value={parcelleForm.data.name}
-                                                                                                    onChange={e => parcelleForm.setData('name', e.target.value)}
-                                                                                                    required
-                                                                                                />
-                                                                                                {parcelleForm.errors.name && <div className="text-red-500 text-[10px]">{parcelleForm.errors.name}</div>}
-                                                                                                <div className="grid grid-cols-4 gap-2">
+                                                                                        {canWrite && (
+                                                                                            <div className="mb-3 bg-orange-50 p-3 rounded-lg border border-orange-200">
+                                                                                                <h5 className="text-xs font-bold text-orange-800 mb-2">Ajouter une parcelle à {sector.name}</h5>
+                                                                                                <form onSubmit={(e) => {
+                                                                                                    e.preventDefault();
+                                                                                                    parcelleForm.setData('bloc_id', bloc.id);
+                                                                                                    parcelleForm.setData('sector_id', sector.id);
+                                                                                                    submitParcelle(e);
+                                                                                                }} className="space-y-2">
                                                                                                     <input
-                                                                                                        type="number"
-                                                                                                        placeholder="Hass"
-                                                                                                        className="rounded-lg border-orange-300 text-xs"
-                                                                                                        value={parcelleForm.data.hass_trees}
-                                                                                                        onChange={e => parcelleForm.setData('hass_trees', e.target.value)}
+                                                                                                        type="text"
+                                                                                                        placeholder="Nom de la parcelle"
+                                                                                                        className="w-full rounded-lg border-orange-300 text-xs focus:ring-orange-500 focus:border-orange-500"
+                                                                                                        value={parcelleForm.data.name}
+                                                                                                        onChange={e => parcelleForm.setData('name', e.target.value)}
+                                                                                                        required
                                                                                                     />
-                                                                                                    <input
-                                                                                                        type="number"
-                                                                                                        placeholder="Fuerte"
-                                                                                                        className="rounded-lg border-orange-300 text-xs"
-                                                                                                        value={parcelleForm.data.fuerte_trees}
-                                                                                                        onChange={e => parcelleForm.setData('fuerte_trees', e.target.value)}
-                                                                                                    />
-                                                                                                    <input
-                                                                                                        type="number"
-                                                                                                        placeholder="Lambhass"
-                                                                                                        className="rounded-lg border-orange-300 text-xs"
-                                                                                                        value={parcelleForm.data.lambhass_trees}
-                                                                                                        onChange={e => parcelleForm.setData('lambhass_trees', e.target.value)}
-                                                                                                    />
-                                                                                                    <input
-                                                                                                        type="number"
-                                                                                                        placeholder="Zutano"
-                                                                                                        className="rounded-lg border-orange-300 text-xs"
-                                                                                                        value={parcelleForm.data.zutano_trees}
-                                                                                                        onChange={e => parcelleForm.setData('zutano_trees', e.target.value)}
-                                                                                                    />
-                                                                                                </div>
-                                                                                                <div className="grid grid-cols-2 gap-2">
-                                                                                                    <input
-                                                                                                        type="number"
-                                                                                                        placeholder="Surface ha"
-                                                                                                        className="rounded-lg border-orange-300 text-xs"
-                                                                                                        value={parcelleForm.data.area_ha}
-                                                                                                        onChange={e => parcelleForm.setData('area_ha', e.target.value)}
-                                                                                                    />
-                                                                                                    <button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors" disabled={parcelleForm.processing}>
-                                                                                                        Ajouter
-                                                                                                    </button>
-                                                                                                </div>
-                                                                                                {Object.keys(parcelleForm.errors).filter(k => k !== 'name').length > 0 && (
-                                                                                                    <div className="text-red-500 text-[10px]">
-                                                                                                        {Object.entries(parcelleForm.errors).filter(([k]) => k !== 'name').map(([, v]) => v).join(' ')}
+                                                                                                    {parcelleForm.errors.name && <div className="text-red-500 text-[10px]">{parcelleForm.errors.name}</div>}
+                                                                                                    <div className="grid grid-cols-4 gap-2">
+                                                                                                        <input
+                                                                                                            type="number"
+                                                                                                            placeholder="Hass"
+                                                                                                            className="rounded-lg border-orange-300 text-xs"
+                                                                                                            value={parcelleForm.data.hass_trees}
+                                                                                                            onChange={e => parcelleForm.setData('hass_trees', e.target.value)}
+                                                                                                        />
+                                                                                                        <input
+                                                                                                            type="number"
+                                                                                                            placeholder="Fuerte"
+                                                                                                            className="rounded-lg border-orange-300 text-xs"
+                                                                                                            value={parcelleForm.data.fuerte_trees}
+                                                                                                            onChange={e => parcelleForm.setData('fuerte_trees', e.target.value)}
+                                                                                                        />
+                                                                                                        <input
+                                                                                                            type="number"
+                                                                                                            placeholder="Lambhass"
+                                                                                                            className="rounded-lg border-orange-300 text-xs"
+                                                                                                            value={parcelleForm.data.lambhass_trees}
+                                                                                                            onChange={e => parcelleForm.setData('lambhass_trees', e.target.value)}
+                                                                                                        />
+                                                                                                        <input
+                                                                                                            type="number"
+                                                                                                            placeholder="Zutano"
+                                                                                                            className="rounded-lg border-orange-300 text-xs"
+                                                                                                            value={parcelleForm.data.zutano_trees}
+                                                                                                            onChange={e => parcelleForm.setData('zutano_trees', e.target.value)}
+                                                                                                        />
                                                                                                     </div>
-                                                                                                )}
-                                                                                            </form>
-                                                                                        </div>
+                                                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                                                        <input
+                                                                                                            type="number"
+                                                                                                            placeholder="Surface ha"
+                                                                                                            className="rounded-lg border-orange-300 text-xs"
+                                                                                                            value={parcelleForm.data.area_ha}
+                                                                                                            onChange={e => parcelleForm.setData('area_ha', e.target.value)}
+                                                                                                        />
+                                                                                                        <button type="submit" className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded-lg font-bold text-xs transition-colors" disabled={parcelleForm.processing}>
+                                                                                                            Ajouter
+                                                                                                        </button>
+                                                                                                    </div>
+                                                                                                    {Object.keys(parcelleForm.errors).filter(k => k !== 'name').length > 0 && (
+                                                                                                        <div className="text-red-500 text-[10px]">
+                                                                                                            {Object.entries(parcelleForm.errors).filter(([k]) => k !== 'name').map(([, v]) => v).join(' ')}
+                                                                                                        </div>
+                                                                                                    )}
+                                                                                                </form>
+                                                                                            </div>
+                                                                                        )}
 
                                                                                         {/* PARCELLES LIST */}
                                                                                         {sectorParcelles.length === 0 ? (
@@ -614,7 +629,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                                                 H:{parcelle.hass_trees || 0} • F:{parcelle.fuerte_trees || 0} • L:{parcelle.lambhass_trees || 0} • Z:{parcelle.zutano_trees || 0}
                                                                                                             </div>
                                                                                                         </div>
-                                                                                                        <button
+                                                                                                        {canWrite && <button
                                                                                                             type="button"
                                                                                                             onClick={() => confirmDelete({
                                                                                                                 routeName: 'farms.parcelles.destroy',
@@ -628,7 +643,7 @@ export default function FarmSettings({ auth, farm, operations, blocs }) {
                                                                                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                                                                                             </svg>
-                                                                                                        </button>
+                                                                                                        </button>}
                                                                                                     </div>
                                                                                                 ))}
                                                                                             </div>

@@ -42,6 +42,7 @@ export default function Authenticated({ user, header, children }) {
         // Employees is Pointage-domain master data (see EmployeeController) — gated the same
         // way behind access.domain:pointage, so it groups visually under Pointage, not Accueil.
         route().current('employees.*') ||
+        route().current('equipes.*') ||
         // Transport (Emplacements/Sociétés/Véhicules/Résumé) is nested under Pointage too —
         // without this, navigating to any transport.* page falls through to isHubZone, and the
         // Pointage section (which visually still contains and highlights the clicked item)

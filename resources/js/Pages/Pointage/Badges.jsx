@@ -1,8 +1,11 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head } from '@inertiajs/react';
 import { useState } from 'react';
+import { peutSaisir } from '@/utils/acces';
 
 export default function Badges({ auth, employees, enterprises }) {
+    // Changed by the pointeur (Pointage saisie); everyone else only consults.
+    const canWrite = peutSaisir(auth.user, 'pointage');
     const [selected, setSelected] = useState(new Set());
 
     const toggle = (id) => {
@@ -46,14 +49,16 @@ export default function Badges({ auth, employees, enterprises }) {
                             Un badge déjà imprimé garde le même QR code à vie, même après une réimpression.
                         </p>
                         <div className="flex gap-2">
-                            <a
-                                href={route('pointage.scan-station')}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wide"
-                            >
-                                Ouvrir la Station de Scan
-                            </a>
+                            {canWrite && (
+                                <a
+                                    href={route('pointage.scan-station')}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-xs uppercase tracking-wide"
+                                >
+                                    Ouvrir la Station de Scan
+                                </a>
+                            )}
                             <a
                                 href={printUrl()}
                                 target="_blank"

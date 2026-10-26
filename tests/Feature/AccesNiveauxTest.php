@@ -134,4 +134,10 @@ class AccesNiveauxTest extends TestCase
             'acces_pointage' => 'tout', 'acces_stock' => 'consultation',
         ])->assertSessionHasErrors('acces_pointage');
     }
+
+    public function test_only_the_pointeur_may_manage_the_equipes(): void
+    {
+        $this->actingAs($this->responsable)->get(route('equipes.index'))->assertInertia(fn ($page) => $page->where('canManage', false));
+        $this->actingAs($this->pointeur)->get(route('equipes.index'))->assertInertia(fn ($page) => $page->where('canManage', true));
+    }
 }

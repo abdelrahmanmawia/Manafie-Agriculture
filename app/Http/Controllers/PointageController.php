@@ -2,27 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PointageRecord;
-use App\Models\Quinzaine;
+use App\Exports\DivisionsPointageExport;
+use App\Exports\PaiementEquipesExport;
+use App\Exports\PointageExport;
+use App\Models\Bloc;
 use App\Models\Employee;
 use App\Models\Equipe;
 use App\Models\Farm;
 use App\Models\Operation;
-use App\Models\Bloc;
-use App\Models\Parcelle;
+use App\Models\PointageRecord;
+use App\Models\Quinzaine;
 use App\Services\JourFerieService;
 use App\Services\PayrollService;
 use App\Services\RepartitionService;
 use App\Services\TransportService;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia; // Add this import
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\PointageExport;
-use App\Exports\DivisionsPointageExport; // Add this import
-use App\Exports\PaiementEquipesExport;
 
 class PointageController extends Controller
 {
@@ -42,7 +41,7 @@ class PointageController extends Controller
         $this->assertQuinzaineInScope($request, $quinzaine);
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
-        $fileName = $cleanLabel . '.xlsx';
+        $fileName = $cleanLabel.'.xlsx';
 
         return Excel::download(new PointageExport($quinzaine->enterprise, $quinzaine->start_date, $quinzaine->end_date, $quinzaine), $fileName);
     }
@@ -62,7 +61,7 @@ class PointageController extends Controller
         $this->assertQuinzaineInScope($request, $quinzaine);
 
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
-        $fileName = 'All_Divisions_' . $cleanLabel . '.xlsx';
+        $fileName = 'All_Divisions_'.$cleanLabel.'.xlsx';
 
         return Excel::download(new DivisionsPointageExport($quinzaine), $fileName);
     }
@@ -326,7 +325,7 @@ class PointageController extends Controller
                     ->orderBy('full_name')->get()
                     // The chef's own line first, like on the paper sheet.
                     ->sortByDesc(fn ($e) => $equipe && $e->id === $equipe->chef_employee_id)->values()
-                : new \Illuminate\Database\Eloquent\Collection();
+                : new \Illuminate\Database\Eloquent\Collection;
             $sameDates = Quinzaine::whereIn('enterprise_id', $employees->pluck('enterprise_id')->unique())
                 ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
                 ->get()->keyBy('enterprise_id');
@@ -471,6 +470,8 @@ class PointageController extends Controller
     /**
      * Enters a division's operations for one day by headcount ("B1 Irrigation 4") instead of
      * worker by worker; RepartitionService::repartir() assigns the day's "à préciser" workers.
+     * From the équipe Grid (employee_ids: the team's workers) it splits that équipe's day across
+     * their divisions instead (repartirEquipe()).
      */
     public function repartir(Request $request, RepartitionService $repartition)
     {
@@ -481,6 +482,8 @@ class PointageController extends Controller
             'lignes.*.bloc_id' => 'required|exists:blocs,id',
             'lignes.*.operation_id' => 'required|exists:operations,id',
             'lignes.*.effectif' => 'required|integer|min:0',
+            'employee_ids' => 'sometimes|array|min:1',
+            'employee_ids.*' => 'integer',
         ]);
 
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
@@ -504,10 +507,25 @@ class PointageController extends Controller
             $lignes[] = $ligne + ['label' => "{$bloc->name} · {$operation->name}"];
         }
 
-        return $this->writeWhileOpen($quinzaine, function () use ($repartition, $quinzaine, $validated, $lignes) {
-            [$assigned, $left] = $repartition->repartir($quinzaine, Carbon::parse($validated['date'])->format('Y-m-d'), $lignes);
+        $date = Carbon::parse($validated['date'])->format('Y-m-d');
+        $message = fn ($assigned, $left) => "{$assigned} ouvrier(s) affecté(s)".($left ? ", {$left} encore à préciser." : '.');
 
-            return redirect()->back()->with('success', "{$assigned} ouvrier(s) affecté(s)".($left ? ", {$left} encore à préciser." : '.'));
+        if (isset($validated['employee_ids'])) {
+            // The équipe's workers of this farm — and of their own division only, for a
+            // division-locked account (same as "tous présents").
+            $employeeIds = Employee::whereIn('id', $validated['employee_ids'])
+                ->where('farm_id', $farmId)
+                ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
+                ->pluck('id');
+            [$assigned, $left] = $repartition->repartirEquipe($quinzaine, $date, $employeeIds, $lignes);
+
+            return redirect()->back()->with('success', $message($assigned, $left));
+        }
+
+        return $this->writeWhileOpen($quinzaine, function () use ($repartition, $quinzaine, $date, $lignes, $message) {
+            [$assigned, $left] = $repartition->repartir($quinzaine, $date, $lignes);
+
+            return redirect()->back()->with('success', $message($assigned, $left));
         });
     }
 
@@ -556,6 +574,7 @@ class PointageController extends Controller
                 ->where('nature', PointageRecord::NATURE_JOUR)
                 ->whereDate('date', $validated['date'])
                 ->get()->each->delete(); // one by one: each deletion goes to the change history
+
             return redirect()->back();
         }
 
@@ -746,7 +765,7 @@ class PointageController extends Controller
     private function writeCellBulk(array $validated, Quinzaine $quinzaine, Employee $employee)
     {
         // If operation_id is null, this is a clear operation - delete all records for the dates
-        if (!$validated['operation_id'] || !$validated['bloc_id']) {
+        if (! $validated['operation_id'] || ! $validated['bloc_id']) {
             foreach ($validated['dates'] as $date) {
                 PointageRecord::where('employee_id', $employee->id)
                     ->where('quinzaine_id', $quinzaine->id)
@@ -754,6 +773,7 @@ class PointageController extends Controller
                     ->whereDate('date', Carbon::parse($date)->format('Y-m-d'))
                     ->get()->each->delete(); // one by one, for the change history
             }
+
             return back();
         }
 
@@ -872,7 +892,9 @@ class PointageController extends Controller
         // Generate date range
         $period = \Carbon\CarbonPeriod::create($quinzaine->start_date, $quinzaine->end_date);
         $days = [];
-        foreach ($period as $date) { $days[] = $date->format('Y-m-d'); }
+        foreach ($period as $date) {
+            $days[] = $date->format('Y-m-d');
+        }
 
         $blocMatrices = [];
         foreach ($allBlocs as $bloc) {
@@ -890,7 +912,7 @@ class PointageController extends Controller
         foreach ($records as $record) {
             // Skip records that fall outside the current date range (e.g., after editing quinzaine dates)
             $dateKey = $record->date->format('Y-m-d');
-            if (!in_array($dateKey, $days)) {
+            if (! in_array($dateKey, $days)) {
                 continue;
             }
 
@@ -911,7 +933,7 @@ class PointageController extends Controller
             'blocs' => $allBlocs,
             'operations' => $allOps,
             'days' => $days,
-            'daily_totals' => $dailyTotals
+            'daily_totals' => $dailyTotals,
         ]);
     }
 }

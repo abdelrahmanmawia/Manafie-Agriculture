@@ -10,6 +10,8 @@ import DangerButton from '@/Components/DangerButton';
 import { peutSaisir } from '@/utils/acces';
 
 export default function Harvests({ auth, harvests, blocs, sectors = [], parcelles = [], varieties = [], grades = [], selectedFarmId, farm, farms = [], error }) {
+    // Changed by the pointeur (Pointage saisie); everyone else only consults.
+    const canWrite = peutSaisir(auth.user, 'pointage');
     const [confirmingHarvestDeletion, setConfirmingHarvestDeletion] = useState(null);
     const { delete: destroy, processing: deleteProcessing } = useForm();
 
@@ -197,200 +199,204 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                         {/* FORM CARD */}
-                        <div className="lg:col-span-2 bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-primary-600">
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-4 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                {t('add_harvest')}
-                            </h3>
+                        {canWrite && (
+                            <div className="lg:col-span-2 bg-white p-6 shadow-sm sm:rounded-2xl border border-gray-100 border-t-4 border-t-primary-600">
+                                <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter mb-4 flex items-center gap-2">
+                                    <svg className="w-5 h-5 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {t('add_harvest')}
+                                </h3>
 
-                            <form onSubmit={submit} className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {canWrite && (
+                                    <form onSubmit={submit} className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-                                    {/* Bloc / Plot selection */}
-                                    <div>
-                                        <label htmlFor="harvest_bloc_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            Bloc / Parcelle *
-                                        </label>
-                                        <select
-                                            id="harvest_bloc_id"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            value={data.bloc_id}
-                                            onChange={e => {
-                                                setData('bloc_id', e.target.value);
-                                                setData('sector_id', ''); // Reset secteur when bloc changes
-                                                setData('parcelle_id', ''); // Reset parcelle when bloc changes
-                                            }}
-                                            required
-                                        >
-                                            <option value="">{t('select_plot')}</option>
-                                            {blocs.map(bloc => (
-                                                <option key={bloc.id} value={bloc.id}>
-                                                    {bloc.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {errors.bloc_id && <div className="text-red-500 text-xs mt-1">{errors.bloc_id}</div>}
-                                    </div>
+                                            {/* Bloc / Plot selection */}
+                                            <div>
+                                                <label htmlFor="harvest_bloc_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    Bloc / Parcelle *
+                                                </label>
+                                                <select
+                                                    id="harvest_bloc_id"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    value={data.bloc_id}
+                                                    onChange={e => {
+                                                        setData('bloc_id', e.target.value);
+                                                        setData('sector_id', ''); // Reset secteur when bloc changes
+                                                        setData('parcelle_id', ''); // Reset parcelle when bloc changes
+                                                    }}
+                                                    required
+                                                >
+                                                    <option value="">{t('select_plot')}</option>
+                                                    {blocs.map(bloc => (
+                                                        <option key={bloc.id} value={bloc.id}>
+                                                            {bloc.name}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {errors.bloc_id && <div className="text-red-500 text-xs mt-1">{errors.bloc_id}</div>}
+                                            </div>
 
-                                    {/* Secteur selection */}
-                                    {data.bloc_id && availableSectors.length > 0 && (
-                                        <div>
-                                            <label htmlFor="harvest_sector_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                                Secteur *
-                                            </label>
-                                            <select
-                                                id="harvest_sector_id"
-                                                className="w-full rounded-lg border-gray-300 text-sm"
-                                                value={data.sector_id}
-                                                onChange={e => {
-                                                    setData('sector_id', e.target.value);
-                                                    setData('parcelle_id', ''); // Reset parcelle when secteur changes
-                                                }}
-                                                required
-                                            >
-                                                <option value="">-- Sélectionner un secteur --</option>
-                                                {availableSectors.map(sector => (
-                                                    <option key={sector.id} value={sector.id}>
-                                                        {sector.name}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.sector_id && <div className="text-red-500 text-xs mt-1">{errors.sector_id}</div>}
+                                            {/* Secteur selection */}
+                                            {data.bloc_id && availableSectors.length > 0 && (
+                                                <div>
+                                                    <label htmlFor="harvest_sector_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                        Secteur *
+                                                    </label>
+                                                    <select
+                                                        id="harvest_sector_id"
+                                                        className="w-full rounded-lg border-gray-300 text-sm"
+                                                        value={data.sector_id}
+                                                        onChange={e => {
+                                                            setData('sector_id', e.target.value);
+                                                            setData('parcelle_id', ''); // Reset parcelle when secteur changes
+                                                        }}
+                                                        required
+                                                    >
+                                                        <option value="">-- Sélectionner un secteur --</option>
+                                                        {availableSectors.map(sector => (
+                                                            <option key={sector.id} value={sector.id}>
+                                                                {sector.name}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {errors.sector_id && <div className="text-red-500 text-xs mt-1">{errors.sector_id}</div>}
+                                                </div>
+                                            )}
+
+                                            {/* Parcelle selection (optional) */}
+                                            {data.sector_id && availableParcelles.length > 0 && (
+                                                <div>
+                                                    <label htmlFor="harvest_parcelle_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                        Parcelle (optionnel)
+                                                    </label>
+                                                    <select
+                                                        id="harvest_parcelle_id"
+                                                        className="w-full rounded-lg border-gray-300 text-sm"
+                                                        value={data.parcelle_id}
+                                                        onChange={e => setData('parcelle_id', e.target.value)}
+                                                    >
+                                                        <option value="">-- Sélectionner une parcelle --</option>
+                                                        {availableParcelles.map(parcelle => (
+                                                            <option key={parcelle.id} value={parcelle.id}>
+                                                                {parcelle.name} ({parcelle.area_ha} Ha)
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {errors.parcelle_id && <div className="text-red-500 text-xs mt-1">{errors.parcelle_id}</div>}
+                                                </div>
+                                            )}
+
+                                            {/* Date */}
+                                            <div>
+                                                <label htmlFor="harvest_date" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    {t('harvest_date')} *
+                                                </label>
+                                                <input
+                                                    id="harvest_date"
+                                                    type="date"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    value={data.date}
+                                                    onChange={e => setData('date', e.target.value)}
+                                                    required
+                                                />
+                                                {errors.date && <div className="text-red-500 text-xs mt-1">{errors.date}</div>}
+                                            </div>
+
+                                            {/* Variety */}
+                                            <div>
+                                                <label htmlFor="harvest_variety" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    {t('variety')} *
+                                                </label>
+                                                <select
+                                                    id="harvest_variety"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    value={data.variety}
+                                                    onChange={e => setData('variety', e.target.value)}
+                                                    required
+                                                >
+                                                    {varieties.map(v => <option key={v} value={v}>{v}</option>)}
+                                                </select>
+                                                {errors.variety && <div className="text-red-500 text-xs mt-1">{errors.variety}</div>}
+                                            </div>
+
+                                            {/* Grade */}
+                                            <div>
+                                                <label htmlFor="harvest_grade" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    {t('grade')} *
+                                                </label>
+                                                <select
+                                                    id="harvest_grade"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    value={data.grade}
+                                                    onChange={e => setData('grade', e.target.value)}
+                                                >
+                                                    {grades.map(g => <option key={g} value={g}>{g}</option>)}
+                                                </select>
+                                                {errors.grade && <div className="text-red-500 text-xs mt-1">{errors.grade}</div>}
+                                            </div>
+
+                                            {/* Boxes */}
+                                            <div>
+                                                <label htmlFor="harvest_boxes_count" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    {t('boxes_count')} *
+                                                </label>
+                                                <input
+                                                    id="harvest_boxes_count"
+                                                    type="number"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    placeholder="Ex: 50"
+                                                    value={data.boxes_count}
+                                                    onChange={e => setData('boxes_count', e.target.value)}
+                                                    required
+                                                />
+                                                {errors.boxes_count && <div className="text-red-500 text-xs mt-1">{errors.boxes_count}</div>}
+                                                <p className="text-[10px] text-gray-400 mt-1">Estimation: {data.boxes_count * (farm?.box_weight_kg || 50)} Kg ({farm?.box_weight_kg || 50} Kg/box)</p>
+                                            </div>
+
+                                            {/* Price */}
+                                            <div>
+                                                <label htmlFor="harvest_unit_price" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    {t('unit_price')} (optionnel)
+                                                </label>
+                                                <input
+                                                    id="harvest_unit_price"
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    placeholder="Ex: 15.50"
+                                                    value={data.unit_price_dh}
+                                                    onChange={e => setData('unit_price_dh', e.target.value)}
+                                                />
+                                                {errors.unit_price_dh && <div className="text-red-500 text-xs mt-1">{errors.unit_price_dh}</div>}
+                                            </div>
+
+                                            {/* Comments */}
+                                            <div className="md:col-span-2">
+                                                <label htmlFor="harvest_comments" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    Observations
+                                                </label>
+                                                <textarea
+                                                    id="harvest_comments"
+                                                    rows="2"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    placeholder="Commentaires..."
+                                                    value={data.comments}
+                                                    onChange={e => setData('comments', e.target.value)}
+                                                />
+                                            </div>
                                         </div>
-                                    )}
 
-                                    {/* Parcelle selection (optional) */}
-                                    {data.sector_id && availableParcelles.length > 0 && (
-                                        <div>
-                                            <label htmlFor="harvest_parcelle_id" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                                Parcelle (optionnel)
-                                            </label>
-                                            <select
-                                                id="harvest_parcelle_id"
-                                                className="w-full rounded-lg border-gray-300 text-sm"
-                                                value={data.parcelle_id}
-                                                onChange={e => setData('parcelle_id', e.target.value)}
-                                            >
-                                                <option value="">-- Sélectionner une parcelle --</option>
-                                                {availableParcelles.map(parcelle => (
-                                                    <option key={parcelle.id} value={parcelle.id}>
-                                                        {parcelle.name} ({parcelle.area_ha} Ha)
-                                                    </option>
-                                                ))}
-                                            </select>
-                                            {errors.parcelle_id && <div className="text-red-500 text-xs mt-1">{errors.parcelle_id}</div>}
+                                        <div className="flex justify-end pt-2">
+                                            <PrimaryButton disabled={processing}>
+                                                Enregistrer
+                                            </PrimaryButton>
                                         </div>
-                                    )}
-
-                                    {/* Date */}
-                                    <div>
-                                        <label htmlFor="harvest_date" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            {t('harvest_date')} *
-                                        </label>
-                                        <input
-                                            id="harvest_date"
-                                            type="date"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            value={data.date}
-                                            onChange={e => setData('date', e.target.value)}
-                                            required
-                                        />
-                                        {errors.date && <div className="text-red-500 text-xs mt-1">{errors.date}</div>}
-                                    </div>
-
-                                    {/* Variety */}
-                                    <div>
-                                        <label htmlFor="harvest_variety" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            {t('variety')} *
-                                        </label>
-                                        <select
-                                            id="harvest_variety"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            value={data.variety}
-                                            onChange={e => setData('variety', e.target.value)}
-                                            required
-                                        >
-                                            {varieties.map(v => <option key={v} value={v}>{v}</option>)}
-                                        </select>
-                                        {errors.variety && <div className="text-red-500 text-xs mt-1">{errors.variety}</div>}
-                                    </div>
-
-                                    {/* Grade */}
-                                    <div>
-                                        <label htmlFor="harvest_grade" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            {t('grade')} *
-                                        </label>
-                                        <select
-                                            id="harvest_grade"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            value={data.grade}
-                                            onChange={e => setData('grade', e.target.value)}
-                                        >
-                                            {grades.map(g => <option key={g} value={g}>{g}</option>)}
-                                        </select>
-                                        {errors.grade && <div className="text-red-500 text-xs mt-1">{errors.grade}</div>}
-                                    </div>
-
-                                    {/* Boxes */}
-                                    <div>
-                                        <label htmlFor="harvest_boxes_count" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            {t('boxes_count')} *
-                                        </label>
-                                        <input
-                                            id="harvest_boxes_count"
-                                            type="number"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            placeholder="Ex: 50"
-                                            value={data.boxes_count}
-                                            onChange={e => setData('boxes_count', e.target.value)}
-                                            required
-                                        />
-                                        {errors.boxes_count && <div className="text-red-500 text-xs mt-1">{errors.boxes_count}</div>}
-                                        <p className="text-[10px] text-gray-400 mt-1">Estimation: {data.boxes_count * (farm?.box_weight_kg || 50)} Kg ({farm?.box_weight_kg || 50} Kg/box)</p>
-                                    </div>
-
-                                    {/* Price */}
-                                    <div>
-                                        <label htmlFor="harvest_unit_price" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            {t('unit_price')} (optionnel)
-                                        </label>
-                                        <input
-                                            id="harvest_unit_price"
-                                            type="number"
-                                            step="0.01"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            placeholder="Ex: 15.50"
-                                            value={data.unit_price_dh}
-                                            onChange={e => setData('unit_price_dh', e.target.value)}
-                                        />
-                                        {errors.unit_price_dh && <div className="text-red-500 text-xs mt-1">{errors.unit_price_dh}</div>}
-                                    </div>
-
-                                    {/* Comments */}
-                                    <div className="md:col-span-2">
-                                        <label htmlFor="harvest_comments" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                            Observations
-                                        </label>
-                                        <textarea
-                                            id="harvest_comments"
-                                            rows="2"
-                                            className="w-full rounded-lg border-gray-300 text-sm"
-                                            placeholder="Commentaires..."
-                                            value={data.comments}
-                                            onChange={e => setData('comments', e.target.value)}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex justify-end pt-2">
-                                    <PrimaryButton disabled={processing}>
-                                        Enregistrer
-                                    </PrimaryButton>
-                                </div>
-                            </form>
-                        </div>
+                                    </form>
+                                )}
+                            </div>
+                        )}
 
                         {/* EXPLANATORY Card */}
                         <div className="bg-gradient-to-br from-green-50 to-emerald-100 p-6 shadow-sm sm:rounded-2xl border-l-4 border-green-600">
@@ -556,98 +562,100 @@ export default function Harvests({ auth, harvests, blocs, sectors = [], parcelle
                                     Peser {selectedHarvests.length} récolte(s)
                                 </h3>
 
-                                <form onSubmit={handleBulkWeigh}>
-                                    {frontendErrors.harvest_ids && (
-                                        <div className="text-red-500 text-xs mt-1 mb-4">{frontendErrors.harvest_ids}</div>
-                                    )}
-                                    <div className="mb-4">
-                                        <label className="block text-xs font-black uppercase text-gray-500 mb-2">
-                                            Type de pesage
-                                        </label>
-                                        <div className="flex gap-4">
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    value="total"
-                                                    checked={weighingType === 'total'}
-                                                    onChange={e => setWeighingType(e.target.value)}
-                                                    className="rounded border-gray-300"
-                                                />
-                                                <span className="text-sm font-bold">Poids total</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input
-                                                    type="radio"
-                                                    value="individual"
-                                                    checked={weighingType === 'individual'}
-                                                    onChange={e => setWeighingType(e.target.value)}
-                                                    className="rounded border-gray-300"
-                                                />
-                                                <span className="text-sm font-bold">Poids individuel</span>
-                                            </label>
-                                        </div>
-                                    </div>
-
-                                    {weighingType === 'total' ? (
+                                {canWrite && (
+                                    <form onSubmit={handleBulkWeigh}>
+                                        {frontendErrors.harvest_ids && (
+                                            <div className="text-red-500 text-xs mt-1 mb-4">{frontendErrors.harvest_ids}</div>
+                                        )}
                                         <div className="mb-4">
-                                            <label htmlFor="harvest_total_weight" className="block text-xs font-black uppercase text-gray-500 mb-1">
-                                                Poids total (Kg)
+                                            <label className="block text-xs font-black uppercase text-gray-500 mb-2">
+                                                Type de pesage
                                             </label>
-                                            <input
-                                                id="harvest_total_weight"
-                                                type="number"
-                                                step="0.01"
-                                                className="w-full rounded-lg border-gray-300 text-sm"
-                                                placeholder="Ex: 2500"
-                                                value={totalWeight}
-                                                onChange={e => setTotalWeight(e.target.value)}
-                                                required
-                                            />
-                                            {frontendErrors.total_weight_kg && <div className="text-red-500 text-xs mt-1">{frontendErrors.total_weight_kg}</div>}
-                                            <p className="text-[10px] text-gray-400 mt-1">
-                                                Sera distribué proportionnellement par nombre de caisses
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="mb-4 space-y-2 max-h-60 overflow-y-auto">
-                                            {harvests.data?.filter(h => selectedHarvests.includes(h.id)).map(h => (
-                                                <div key={h.id} className="flex items-center gap-2">
-                                                    <span className="text-xs font-bold w-32 truncate">
-                                                        {h.bloc?.name} - {h.date.split('T')[0]}
-                                                    </span>
+                                            <div className="flex gap-4">
+                                                <label className="flex items-center gap-2 cursor-pointer">
                                                     <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        aria-label={`Poids (Kg) - ${h.bloc?.name} ${h.date.split('T')[0]}`}
-                                                        className="flex-1 rounded-lg border-gray-300 text-sm"
-                                                        placeholder="Kg"
-                                                        value={individualWeights[h.id] || ''}
-                                                        onChange={e => setIndividualWeights(prev => ({
-                                                            ...prev,
-                                                            [h.id]: e.target.value
-                                                        }))}
-                                                        required
+                                                        type="radio"
+                                                        value="total"
+                                                        checked={weighingType === 'total'}
+                                                        onChange={e => setWeighingType(e.target.value)}
+                                                        className="rounded border-gray-300"
                                                     />
-                                                    {frontendErrors[`individual_weights.${h.id}`] && <div className="text-red-500 text-xs mt-1">{frontendErrors[`individual_weights.${h.id}`]}</div>}
-                                                </div>
-                                            ))}
-                                            {frontendErrors.individual_weights && <div className="text-red-500 text-xs mt-1">{frontendErrors.individual_weights}</div>}
+                                                    <span className="text-sm font-bold">Poids total</span>
+                                                </label>
+                                                <label className="flex items-center gap-2 cursor-pointer">
+                                                    <input
+                                                        type="radio"
+                                                        value="individual"
+                                                        checked={weighingType === 'individual'}
+                                                        onChange={e => setWeighingType(e.target.value)}
+                                                        className="rounded border-gray-300"
+                                                    />
+                                                    <span className="text-sm font-bold">Poids individuel</span>
+                                                </label>
+                                            </div>
                                         </div>
-                                    )}
 
-                                    <div className="flex justify-end gap-3 pt-4">
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowWeighModal(false)}
-                                            className="px-4 py-2 rounded-lg text-xs font-bold uppercase text-gray-600 hover:bg-gray-100 transition-colors"
-                                        >
-                                            Annuler
-                                        </button>
-                                        <PrimaryButton disabled={bulkWeighForm.processing}> {/* Use bulkWeighForm.processing */}
-                                            Confirmer
-                                        </PrimaryButton>
-                                    </div>
-                                </form>
+                                        {weighingType === 'total' ? (
+                                            <div className="mb-4">
+                                                <label htmlFor="harvest_total_weight" className="block text-xs font-black uppercase text-gray-500 mb-1">
+                                                    Poids total (Kg)
+                                                </label>
+                                                <input
+                                                    id="harvest_total_weight"
+                                                    type="number"
+                                                    step="0.01"
+                                                    className="w-full rounded-lg border-gray-300 text-sm"
+                                                    placeholder="Ex: 2500"
+                                                    value={totalWeight}
+                                                    onChange={e => setTotalWeight(e.target.value)}
+                                                    required
+                                                />
+                                                {frontendErrors.total_weight_kg && <div className="text-red-500 text-xs mt-1">{frontendErrors.total_weight_kg}</div>}
+                                                <p className="text-[10px] text-gray-400 mt-1">
+                                                    Sera distribué proportionnellement par nombre de caisses
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="mb-4 space-y-2 max-h-60 overflow-y-auto">
+                                                {harvests.data?.filter(h => selectedHarvests.includes(h.id)).map(h => (
+                                                    <div key={h.id} className="flex items-center gap-2">
+                                                        <span className="text-xs font-bold w-32 truncate">
+                                                            {h.bloc?.name} - {h.date.split('T')[0]}
+                                                        </span>
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            aria-label={`Poids (Kg) - ${h.bloc?.name} ${h.date.split('T')[0]}`}
+                                                            className="flex-1 rounded-lg border-gray-300 text-sm"
+                                                            placeholder="Kg"
+                                                            value={individualWeights[h.id] || ''}
+                                                            onChange={e => setIndividualWeights(prev => ({
+                                                                ...prev,
+                                                                [h.id]: e.target.value
+                                                            }))}
+                                                            required
+                                                        />
+                                                        {frontendErrors[`individual_weights.${h.id}`] && <div className="text-red-500 text-xs mt-1">{frontendErrors[`individual_weights.${h.id}`]}</div>}
+                                                    </div>
+                                                ))}
+                                                {frontendErrors.individual_weights && <div className="text-red-500 text-xs mt-1">{frontendErrors.individual_weights}</div>}
+                                            </div>
+                                        )}
+
+                                        <div className="flex justify-end gap-3 pt-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowWeighModal(false)}
+                                                className="px-4 py-2 rounded-lg text-xs font-bold uppercase text-gray-600 hover:bg-gray-100 transition-colors"
+                                            >
+                                                Annuler
+                                            </button>
+                                            <PrimaryButton disabled={bulkWeighForm.processing}> {/* Use bulkWeighForm.processing */}
+                                                Confirmer
+                                            </PrimaryButton>
+                                        </div>
+                                    </form>
+                                )}
                             </div>
                         </div>
                     )}

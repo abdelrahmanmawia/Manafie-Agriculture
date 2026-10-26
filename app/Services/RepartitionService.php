@@ -15,6 +15,8 @@ use Illuminate\Validation\ValidationException;
  * paid as a worked day, since the operation doesn't change a day's pay). Then what they did, per
  * division: either worker by worker in the Grid, or by headcount with repartir() — "B1 Irrigation
  * 4, B2 Désherbage 5" — which assigns the day's "à préciser" workers to those operations itself.
+ * The same headcount split works for an équipe's day (repartirEquipe()): the team's "à préciser"
+ * workers across divisions, each day staying in its own division's quinzaine.
  * Both end in the same per-worker records, so pay, transport, invoicing and the Excel fiche
  * don't care which way a day was entered.
  */
@@ -121,6 +123,36 @@ class RepartitionService
     {
         $present = PointageRecord::with('employee:id,full_name')
             ->where('quinzaine_id', $quinzaine->id)->whereDate('date', $date)->where('present', true)->get();
+
+        return $this->repartirJours($present, $date, $lignes);
+    }
+
+    /**
+     * repartir() for one équipe's day: its workers' present days on $date, each in their own
+     * division's open quinzaine for the same dates as $reference (the équipe Grid spans
+     * divisions). Closed periods are left out. Returns [assigned, still à préciser].
+     */
+    public function repartirEquipe(Quinzaine $reference, string $date, Collection $employeeIds, array $lignes): array
+    {
+        $quinzaineIds = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $reference->enterprise->farm_id))
+            ->whereDate('start_date', $reference->start_date)
+            ->whereDate('end_date', $reference->end_date)
+            ->pluck('id');
+
+        return DB::transaction(function () use ($quinzaineIds, $date, $employeeIds, $lignes) {
+            // Same share lock + is_closed re-read as PointageController::writeWhileOpen().
+            $open = Quinzaine::whereIn('id', $quinzaineIds)->orderBy('id')->sharedLock()->where('is_closed', false)->pluck('id');
+            $present = PointageRecord::with('employee:id,full_name')
+                ->whereIn('quinzaine_id', $open)->whereIn('employee_id', $employeeIds)
+                ->where('nature', PointageRecord::NATURE_JOUR)->whereDate('date', $date)->where('present', true)->get();
+
+            return $this->repartirJours($present, $date, $lignes);
+        });
+    }
+
+    /** The headcount split itself, over the day's present records it is given. */
+    private function repartirJours(Collection $present, string $date, array $lignes): array
+    {
         $pending = $present->whereNull('operation_id')->values();
         $key = fn ($blocId, $operationId) => $blocId.'|'.$operationId;
 

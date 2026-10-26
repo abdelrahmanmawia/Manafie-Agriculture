@@ -472,6 +472,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             quinzaine_id: quinzaine.id,
             date: repartitionDay,
             lignes: lignes.filter(l => l.bloc_id && l.operation_id).map(l => ({ ...l, effectif: parseInt(l.effectif || 0, 10) })),
+            // In the équipe Grid, the split covers this team's workers, each in their own division.
+            ...(mode === 'equipe' ? { employee_ids: employees.filter(e => !closedFor(e.id)).map(e => e.id) } : {}),
         }, {
             preserveScroll: true,
             onStart: () => setRepartitionProcessing(true),
@@ -764,7 +766,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         )}
                         {aPreciserTotal > 0 && (
                             <div className="mx-6 mt-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 text-xs font-bold text-amber-800">
-                                {aPreciserTotal} jour(s) de présence « à préciser » : cliquez la case pour choisir l'opération{mode === 'division' ? ', ou « Répartir » sous le jour pour saisir les effectifs par opération' : ' (ou répartissez-les par effectif dans la grille de la division)'}. La clôture attend qu'ils soient complétés.
+                                {aPreciserTotal} jour(s) de présence « à préciser » : cliquez la case pour choisir l'opération, ou « ≡ » sous le jour pour saisir les effectifs par opération{mode === 'equipe' ? ' de l\'équipe' : ''}. La clôture attend qu'ils soient complétés.
                             </div>
                         )}
                         {clipboard && (
@@ -817,17 +819,15 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                     {!verrouille && (
                                         <tr className="bg-gray-50">
                                             <th className="border border-gray-300 px-2 py-1 sticky left-0 z-20 bg-gray-50 text-[8px] font-black text-gray-400 uppercase tracking-widest text-left">
-                                                ✓ Présents{mode === 'division' ? ' · ≡ Répartir' : ''}
+                                                ✓ Présents · ≡ Répartir
                                             </th>
                                             {days.map(day => (
                                                 <th key={day} className="border border-gray-300 p-0.5">
                                                     <div className="flex items-center justify-center gap-0.5">
                                                         <button type="button" onClick={() => markAllPresent(day)} title="Tous présents (opération à préciser)"
                                                             className="w-4 h-4 rounded bg-green-100 hover:bg-green-200 text-green-700 text-[9px] font-black leading-none">✓</button>
-                                                        {mode === 'division' && (
-                                                            <button type="button" onClick={() => openRepartition(day)} title="Répartir par effectif"
-                                                                className="w-4 h-4 rounded bg-primary-100 hover:bg-primary-200 text-primary-700 text-[9px] font-black leading-none">≡</button>
-                                                        )}
+                                                        <button type="button" onClick={() => openRepartition(day)} title={mode === 'equipe' ? "Répartir l'équipe par effectif" : 'Répartir par effectif'}
+                                                            className="w-4 h-4 rounded bg-primary-100 hover:bg-primary-200 text-primary-700 text-[9px] font-black leading-none">≡</button>
                                                     </div>
                                                     {dayAPreciser(day) > 0 && <div className="text-[7px] font-black text-amber-700">{dayAPreciser(day)} P</div>}
                                                 </th>
@@ -1188,7 +1188,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 {repartitionDay && (
                     <div className="p-6 space-y-4">
                         <div>
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Répartir — {formatDay(repartitionDay)}</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Répartir{mode === 'equipe' ? " l'équipe" : ''} — {formatDay(repartitionDay)}</h3>
                             <p className="text-xs text-gray-500 mt-1">
                                 {dayPresent(repartitionDay)} présent(s), dont {dayAPreciser(repartitionDay)} « à préciser ». Indiquez le nombre total d'ouvriers par opération :
                                 ceux déjà affectés restent, les « à préciser » sont répartis en gardant d'abord l'opération de leur dernier jour travaillé.

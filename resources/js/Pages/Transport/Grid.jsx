@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, Link, router } from '@inertiajs/react';
+import { peutSaisir } from '@/utils/acces';
 
 // Day-by-day grid, rows = vehicles — mirrors Pointage/Grid.jsx's sticky-table shape. Nothing is
 // ticked by hand any more: each cell shows how many of the vehicle's riders worked that day and
@@ -8,6 +9,8 @@ import { Head, Link, router } from '@inertiajs/react';
 // vehicle didn't come" (its riders came on their own: paid, but no transport cost that day),
 // set by clicking a cell (TransportController::setAbsence()).
 export default function Grid({ auth, quinzaine, vehicles, days, cells }) {
+    // Changed by the pointeur (Pointage saisie); everyone else only consults.
+    const canWrite = peutSaisir(auth.user, 'pointage');
     const [pendingCell, setPendingCell] = useState(null);
 
     const cellOf = (vehicleId, day) => cells[vehicleId]?.[day] ?? { riders: 0, absent: false, cost: 0 };
@@ -22,7 +25,7 @@ export default function Grid({ auth, quinzaine, vehicles, days, cells }) {
     // Sends the state the click asks for (not "toggle"), so a double-click or a retried request
     // can't flip it back; clicks on a cell already being saved are ignored.
     const toggleAbsence = (vehicleId, day) => {
-        if (quinzaine.is_closed) return;
+        if (quinzaine.is_closed || !canWrite) return;
         const key = `${vehicleId}_${day}`;
         if (pendingCell === key) return;
         setPendingCell(key);
@@ -122,7 +125,7 @@ export default function Grid({ auth, quinzaine, vehicles, days, cells }) {
                                                             title={cell.absent
                                                                 ? `Transport absent — ${cell.riders} ouvrier(s) venu(s) seul(s). Cliquer pour annuler.`
                                                                 : `${cell.riders} ouvrier(s) — ${cell.cost.toFixed(2)} dh. Cliquer si le transport n'est pas venu.`}
-                                                            className={`border border-gray-200 p-1 text-center transition-all select-none leading-tight ${tone} ${quinzaine.is_closed ? 'cursor-not-allowed' : 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-primary-400'} ${pending ? 'opacity-50' : ''}`}
+                                                            className={`border border-gray-200 p-1 text-center transition-all select-none leading-tight ${tone} ${quinzaine.is_closed || !canWrite ? 'cursor-default' : 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-primary-400'} ${pending ? 'opacity-50' : ''}`}
                                                         >
                                                             {cell.absent ? (
                                                                 <>

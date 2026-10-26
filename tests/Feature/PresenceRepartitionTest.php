@@ -234,4 +234,46 @@ class PresenceRepartitionTest extends TestCase
         $this->assertEqualsWithDelta($net, $this->record($ali)->net, 0.001);
         $this->assertTrue($this->record($ali)->present);
     }
+
+    public function test_an_equipes_day_is_split_across_its_workers_divisions(): void
+    {
+        $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'T1']);
+        $ali = $this->worker('Ali', $this->divA, $equipe);
+        $badr = $this->worker('Badr', $this->divB, $equipe);
+        $chama = $this->worker('Chama', $this->divB, $equipe);
+        $horsEquipe = $this->worker('Driss', $this->divA);
+        $this->present([$ali, $badr, $chama, $horsEquipe]);
+
+        $this->actingAs($this->manager)->post(route('pointage.repartition'), [
+            'quinzaine_id' => $this->qa->id, 'date' => '2026-10-05',
+            'employee_ids' => [$ali->id, $badr->id, $chama->id],
+            'lignes' => [['bloc_id' => $this->b1->id, 'operation_id' => $this->irr->id, 'effectif' => 3]],
+        ])->assertSessionHasNoErrors()->assertSessionHas('success', '3 ouvrier(s) affecté(s).');
+
+        // Each day stays in its own division's quinzaine; the worker outside the équipe is untouched.
+        foreach ([$ali, $badr, $chama] as $worker) {
+            $this->assertSame($this->irr->id, $this->record($worker)->operation_id);
+        }
+        $this->assertSame($this->qb->id, $this->record($badr)->quinzaine_id);
+        $this->assertNull($this->record($horsEquipe)->operation_id);
+    }
+
+    public function test_an_equipes_split_leaves_closed_divisions_alone_and_counts_only_its_open_days(): void
+    {
+        $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'T1']);
+        $ali = $this->worker('Ali', $this->divA, $equipe);
+        $badr = $this->worker('Badr', $this->divB, $equipe);
+        $this->present([$ali, $badr]);
+        $this->qb->update(['is_closed' => true]);
+
+        $repartir = fn (int $effectif) => $this->actingAs($this->manager)->post(route('pointage.repartition'), [
+            'quinzaine_id' => $this->qa->id, 'date' => '2026-10-05', 'employee_ids' => [$ali->id, $badr->id],
+            'lignes' => [['bloc_id' => $this->b1->id, 'operation_id' => $this->irr->id, 'effectif' => $effectif]],
+        ]);
+        $repartir(2)->assertSessionHasErrors('repartition'); // only Ali's day is still open
+        $repartir(1)->assertSessionHasNoErrors();
+
+        $this->assertSame($this->irr->id, $this->record($ali)->operation_id);
+        $this->assertNull($this->record($badr)->operation_id);
+    }
 }
