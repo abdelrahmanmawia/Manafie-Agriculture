@@ -253,6 +253,11 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                                     className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
                                                     {downloadingKey === `pay-${period.key}` ? 'Génération…' : 'Paiement par équipe'}
                                                 </a>
+                                                {/* Days, H.S. and J.F. per transport, in one workbook to sign (FicheJoursExport). */}
+                                                <a href={route('pointage.ficheJours', ref.id)} target="_blank" onClick={() => triggerDownload(`jours-${period.key}`)}
+                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
+                                                    {downloadingKey === `jours-${period.key}` ? 'Génération…' : 'Fiche des jours'}
+                                                </a>
                                             </>
                                         )}
                                         {canManage && open.length > 1 && (

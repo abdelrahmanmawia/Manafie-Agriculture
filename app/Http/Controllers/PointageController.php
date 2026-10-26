@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Exports\DivisionsPointageExport;
+use App\Exports\FicheJoursExport;
 use App\Exports\PaiementEquipesExport;
 use App\Exports\PointageExport;
 use App\Models\Bloc;
@@ -90,6 +91,20 @@ class PointageController extends Controller
         }
 
         return Excel::download(new PaiementEquipesExport($quinzaine, $request->user()->enterprise_id, $equipe), 'Paiement'.$suffix.'_'.$cleanLabel.'.xlsx');
+    }
+
+    /**
+     * The fiche des jours of a period (FicheJoursExport): every transport's workers, their days,
+     * H.S. and J.F., in one workbook with its RECAP. A division-locked user gets only theirs.
+     */
+    public function exportFicheJours(Request $request, Quinzaine $quinzaine)
+    {
+        $quinzaine->loadMissing('enterprise.farm');
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+
+        return Excel::download(new FicheJoursExport($quinzaine, $request->user()->enterprise_id), 'Fiche_Jours_'.$cleanLabel.'.xlsx');
     }
 
     /**
