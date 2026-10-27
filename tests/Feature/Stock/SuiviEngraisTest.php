@@ -143,8 +143,12 @@ class SuiviEngraisTest extends TestCase
         $ws = IOFactory::load($path)->getActiveSheet();
 
         // Journal: B1 = D, B2 = E, TOTAL = F, COÛT = G; the surfaces on row 5.
-        $this->assertSame('SURFACE (ha)', $ws->getCell('B5')->getValue());
+        $this->assertSame('Surface (ha)', $ws->getCell('B5')->getValue());
         $this->assertEquals(150, $ws->getCell('F6')->getCalculatedValue());
+        // The 3rd has two engrais: one date, merged over both lines.
+        $this->assertSame('03/10/2026', $ws->getCell('A6')->getFormattedValue());
+        $this->assertContains('A6:A7', array_keys($ws->getMergeCells()));
+        $this->assertSame('UREE 46%', $ws->getCell('B7')->getValue());
 
         $recap = $this->rowAfter($ws, 'RÉCAPITULATIF PAR ENGRAIS', 'NPK 15-15-15');
         $this->assertEquals([130, 50, 180, 360], [$ws->getCell("D{$recap}")->getCalculatedValue(), $ws->getCell("E{$recap}")->getCalculatedValue(), $ws->getCell("F{$recap}")->getCalculatedValue(), $ws->getCell("G{$recap}")->getCalculatedValue()]);
@@ -156,14 +160,14 @@ class SuiviEngraisTest extends TestCase
         $this->assertEquals([26, 9], [$ws->getCell("D{$cout}")->getCalculatedValue(), $ws->getCell("E{$cout}")->getCalculatedValue()]);
     }
 
-    /** The row, below the section titled $section, whose column B shows $label. */
+    /** The row, below the section titled $section, whose first cell shows $label. */
     private function rowAfter(Worksheet $ws, string $section, string $label): int
     {
         $inSection = false;
         for ($r = 1; $r <= $ws->getHighestRow(); $r++) {
             if (str_starts_with((string) $ws->getCell("A{$r}")->getValue(), $section)) {
                 $inSection = true;
-            } elseif ($inSection && $ws->getCell("B{$r}")->getCalculatedValue() === $label) {
+            } elseif ($inSection && $ws->getCell("A{$r}")->getCalculatedValue() === $label) {
                 return $r;
             }
         }

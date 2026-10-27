@@ -8,6 +8,14 @@ const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 
 const dateFr = (d) => d.split('-').reverse().join('/');
 const moisFr = (m) => `${MOIS[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
 const unite = (type) => UNIT_TYPE_LABELS[type] || type || '';
+// How many lines from i on share the same key (a day, a month): the first one's cell spans
+// them all, the others have none — one date per day however many engrais went out.
+const span = (lines, i, key) => {
+    if (i > 0 && lines[i - 1][key] === lines[i][key]) return 0;
+    let n = 1;
+    while (i + n < lines.length && lines[i + n][key] === lines[i][key]) n++;
+    return n;
+};
 // A quantity cell: empty when nothing went to that bloc, like the farm's sheet.
 const qte = (q) => (q ? formatNumber(q) : '');
 
@@ -105,7 +113,9 @@ export default function SuiviEngrais({ auth, suivi, period }) {
                                     <tbody>
                                         {lignes.map((ligne, i) => (
                                             <tr key={`${ligne.date}-${ligne.product_id}`} className={i > 0 && lignes[i - 1].date !== ligne.date ? 'border-t-2 border-gray-300' : ''}>
-                                                <td className={`${td} whitespace-nowrap text-gray-700`}>{i > 0 && lignes[i - 1].date === ligne.date ? '' : dateFr(ligne.date)}</td>
+                                                {span(lignes, i, 'date') > 0 && (
+                                                    <td rowSpan={span(lignes, i, 'date')} className={`${td} whitespace-nowrap align-middle text-center font-semibold text-gray-800 bg-gray-50`}>{dateFr(ligne.date)}</td>
+                                                )}
                                                 <td className={`${td} font-medium text-gray-900`}>{ligne.engrais}</td>
                                                 {ligne.quantites.map((q, b) => <td key={b} className={`${td} text-center text-gray-700`}>{qte(q)}</td>)}
                                                 <td className={`${td} text-center font-semibold text-gray-900 whitespace-nowrap`}>{formatNumber(ligne.total)} {unite(ligne.unit_type)}</td>
@@ -190,7 +200,9 @@ export default function SuiviEngrais({ auth, suivi, period }) {
                                     <tbody>
                                         {parMois.map((ligne, i) => (
                                             <tr key={`${ligne.mois}-${ligne.product_id}`} className={i > 0 && parMois[i - 1].mois !== ligne.mois ? 'border-t-2 border-gray-300' : ''}>
-                                                <td className={`${td} whitespace-nowrap capitalize text-gray-700`}>{i > 0 && parMois[i - 1].mois === ligne.mois ? '' : moisFr(ligne.mois)}</td>
+                                                {span(parMois, i, 'mois') > 0 && (
+                                                    <td rowSpan={span(parMois, i, 'mois')} className={`${td} whitespace-nowrap align-middle text-center capitalize font-semibold text-gray-800 bg-gray-50`}>{moisFr(ligne.mois)}</td>
+                                                )}
                                                 <td className={`${td} font-medium text-gray-900`}>{ligne.engrais}</td>
                                                 {ligne.quantites.map((q, b) => <td key={b} className={`${td} text-center text-gray-700`}>{qte(q)}</td>)}
                                                 <td className={`${td} text-center font-semibold text-gray-900 whitespace-nowrap`}>{formatNumber(ligne.total)} {unite(ligne.unit_type)}</td>
