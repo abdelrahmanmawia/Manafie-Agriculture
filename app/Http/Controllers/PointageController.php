@@ -298,16 +298,22 @@ class PointageController extends Controller
             ->selectRaw('SUM(CASE WHEN present = ? AND nature = ? AND operation_id IS NULL THEN 1 ELSE 0 END) as a_preciser', [true, PointageRecord::NATURE_JOUR])
             ->groupBy('quinzaine_id')
             ->get()->keyBy('quinzaine_id');
+        // What each division costs the farm (TTC when invoiced, net + 4% when not declared, net
+        // otherwise), and per period with its transport — only on the whole farm's page, since
+        // transport isn't per division.
+        $couts = app(\App\Services\CoutFermeService::class);
+        $parQuinzaine = $couts->parQuinzaine($quinzaines);
         $quinzaines->each(fn ($q) => $q->setAttribute('stats', [
             'ouvriers' => (int) ($stats[$q->id]->ouvriers ?? 0),
             'jours' => (int) ($stats[$q->id]->jours ?? 0),
             'net' => round((float) ($stats[$q->id]->net ?? 0), 2),
             'a_preciser' => (int) ($stats[$q->id]->a_preciser ?? 0),
-        ]));
+        ] + array_intersect_key($parQuinzaine[$q->id], array_flip(['fiche', 'ttc', 'marge', 'cout']))));
 
         return Inertia::render('Pointage/Quinzaines', [
             'quinzaines' => $quinzaines,
             'enterprises' => $this->selectableEnterprises($request),
+            'coutsPeriodes' => $enterpriseId ? null : $couts->parPeriode($quinzaines, $farmId),
         ]);
     }
 

@@ -81,9 +81,11 @@ class QuinzainesPageTest extends TestCase
                 'operation_id' => $m === '001' ? $op->id : null, 'bloc_id' => $m === '001' ? $bloc->id : null, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 100]);
         }
 
+        // The progress fields (the cost ones are CoutFermeTest's).
+        $progress = fn ($list, $id) => array_intersect_key(collect($list)->firstWhere('id', $id)['stats'], array_flip(['ouvriers', 'jours', 'net', 'a_preciser']));
         $this->actingAs($this->manager)->get(route('pointage.quinzaines'))->assertInertia(fn ($p) => $p
-            ->where('quinzaines', fn ($list) => collect($list)->firstWhere('id', $q->id)['stats'] === ['ouvriers' => 2, 'jours' => 2, 'net' => 200, 'a_preciser' => 1]
-                && collect($list)->firstWhere('id', $empty->id)['stats'] === ['ouvriers' => 0, 'jours' => 0, 'net' => 0, 'a_preciser' => 0]));
+            ->where('quinzaines', fn ($list) => $progress($list, $q->id) === ['ouvriers' => 2, 'jours' => 2, 'net' => 200, 'a_preciser' => 1]
+                && $progress($list, $empty->id) === ['ouvriers' => 0, 'jours' => 0, 'net' => 0, 'a_preciser' => 0]));
     }
 
     public function test_closing_with_days_a_preciser_is_refused_with_a_message(): void

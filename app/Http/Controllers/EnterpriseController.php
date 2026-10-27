@@ -222,12 +222,23 @@ class EnterpriseController extends Controller
         $quinzaineIds = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farm->id))->pluck('id');
         $openIds = Quinzaine::whereIn('id', $quinzaineIds)->where('is_closed', false)->pluck('id');
         $jours = fn ($ids) => PointageRecord::whereIn('quinzaine_id', $ids)->where('nature', PointageRecord::NATURE_JOUR)->where('present', true);
+        // What the open periods cost the farm: TTC of the invoiced divisions, net (+ 4% when not
+        // declared) of the direct ones, and their transport (CoutFermeService).
+        $periodes = app(\App\Services\CoutFermeService::class)->parPeriode(Quinzaine::with('enterprise')->whereIn('id', $openIds)->get(), $farm->id);
+        $cout = collect($periodes);
 
         return [
             'presents' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->distinct()->count('employee_id'),
             'a_preciser_jour' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->whereNull('operation_id')->count(),
             'jours_periode' => (clone $jours($openIds))->count(),
             'net_periode' => round((float) PointageRecord::whereIn('quinzaine_id', $openIds)->sum('net'), 2),
+            'cout_periode' => [
+                'ttc' => round($cout->sum('ttc'), 2),
+                'net_direct' => round($cout->sum('net_direct'), 2),
+                'marge' => round($cout->sum('marge'), 2),
+                'transport' => round($cout->sum('transport'), 2),
+                'total' => round($cout->sum('total'), 2),
+            ],
             'a_preciser_periode' => (clone $jours($openIds))->whereNull('operation_id')->count(),
         ];
     }

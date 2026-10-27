@@ -41,12 +41,37 @@ const nextPeriod = (quinzaines) => {
     return { start_date: start, end_date: end, label: periodLabel(start) };
 };
 
-function Stat({ label, value, tone = 'gray' }) {
-    const tones = { gray: 'text-gray-800', green: 'text-green-700', red: 'text-red-600' };
+function Stat({ label, value, tone = 'gray', hint }) {
+    const tones = { gray: 'text-gray-800', green: 'text-green-700', red: 'text-red-600', blue: 'text-blue-700', amber: 'text-amber-700' };
     return (
         <div className="min-w-[64px]">
             <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</div>
             <div className={`text-sm font-black ${tones[tone]}`}>{value}</div>
+            {hint && <div className="text-[9px] font-bold text-gray-400">{hint}</div>}
+        </div>
+    );
+}
+
+// What the period costs the farm (CoutFermeService): the interim company's invoice (TTC) for
+// the invoiced divisions, the net (+ 4% when not declared) the direct ones pay, and transport.
+function CoutPeriode({ cout }) {
+    const part = (label, value, tone = 'text-gray-800') => (
+        <div>
+            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</div>
+            <div className={`text-sm font-black ${tone}`}>{formatNumber(value)} DH</div>
+        </div>
+    );
+    return (
+        <div className="px-6 py-3 bg-slate-50 border-b border-gray-100 flex flex-wrap items-center gap-x-8 gap-y-2">
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Coût pour la ferme</div>
+            {cout.ttc > 0 && part('TTC intérim (facture)', cout.ttc, 'text-blue-700')}
+            {cout.net_direct > 0 && part('Net direct', cout.net_direct, 'text-green-700')}
+            {cout.marge > 0 && part('Marge 4 % non déclaré', cout.marge, 'text-amber-700')}
+            {part('Transport', cout.transport)}
+            <div className="ml-auto text-right">
+                <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total ferme</div>
+                <div className="text-lg font-black text-gray-900">{formatNumber(cout.total)} DH</div>
+            </div>
         </div>
     );
 }
@@ -54,7 +79,7 @@ function Stat({ label, value, tone = 'gray' }) {
 // One card per pay period (its dates), one line per division inside it: the farm points a
 // period for all divisions together — presence per équipe first (one Grid across divisions),
 // then the operations division by division — so that's how the page is laid out.
-export default function Quinzaines({ auth, quinzaines, enterprises }) {
+export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriodes = null }) {
     const { props } = usePage();
     const pageErrors = props.errors || {};
 
@@ -269,6 +294,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                     </div>
                                 </div>
 
+                                {coutsPeriodes?.[period.key] && <CoutPeriode cout={coutsPeriodes[period.key]} />}
+
                                 <div className="divide-y divide-gray-100">
                                     {period.quinzaines.map(q => (
                                         <div key={q.id} className={`px-6 py-4 flex flex-col xl:flex-row xl:items-center gap-4 ${q.is_closed ? 'bg-gray-50' : ''}`}>
@@ -283,7 +310,10 @@ export default function Quinzaines({ auth, quinzaines, enterprises }) {
                                             <div className="flex flex-wrap gap-x-6 gap-y-2 flex-1">
                                                 <Stat label="Ouvriers" value={q.stats.ouvriers} />
                                                 <Stat label="Jours" value={q.stats.jours} />
-                                                <Stat label="Net" value={`${formatNumber(q.stats.net)} DH`} tone="green" />
+                                                <Stat label="Net ouvriers" value={`${formatNumber(q.stats.net)} DH`} tone="green" />
+                                                {/* What the farm pays for this division: the interim invoice, or the net + 4% when not declared. */}
+                                                {q.stats.ttc != null && <Stat label="TTC facturé" value={`${formatNumber(q.stats.ttc)} DH`} tone="blue" hint="payé à l'intérim" />}
+                                                {q.stats.marge > 0 && <Stat label="Net + 4 %" value={`${formatNumber(q.stats.cout)} DH`} tone="amber" hint="non déclaré" />}
                                                 {q.stats.jours > 0 && (q.stats.a_preciser > 0
                                                     ? <Stat label="À préciser" value={`${q.stats.a_preciser} jour(s)`} tone="red" />
                                                     : <Stat label="Opérations" value="✓ complètes" tone="green" />)}

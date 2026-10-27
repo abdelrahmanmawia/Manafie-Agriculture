@@ -87,7 +87,7 @@ export default function FarmDashboard({
 
                     {/* VUE D'ENSEMBLE — where things stand today, for whoever follows the farm without
                         running it: the detail is one click away on each zone's own pages. */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                         {canAccessPointage && (
                             <StatCard
                                 label="Présents aujourd'hui"
@@ -110,6 +110,20 @@ export default function FarmDashboard({
                                     ? { direction: 'calm', label: `${formatInt(pointageDuJour.jours_periode)} jours pointés` }
                                     : { direction: 'flat', label: 'Aucune période ouverte' }}
                                 icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />}
+                            />
+                        )}
+                        {canAccessPointage && pointageDuJour.cout_periode && (
+                            // What the open periods cost the farm, not what the workers get: the
+                            // interim invoice (TTC), the direct divisions' net (+ 4%), transport.
+                            <StatCard
+                                label="Coût ferme de la période"
+                                value={formatMAD(pointageDuJour.cout_periode.total, 0)}
+                                tone="orange"
+                                href={route('pointage.quinzaines')}
+                                trend={stats.open_quinzaines > 0
+                                    ? { direction: 'flat', label: `TTC ${formatMAD(pointageDuJour.cout_periode.ttc, 0)} · transport ${formatMAD(pointageDuJour.cout_periode.transport, 0)}` }
+                                    : { direction: 'flat', label: 'Aucune période ouverte' }}
+                                icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />}
                             />
                         )}
                         {canAccessStock && (
