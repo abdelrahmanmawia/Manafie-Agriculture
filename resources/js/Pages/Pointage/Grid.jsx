@@ -1008,7 +1008,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                         <td className="p-3 border border-gray-300 sticky left-0 z-10 bg-yellow-50 text-right uppercase text-[8px] tracking-widest text-orange-900">Net par jour</td>
                                         {days.map(day => (
                                             <td key={day} className="border border-gray-300 p-1 text-center text-orange-800 text-[8px] shadow-inner">
-                                                {summaryData.daily_totals[day] > 0 ? formatNumber(summaryData.daily_totals[day], 1) : '-'}
+                                                {summaryData.daily_totals[day] > 0 ? formatNumber(summaryData.daily_totals[day]) : '-'}
                                             </td>
                                         ))}
                                         <td colSpan="4" className="border border-gray-300 bg-green-700 text-white text-right px-4 py-3 uppercase tracking-widest text-xs">
