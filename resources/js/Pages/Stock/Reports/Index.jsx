@@ -35,6 +35,13 @@ export default function Index({ auth }) {
             color: 'bg-orange-500'
         },
         {
+            name: 'Suivi des Engrais',
+            description: 'Engrais sortis par jour et par bloc, dose et coût par hectare, export Excel.',
+            route: 'stock.reports.suivi-engrais',
+            icon: 'M12 3v18m0-18c-3 3-5 6-5 9a5 5 0 0010 0c0-3-2-6-5-9z',
+            color: 'bg-lime-600'
+        },
+        {
             name: 'Coût par Véhicule',
             description: 'Carburant, pièces et maintenance cumulés par véhicule et matériel.',
             route: 'stock.reports.cost-per-vehicle',

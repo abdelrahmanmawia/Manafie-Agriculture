@@ -274,6 +274,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/stock/reports/movement-history', [StockReportController::class, 'movementHistory'])->name('stock.reports.movement-history');
     Route::get('/stock/reports/consumption-by-operation', [StockReportController::class, 'consumptionByOperation'])->name('stock.reports.consumption-by-operation');
     Route::get('/stock/reports/cost-per-hectare', [StockReportController::class, 'costPerHectare'])->name('stock.reports.cost-per-hectare');
+    Route::get('/stock/reports/suivi-engrais', [StockReportController::class, 'suiviEngrais'])->name('stock.reports.suivi-engrais');
+    Route::get('/stock/reports/suivi-engrais/export', [StockReportController::class, 'suiviEngraisExport'])->name('stock.reports.suivi-engrais.export');
     Route::get('/stock/reports/cost-per-vehicle', [StockReportController::class, 'costPerVehicle'])->name('stock.reports.cost-per-vehicle');
     Route::get('/stock/reports/stock-turnover', [StockReportController::class, 'stockTurnover'])->name('stock.reports.stock-turnover');
     }); // end access.domain:stock group

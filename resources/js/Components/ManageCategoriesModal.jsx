@@ -15,8 +15,8 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
     const [renamingId, setRenamingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
 
-    const createForm = useForm({ name: '', is_vehicle_related: false, is_carburant: false });
-    const renameForm = useForm({ name: '', is_vehicle_related: false, is_carburant: false });
+    const createForm = useForm({ name: '', is_vehicle_related: false, is_carburant: false, is_engrais: false });
+    const renameForm = useForm({ name: '', is_vehicle_related: false, is_carburant: false, is_engrais: false });
     const deleteForm = useForm();
 
     const submitCreate = (e) => {
@@ -30,7 +30,7 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
     const startRename = (category) => {
         setConfirmingDeleteId(null);
         renameForm.clearErrors();
-        renameForm.setData({ name: category.name, is_vehicle_related: category.is_vehicle_related, is_carburant: Boolean(category.is_carburant) });
+        renameForm.setData({ name: category.name, is_vehicle_related: category.is_vehicle_related, is_carburant: Boolean(category.is_carburant), is_engrais: Boolean(category.is_engrais) });
         setRenamingId(category.id);
     };
 
@@ -110,10 +110,19 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                                         <input
                                             type="checkbox"
                                             checked={renameForm.data.is_carburant}
-                                            onChange={(e) => renameForm.setData((prev) => ({ ...prev, is_carburant: e.target.checked, is_vehicle_related: e.target.checked || prev.is_vehicle_related }))}
+                                            onChange={(e) => renameForm.setData((prev) => ({ ...prev, is_carburant: e.target.checked, is_engrais: e.target.checked ? false : prev.is_engrais, is_vehicle_related: e.target.checked || prev.is_vehicle_related }))}
                                             className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                                         />
                                         Carburant (une consommation est un plein, enregistré dans Carburant)
+                                    </label>
+                                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={renameForm.data.is_engrais}
+                                            onChange={(e) => renameForm.setData((prev) => ({ ...prev, is_engrais: e.target.checked, is_carburant: e.target.checked ? false : prev.is_carburant }))}
+                                            className="rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                                        />
+                                        Engrais (ses sorties vont dans le rapport « Suivi des engrais »)
                                     </label>
                                     <div className="flex justify-end gap-2">
                                         <SecondaryButton type="button" onClick={cancelRename}>Annuler</SecondaryButton>
@@ -127,6 +136,8 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                                         <p className="font-medium text-gray-800 truncate">{category.name}</p>
                                         {category.is_carburant ? (
                                             <p className="text-xs text-orange-600 mt-0.5">Carburant</p>
+                                        ) : category.is_engrais ? (
+                                            <p className="text-xs text-lime-700 mt-0.5">Engrais</p>
                                         ) : category.is_vehicle_related && (
                                             <p className="text-xs text-primary-600 mt-0.5">Usage véhicule</p>
                                         )}
@@ -206,10 +217,19 @@ export default function ManageCategoriesModal({ show, onClose, categories }) {
                         <input
                             type="checkbox"
                             checked={createForm.data.is_carburant}
-                            onChange={(e) => createForm.setData((prev) => ({ ...prev, is_carburant: e.target.checked, is_vehicle_related: e.target.checked || prev.is_vehicle_related }))}
+                            onChange={(e) => createForm.setData((prev) => ({ ...prev, is_carburant: e.target.checked, is_engrais: e.target.checked ? false : prev.is_engrais, is_vehicle_related: e.target.checked || prev.is_vehicle_related }))}
                             className="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
                         />
                         Carburant (une consommation est un plein, enregistré dans Carburant)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-600">
+                        <input
+                            type="checkbox"
+                            checked={createForm.data.is_engrais}
+                            onChange={(e) => createForm.setData((prev) => ({ ...prev, is_engrais: e.target.checked, is_carburant: e.target.checked ? false : prev.is_carburant }))}
+                            className="rounded border-gray-300 text-lime-600 focus:ring-lime-500"
+                        />
+                        Engrais (ses sorties vont dans le rapport « Suivi des engrais »)
                     </label>
                 </form>
             </div>

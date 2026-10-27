@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SuiviEngraisExport;
 use App\Models\Bloc;
+use App\Models\Farm;
 use App\Models\FuelTransaction;
 use App\Models\ManualStockEntry;
 use App\Models\Operation;
@@ -16,10 +18,12 @@ use App\Models\VehicleMaintenanceLog;
 use App\Services\FuelConsumptionService;
 use App\Services\StockHistory;
 use App\Services\StockReportPeriod;
+use App\Services\SuiviEngraisService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
 /**
  * Every report covers a period (StockReportPeriod: a month by default, a quinzaine, two dates or
@@ -284,6 +288,27 @@ class StockReportController extends Controller
             'costPerHectareData' => $costPerHectareData,
             'period' => $period->toArray(),
         ]);
+    }
+
+    /** The farm's fertilizer sheet: per day and engrais, the quantity on each bloc (SuiviEngraisService). */
+    public function suiviEngrais(Request $request)
+    {
+        $period = $this->period($request);
+
+        return Inertia::render('Stock/Reports/SuiviEngrais', [
+            'suivi' => SuiviEngraisService::build($this->scopedFarmId($request), $period),
+            'period' => $period->toArray(),
+        ]);
+    }
+
+    public function suiviEngraisExport(Request $request)
+    {
+        $farmId = $this->scopedFarmId($request);
+        $period = $this->period($request);
+        $suivi = SuiviEngraisService::build($farmId, $period);
+        $name = 'Suivi_Engrais_'.preg_replace('/[^A-Za-z0-9]+/', '_', \Illuminate\Support\Str::ascii($period->label)).'.xlsx';
+
+        return Excel::download(new SuiviEngraisExport($suivi, $period->label, Farm::find($farmId)?->name ?? ''), $name);
     }
 
     public function costPerVehicle(Request $request)

@@ -14,12 +14,14 @@ class ProductCategory extends Model
         'name',
         'is_vehicle_related',
         'is_carburant',
+        'is_engrais',
         'is_active',
     ];
 
     protected $casts = [
         'is_vehicle_related' => 'boolean',
         'is_carburant' => 'boolean',
+        'is_engrais' => 'boolean',
         'is_active' => 'boolean',
     ];
 

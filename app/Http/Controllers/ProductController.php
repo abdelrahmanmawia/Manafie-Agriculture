@@ -28,7 +28,7 @@ class ProductController extends Controller
     {
         return ProductCategory::when($farmId, fn ($q) => $q->where('farm_id', $farmId))
             ->orderBy('name')
-            ->get(['id', 'name', 'is_vehicle_related', 'is_carburant', 'is_active']);
+            ->get(['id', 'name', 'is_vehicle_related', 'is_carburant', 'is_engrais', 'is_active']);
     }
 
     public function index(Request $request)
@@ -256,6 +256,7 @@ class ProductController extends Controller
             'name' => ['required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $farmId)],
             'is_vehicle_related' => 'boolean',
             'is_carburant' => 'boolean',
+            'is_engrais' => 'boolean',
         ]);
 
         // Fuel is always for vehicles.
@@ -265,6 +266,7 @@ class ProductController extends Controller
             'name' => $validated['name'],
             'is_vehicle_related' => $carburant || ($validated['is_vehicle_related'] ?? false),
             'is_carburant' => $carburant,
+            'is_engrais' => ! $carburant && ($validated['is_engrais'] ?? false),
         ]);
 
         return redirect()->back()->with('success', 'Catégorie créée avec succès.');
@@ -281,10 +283,12 @@ class ProductController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('product_categories', 'name')->where('farm_id', $category->farm_id)->ignore($category->id)],
             'is_vehicle_related' => 'boolean',
             'is_carburant' => 'boolean',
+            'is_engrais' => 'boolean',
             'is_active' => 'boolean',
         ]);
         if (! empty($validated['is_carburant'])) {
             $validated['is_vehicle_related'] = true; // fuel is always for vehicles
+            $validated['is_engrais'] = false;
         }
 
         $category->update($validated);
