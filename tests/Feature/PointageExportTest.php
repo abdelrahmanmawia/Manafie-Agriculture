@@ -314,6 +314,28 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART OPERATIONS'), 0.01);
     }
 
+    public function test_a_salaried_worker_without_days_bills_nothing_on_the_invoiced_fiche(): void
+    {
+        // Was #DIV/0! in NET FACTUR J (it divides by TOTAL), spreading to the totals and LA SOMME.
+        $division = $this->division(['name' => 'P-AGRI INTERIM', 'invoiced_to_client' => true]);
+        $q = $this->quinzaine($division, '2026-10-16', '2026-10-31');
+        $worker = $this->worker($division, '001', 19.13);
+        $this->work($worker, $q, '2026-10-16');
+        $chef = $this->worker($division, '002');
+        $chef->update(['salaire_mensuel' => 4192.02]);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($chef);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 4);
+        $this->assertSame('002', $ws->getCell('A6')->getValue());
+        $this->assertSame(0, $ws->getCell($col['NET FACTUR J'].'6')->getCalculatedValue());
+        $this->assertSame(0, $ws->getCell($col['TOTAL TTC'].'6')->getCalculatedValue());
+        $this->assertEqualsWithDelta(4192.02, $this->value($ws, $col['TOTAL NET'].'6'), 0.01);
+
+        $expected = app(PayrollService::class)->invoicingForRecords('avec_contrat', PointageRecord::where('employee_id', $worker->id)->get(), 19.13, true, $q->start_date);
+        $this->assertEqualsWithDelta($expected['total_ttc'], $ws->getCell('C3')->getCalculatedValue(), 0.05);
+    }
+
     public function test_a_worker_who_moved_division_stays_on_the_fiche_and_grid_of_the_quinzaine_they_worked(): void
     {
         $division = $this->division();

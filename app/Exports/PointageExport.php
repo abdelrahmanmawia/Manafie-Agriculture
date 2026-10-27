@@ -484,17 +484,20 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $tax = $this->num($p::TAX_ADJUSTMENT);
         $service = $this->num($p::SERVICE_TAX);
         $hours = $p::STANDARD_WORKDAY_HOURS;
+        // No day worked bills nothing, as in calculateInvoicing() — a worker on a fixed salary
+        // with no day pointed is on the fiche for the salary, and the formula divides by TOTAL.
+        $none = "{$L('total')}<=0";
 
         if ($this->payroll->usesOctober2026Invoicing($this->start)) {
             return [
-                "=+(({$base}+{$L('comp')}*{$this->num($p::COMP_INVOICE_RATE)})*{$tax}+(({$L('jf')}+{$L('hs')})*{$L('brut')}/{$hours}/{$L('total')})*{$tax})*{$service}",
+                "=IF({$none},0,(({$base}+{$L('comp')}*{$this->num($p::COMP_INVOICE_RATE)})*{$tax}+(({$L('jf')}+{$L('hs')})*{$L('brut')}/{$hours}/{$L('total')})*{$tax})*{$service})",
                 "=+{$L('factur')}*{$L('total')}",
             ];
         }
 
         return [
-            "=+(({$base}+{$L('comp')})*{$tax}+(({$L('jf')}*{$L('brut')}+{$L('hs')}*{$L('brut')}/{$hours})/{$L('total')})*{$tax})*{$service}",
-            "=+{$L('factur')}*{$L('total')}+{$L('jf')}*{$L('net_j')}*{$this->num($p::JF_TOTAL_TTC_MULTIPLIER)}",
+            "=IF({$none},0,(({$base}+{$L('comp')})*{$tax}+(({$L('jf')}*{$L('brut')}+{$L('hs')}*{$L('brut')}/{$hours})/{$L('total')})*{$tax})*{$service})",
+            "=IF({$none},0,{$L('factur')}*{$L('total')}+{$L('jf')}*{$L('net_j')}*{$this->num($p::JF_TOTAL_TTC_MULTIPLIER)})",
         ];
     }
 
