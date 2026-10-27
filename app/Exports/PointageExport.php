@@ -157,7 +157,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
         // A record saved (by an old data-entry mistake) outside the quinzaine's own dates still
         // gets its own column rather than silently disappearing from the totals.
-        $stray = $records->map(fn ($r) => $r->date->format('Y-m-d'))->unique()->diff($days)->sort()->values();
+        // (toBase: on an empty Eloquent collection, map() stays Eloquent and diff() would key strings as models.)
+        $stray = $records->toBase()->map(fn ($r) => $r->date->format('Y-m-d'))->unique()->diff($days)->sort()->values();
         $days = array_merge($days, $stray->all());
 
         $contract = $this->enterprise->contract_type;

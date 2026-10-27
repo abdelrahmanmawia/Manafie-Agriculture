@@ -21,7 +21,8 @@ class DivisionsPointageExport implements WithMultipleSheets, WithPreCalculateFor
 
     /**
      * One fiche per division of the farm for the reference quinzaine's dates (an empty fiche for
-     * a division with no quinzaine for them), plus the farm's vehicle usage.
+     * a division with no quinzaine for them), the farm's transport (TransportSheetExport), plus
+     * its vehicle usage.
      */
     public function sheets(): array
     {
@@ -38,6 +39,9 @@ class DivisionsPointageExport implements WithMultipleSheets, WithPreCalculateFor
 
             $sheets[] = new PointageExport($enterprise, $start, $end, $quinzaine);
         }
+
+        // The farm's transport over the same days (vehicles are farm-pooled: one sheet for all).
+        $sheets[] = new TransportSheetExport($farm, $start->copy(), $end->copy());
 
         // Vehicle usage (Stock domain) is farm-pooled, not enterprise-scoped like the sheets
         // above — added once per farm rather than once per enterprise, bridging the two domains
