@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\TransportLocation;
+use App\Services\ChangementDivisionService;
 use App\Services\PayrollService;
 use App\Services\SalaireFixeService;
 use Carbon\Carbon;
@@ -64,11 +65,11 @@ class EmployeeController extends Controller
             ->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId));
 
         if ($searchQuery) {
-            $query->where(function($q) use ($searchQuery) {
-                $q->where('matricule', 'like', '%' . $searchQuery . '%')
-                  ->orWhere('full_name', 'like', '%' . $searchQuery . '%')
-                  ->orWhere('cin', 'like', '%' . $searchQuery . '%')
-                  ->orWhere('phone', 'like', '%' . $searchQuery . '%');
+            $query->where(function ($q) use ($searchQuery) {
+                $q->where('matricule', 'like', '%'.$searchQuery.'%')
+                    ->orWhere('full_name', 'like', '%'.$searchQuery.'%')
+                    ->orWhere('cin', 'like', '%'.$searchQuery.'%')
+                    ->orWhere('phone', 'like', '%'.$searchQuery.'%');
             });
         }
 
@@ -211,7 +212,14 @@ class EmployeeController extends Controller
         }
         unset($validated['cin_photo'], $validated['remove_cin_photo']);
 
+        $ancienneDivision = $employee->enterprise_id;
         $employee->update($validated);
+
+        // A move takes the days of the old division's open periods along (they're repriced just below).
+        $deplacement = null;
+        if ($employee->wasChanged('enterprise_id') && $ancienneDivision) {
+            $deplacement = app(ChangementDivisionService::class)->deplacerJours($employee, $ancienneDivision);
+        }
 
         // Keep this employee's still-open pointage in sync with the new complement — otherwise
         // their stored net/brut stay priced at whatever complement was in effect when each cell
@@ -223,6 +231,15 @@ class EmployeeController extends Controller
             $this->payrollService->recalculateOpenRecordsForEmployee($employee);
         }
 
+        if ($deplacement && ($deplacement['deplaces'] || $deplacement['restes'])) {
+            $division = $employee->enterprise()->value('name');
+
+            return redirect()->back()->with('success', trim(
+                ($deplacement['deplaces'] ? "{$deplacement['deplaces']} jour(s) de la période en cours suivent l'ouvrier dans {$division}. " : '')
+                .($deplacement['restes'] ? "{$deplacement['restes']} jour(s) restent dans l'ancienne division ({$division} n'a pas de période ouverte pour ces dates, ou les a déjà)." : '')
+            ));
+        }
+
         return redirect()->back();
     }
 
@@ -231,10 +248,11 @@ class EmployeeController extends Controller
         $this->assertEmployeeManagerAccess($request, $employee);
 
         // Switched by hand: no longer tied to their équipe's own on/off (EquipeController).
-        $employee->update(['is_active' => !$employee->is_active, 'desactive_avec_equipe' => false]);
+        $employee->update(['is_active' => ! $employee->is_active, 'desactive_avec_equipe' => false]);
         if ($employee->salaire_mensuel !== null) {
             app(SalaireFixeService::class)->syncEmployee($employee);
         }
+
         return redirect()->back();
     }
 
@@ -349,9 +367,9 @@ class EmployeeController extends Controller
         // permanently broken. mPDF has a proper OpenType Arabic shaping + bidi engine, producing
         // both correct visual rendering AND correct logical-order text — used here instead,
         // scoped to just this contract feature (payslips keep using dompdf).
-        $defaultConfig = (new \Mpdf\Config\ConfigVariables())->getDefaults();
+        $defaultConfig = (new \Mpdf\Config\ConfigVariables)->getDefaults();
         $fontDirs = $defaultConfig['fontDir'];
-        $defaultFontConfig = (new \Mpdf\Config\FontVariables())->getDefaults();
+        $defaultFontConfig = (new \Mpdf\Config\FontVariables)->getDefaults();
         $fontData = $defaultFontConfig['fontdata'];
 
         $mpdf = new \Mpdf\Mpdf([
@@ -390,9 +408,9 @@ class EmployeeController extends Controller
         // same URL (?start_date=2026-09-08) gets hit repeatedly the same day — without this, the
         // browser can silently serve back a cached PDF from before the very template change
         // meant to fix it, making a real fix look like it "didn't work".
-        return response($mpdf->Output('Contrat_' . $employee->matricule . '.pdf', \Mpdf\Output\Destination::STRING_RETURN), 200, [
+        return response($mpdf->Output('Contrat_'.$employee->matricule.'.pdf', \Mpdf\Output\Destination::STRING_RETURN), 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="Contrat_' . $employee->matricule . '.pdf"',
+            'Content-Disposition' => 'attachment; filename="Contrat_'.$employee->matricule.'.pdf"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
     }
@@ -415,6 +433,7 @@ class EmployeeController extends Controller
         $employee->delete();
         // Their ID card and badge photo would otherwise stay on disk with nothing pointing at them.
         Storage::disk(self::PHOTO_DISK)->delete(array_filter([$employee->photo_path, $employee->cin_photo_path]));
+
         // Not redirect()->back(): when deletion is triggered from the employee's own Show page
         // (see EmployeeFormModal usage there), "back" would just redirect to that same
         // now-404'd URL. The list is the one place always safe to land on regardless of which

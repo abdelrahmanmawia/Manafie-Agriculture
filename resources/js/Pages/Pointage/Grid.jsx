@@ -9,7 +9,7 @@ import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
 import OperationPicker from '@/Components/OperationPicker';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
     const [selectedCell, setSelectedCell] = useState(null);
     // Jour férié: the day whose header was clicked (action modal), and the per-division result
     // the server flashes back (summary modal).
@@ -80,6 +80,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [dragRange, setDragRange] = useState(null);
     const gridScrollRef = useRef(null);
     const scrollGridBy = (amount) => gridScrollRef.current?.scrollBy({ left: amount, behavior: 'smooth' });
+
+    // The worker's day pointed in another division (PointageController::grid → ailleurs): shown
+    // read-only, left out of pastes and "tous présents" — one division a day.
+    const autreDivision = (employeeId, day) => (existingRecords[employeeId]?.[day]?.[0] ? null : ailleurs[employeeId]?.[day] || null);
 
     // Present with the operation still to enter — the équipe step (RepartitionService).
     const isAPreciser = (record) => !!record && record.present && !record.operation_id;
@@ -277,7 +281,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
     // is held; see the day-cell onClick below. Replaces existing data if present.
     const pasteToCell = (employeeId, date) => {
-        if (!clipboard || closedFor(employeeId) || pasting) return;
+        if (!clipboard || closedFor(employeeId) || pasting || autreDivision(employeeId, date)) return;
         const existingRecord = existingRecords[employeeId]?.[date]?.[0];
 
         // If replacing existing data, confirm first
@@ -337,7 +341,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
         // "P": only the days with nothing yet — a day already pointed keeps its operation.
         if (clipboard.presentOnly) {
-            const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0]);
+            const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0] && !autreDivision(employeeId, d));
             if (emptyDays.length === 0) return;
             if (!confirm(`Marquer cet ouvrier présent (P) sur ses ${emptyDays.length} jour(s) vides ?`)) return;
             setPasting(true);
@@ -363,7 +367,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
             return;
         }
 
-        const allDays = days;
+        const allDays = days.filter(d => !autreDivision(employeeId, d));
         setPasting(true);
         router.post(route('pointage.cell.bulk'), {
             employee_id: employeeId,
@@ -410,8 +414,9 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         setDragAnchor(null);
         setDragRange(null);
         if (!range || range.dates.length <= 1) return;
-        const { employeeId, dates } = range;
-        if (!clipboard || closedFor(employeeId) || pasting) return;
+        const { employeeId } = range;
+        const dates = range.dates.filter(d => !autreDivision(employeeId, d));
+        if (!clipboard || closedFor(employeeId) || pasting || dates.length === 0) return;
         const hasExisting = dates.some(d => existingRecords[employeeId]?.[d]?.[0]?.operation_id);
         const message = clipboard.isEmpty
             ? `Voulez-vous effacer les données de ces ${dates.length} jours ?`
@@ -480,7 +485,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
     // "Tous présents": everyone listed (search/filters applied) with nothing that day yet.
     const markAllPresent = (day) => {
-        const ids = filteredEmployees.filter(e => !closedFor(e.id) && e.quinzaine_id !== null && !existingRecords[e.id]?.[day]?.[0]).map(e => e.id);
+        const ids = filteredEmployees.filter(e => !closedFor(e.id) && e.quinzaine_id !== null && !existingRecords[e.id]?.[day]?.[0] && !autreDivision(e.id, day)).map(e => e.id);
         if (!ids.length) return;
         if (!window.confirm(`Marquer ${ids.length} ouvrier(s) présent(s) le ${day.split('-').reverse().join('/')} ? L'opération restera « à préciser ».`)) return;
         router.post(route('pointage.presence'), { quinzaine_id: quinzaine.id, date: day, employee_ids: ids }, { preserveScroll: true, preserveState: 'errors', onSuccess: fetchSummary });
@@ -676,15 +681,16 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             {filteredEmployees.map(emp => {
                                 const record = dailyRecords[emp.id];
                                 const isPresent = !!record;
+                                const autre = autreDivision(emp.id, currentDate);
                                 return (
                                     <div key={emp.id} className={`p-4 rounded-2xl border-2 transition-all flex items-center justify-between ${isPresent ? 'bg-green-50 border-green-200' : 'bg-white border-gray-100 opacity-60'}`}>
                                         <div className="flex flex-col">
                                             <span className="font-black text-gray-900 uppercase leading-none mb-1 text-sm">{emp.full_name}</span>
-                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? (isAPreciser(record) ? 'À préciser' : `${record.hours}h HS`) : 'Absent'}</span>
+                                            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">{emp.matricule} • {record ? (isAPreciser(record) ? 'À préciser' : `${record.hours}h HS`) : autre ? `Pointé dans ${autre.division}` : 'Absent'}</span>
                                         </div>
                                         <button
                                             onClick={() => handleQuickSave(emp.id, !isPresent)}
-                                            disabled={!!emp.quinzaine_closed}
+                                            disabled={!!emp.quinzaine_closed || !!autre}
                                             className={`w-12 h-12 rounded-full flex items-center justify-center transition-all disabled:opacity-40 disabled:cursor-not-allowed ${isPresent ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-300'}`}
                                         >
                                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d={isPresent ? "M5 13l4 4L19 7" : "M12 4v16m8-8H4"} /></svg>
@@ -928,6 +934,23 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                 </td>
                                                 {days.map(day => {
                                                     const record = employeeRecords[day]?.[0];
+                                                    const autre = autreDivision(emp.id, day);
+                                                    if (autre) {
+                                                        return (
+                                                            <td
+                                                                key={day}
+                                                                title={`${autre.present ? 'Pointé(e) présent(e)' : 'Pointé(e)'} ce jour dans ${autre.division}${autre.operation ? ` (${autre.operation})` : ''} — à modifier dans la grille de cette division`}
+                                                                // A drag passes over it (the day itself is left out of the paste).
+                                                                onMouseEnter={() => extendDrag(emp.id, day)}
+                                                                className="border border-gray-200 p-1 text-center bg-slate-100 bg-[repeating-linear-gradient(135deg,transparent,transparent_4px,rgba(148,163,184,0.18)_4px,rgba(148,163,184,0.18)_8px)] cursor-not-allowed select-none"
+                                                            >
+                                                                <div className="font-black leading-tight text-slate-500">
+                                                                    <span className="text-[8px]">{autre.operation || (autre.present ? 'P' : '·')}</span>
+                                                                    <div className="text-[6px] uppercase leading-none mt-0.5 line-clamp-2">↗ {autre.division}</div>
+                                                                </div>
+                                                            </td>
+                                                        );
+                                                    }
                                                     const recordOp = record ? operations.find(o => o.id === record.operation_id) : null;
                                                     const canCopy = (!record && !clipboard) || (record && record.operation_id && !recordOp?.unit_rate) || (record && isAPreciser(record));
                                                     const isDragHighlighted = dragRange && dragRange.employeeId === emp.id && dragRange.dates.includes(day);

@@ -227,18 +227,24 @@ class PointageController extends Controller
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($validated['quinzaine_id']);
         $this->assertQuinzaineInScope($request, $quinzaine);
 
+        $farmId = $quinzaine->enterprise->farm_id;
+        // The worker's day in every quinzaine the user may see for these dates, so a day moved
+        // from another division (ChangementDivisionService) keeps its history before the move.
+        $visibles = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
+            ->with('enterprise:id,name')->get()->mapWithKeys(fn ($q) => [$q->id => $q->enterprise->name ?? "#{$q->id}"]);
         $changes = \App\Models\PointageChange::with('user:id,name')
-            ->where('employee_id', $validated['employee_id'])->where('quinzaine_id', $quinzaine->id)
+            ->where('employee_id', $validated['employee_id'])->whereIn('quinzaine_id', $visibles->keys())
             ->whereDate('date', $validated['date'])
             ->latest('id')->get();
 
-        $farmId = $quinzaine->enterprise->farm_id;
         $operations = Operation::where('farm_id', $farmId)->get()->mapWithKeys(fn ($o) => [$o->id => $o->abbreviation ?: $o->name]);
         $blocs = Bloc::where('farm_id', $farmId)->pluck('name', 'id');
-        $labels = ['present' => 'Présence', 'operation_id' => 'Opération', 'bloc_id' => 'Bloc', 'hours' => 'H.S', 'quantity' => 'Quantité', 'is_jf' => 'Jour férié', 'net' => 'Net'];
+        $labels = ['quinzaine_id' => 'Division', 'present' => 'Présence', 'operation_id' => 'Opération', 'bloc_id' => 'Bloc', 'hours' => 'H.S', 'quantity' => 'Quantité', 'is_jf' => 'Jour férié', 'net' => 'Net'];
         $show = fn ($field, $value) => match (true) {
             $value === null => '—',
             in_array($field, ['present', 'is_jf'], true) => $value ? 'oui' : 'non',
+            $field === 'quinzaine_id' => $visibles[$value] ?? "#{$value}",
             $field === 'operation_id' => $operations[$value] ?? "#{$value}",
             $field === 'bloc_id' => $blocs[$value] ?? "#{$value}",
             $field === 'net' => number_format((float) $value, 2, ',', ' ').' DH',
@@ -377,15 +383,24 @@ class PointageController extends Controller
             ->where('nature', PointageRecord::NATURE_SALAIRE)
             ->pluck('net', 'employee_id')->map(fn ($net) => (float) $net); // a number, not MySQL's "3500.00"
 
-        $records = PointageRecord::whereIn('quinzaine_id', $quinzaineIds)
+        // A row shows the days of the quinzaine it is pointed against (the division Grid: this one,
+        // moved workers included); the same worker's days in any other division come apart as
+        // `ailleurs`, shown read-only — a day there can't be pointed here (presentAilleurs).
+        $rowQuinzaine = $employees->mapWithKeys(fn ($e) => [$e->id => $mode === 'division' ? $quinzaine->id : $e->quinzaine_id]);
+        $jours = PointageRecord::with('quinzaine.enterprise:id,name', 'operation:id,abbreviation')
             ->whereIn('employee_id', $employees->pluck('id'))
             ->where('nature', PointageRecord::NATURE_JOUR)
             ->whereDate('date', '>=', $quinzaine->start_date)
             ->whereDate('date', '<=', $quinzaine->end_date)
             ->get()
-            ->groupBy(['employee_id', function ($item) {
-                return $item->date->format('Y-m-d');
-            }]);
+            ->partition(fn ($r) => $r->quinzaine_id === $rowQuinzaine[$r->employee_id]);
+        $records = $jours[0]->each->setRelations([])
+            ->groupBy(['employee_id', fn ($item) => $item->date->format('Y-m-d')]);
+        $ailleurs = $jours[1]->groupBy('employee_id')->map(fn ($days) => $days->mapWithKeys(fn ($r) => [$r->date->format('Y-m-d') => [
+            'division' => $r->quinzaine->enterprise->name ?? '',
+            'present' => (bool) $r->present,
+            'operation' => $r->operation->abbreviation ?? null,
+        ]]));
 
         return Inertia::render('Pointage/Grid', [
             'quinzaine' => $quinzaine,
@@ -394,6 +409,7 @@ class PointageController extends Controller
             'blocs' => $blocs,
             'days' => $days,
             'existingRecords' => $records,
+            'ailleurs' => $ailleurs,
             'mode' => $mode,
             'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
             'equipes' => $equipes,

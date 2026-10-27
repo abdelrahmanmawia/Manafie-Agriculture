@@ -40,8 +40,11 @@ class PointageRecordObserver
 
     public function updated(PointageRecord $record): void
     {
-        $apres = $this->pick($record->getChanges());
-        $avant = $this->pick(array_intersect_key($record->getOriginal(), $apres));
+        // A day moved to another division's quinzaine (ChangementDivisionService) changes who pays it.
+        $apres = $this->pick($record->getChanges())
+            + array_map('intval', array_intersect_key($record->getChanges(), ['quinzaine_id' => true]));
+        $avant = $this->pick(array_intersect_key($record->getOriginal(), $apres))
+            + array_map('intval', array_intersect_key($record->getOriginal(), array_intersect_key($apres, ['quinzaine_id' => true])));
         // A recalculation can "change" 100.00 into 100.0025: equal once rounded, not a change.
         $changed = array_keys(array_filter($apres, fn ($value, $field) => $value !== ($avant[$field] ?? null), ARRAY_FILTER_USE_BOTH));
         if ($changed) {
