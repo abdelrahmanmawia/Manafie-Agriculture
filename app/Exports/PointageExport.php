@@ -29,7 +29,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  *
  * Three fiches (ficheFor()): a division that invoices a client gets the AGRI INTERIM one
  * (NET FACTUR J / TOTAL TTC, MARGE); the others get the declared-workforce one (RIB, COMP,
- * SAL BRUT) or, when Enterprise::mo_declaree is false, the "MO NON DECLARE" one (no RIB, footer
+ * SAL BRUT) or, when Enterprise::mo_declaree is false, the "A LA TACHE" one (the farm's former "MO NON DECLARE") (no RIB, footer
  * with a 4% margin). The fiche formulas mirror PayrollService (net per day, H.S. at net/8, a JF
  * day paid NET/J on top, NET FACTUR J dated by OCTOBER_2026_INVOICING_FROM) with the fiches' own
  * rounding (90.87 and 11.36 per hour for a 97.44 brut), so a total can differ from the payslip
@@ -350,7 +350,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         }
         if ($this->fiche === self::FICHE_NON_DECLAREE) {
             $range = $this->range($c['day'], 4, $c['day'] + count($days) - 1, 4);
-            $this->text($this->cell($c['day'], 4), 'MO NON DECLARE ');
+            $this->text($this->cell($c['day'], 4), 'A LA TACHE');
             $this->ws->mergeCells($range);
             $this->style($range, $this->font('Calibri', 10), $this->center(), $this->borders(Border::BORDER_THIN));
         }
@@ -673,7 +673,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $lines = match ($this->fiche) {
             self::FICHE_FACTURE => [['TOTAL FACTURE AVEC MARGE 4% ET 20% DE TVA', "={$blocSum}"]],
             self::FICHE_DECLAREE => [['TOTAL', "={$blocSum}"], ['NET OUVRIERS', "=+{$netOuvriers}"], ['ECART', null]],
-            default => [['MO NON DECLARE', "={$blocSum}"], ['TOTAL  AVEC MARGE DE 4%', null], ['TOTAL NET OUVRIERS', "=+{$netOuvriers}"], ['ECART OPERATIONS', null]],
+            default => [['A LA TACHE', "={$blocSum}"], ['TOTAL  AVEC MARGE DE 4%', null], ['TOTAL NET OUVRIERS', "=+{$netOuvriers}"], ['ECART OPERATIONS', null]],
         };
 
         $first = $r;

@@ -132,7 +132,7 @@ export default function Settings({ auth, enterprise }) {
                                         onChange={e => editForm.setData('mo_declaree', !e.target.checked)}
                                     />
                                     <label htmlFor="mo_non_declaree" className="text-xs text-gray-600">
-                                        Main d'œuvre non déclarée — l'export Excel utilise la fiche « MO NON DECLARE » (sans RIB, total avec marge de 4%)
+                                        Main d'œuvre non déclarée — l'export Excel utilise la fiche « A LA TACHE » (sans RIB, total avec marge de 4%)
                                     </label>
                                 </div>
                             )}

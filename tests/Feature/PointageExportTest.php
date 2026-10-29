@@ -118,11 +118,12 @@ class PointageExportTest extends TestCase
         return (float) $ws->getCell($cell)->getCalculatedValue();
     }
 
-    /** The footer value next to a label, wherever the fiche put it. */
+    /** The footer value next to a label, wherever the fiche put it (searched from the bottom: the
+     * non-declared fiche's "A LA TACHE" also titles its day columns, up top). */
     private function footer(Worksheet $ws, string $label): float
     {
-        foreach ($ws->getRowIterator() as $row) {
-            foreach ($row->getCellIterator() as $cell) {
+        for ($r = $ws->getHighestRow(); $r >= 1; $r--) {
+            foreach ($ws->getRowIterator($r, $r)->current()->getCellIterator() as $cell) {
                 if ($cell->getValue() === $label) {
                     $col = $cell->getColumn();
                     do {
@@ -268,7 +269,7 @@ class PointageExportTest extends TestCase
         $this->assertSame('B1|D.M', $ws->getCell('E6')->getValue());
         $paid = (float) PointageRecord::sum('net');
         $this->assertEqualsWithDelta($paid, $this->value($ws, $col['TOTALNET'].'6'), 0.05);
-        $this->assertEqualsWithDelta($this->footer($ws, 'MO NON DECLARE') * 1.04, $this->footer($ws, 'TOTAL  AVEC MARGE DE 4%'), 0.01);
+        $this->assertEqualsWithDelta($this->footer($ws, 'A LA TACHE') * 1.04, $this->footer($ws, 'TOTAL  AVEC MARGE DE 4%'), 0.01);
         $this->assertEqualsWithDelta($this->footer($ws, 'TOTAL  AVEC MARGE DE 4%'), $this->value($ws, 'C3'), 0.01);
     }
 
@@ -309,7 +310,7 @@ class PointageExportTest extends TestCase
         $this->assertSame('002', $ws->getCell('A7')->getValue());
         $this->assertEqualsWithDelta(4000, $this->value($ws, $col['TOTALNET'].'7'), 0.01);
         $this->assertEqualsWithDelta(7500, $this->footer($ws, 'SALAIRES FIXES'), 0.01);
-        $this->assertEqualsWithDelta(7500, $this->footer($ws, 'MO NON DECLARE'), 0.01);
+        $this->assertEqualsWithDelta(7500, $this->footer($ws, 'A LA TACHE'), 0.01);
         $this->assertEqualsWithDelta(7500 * 1.04, $this->value($ws, 'C3'), 0.01);
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART OPERATIONS'), 0.01);
     }
