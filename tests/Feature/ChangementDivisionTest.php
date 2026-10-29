@@ -127,6 +127,18 @@ class ChangementDivisionTest extends TestCase
         );
     }
 
+    public function test_the_division_grid_offers_the_same_period_in_the_other_divisions(): void
+    {
+        $this->actingAs($this->pointeur)->get(route('pointage.grid', ['quinzaine' => $this->qa->id]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('divisions', fn ($d) => collect($d)->pluck('quinzaine_id')->sort()->values()->all() === [$this->qa->id, $this->qb->id]));
+
+        // A division-locked user isn't offered the others.
+        $locked = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->divA->id]);
+        $this->actingAs($locked)->get(route('pointage.grid', ['quinzaine' => $this->qa->id]))
+            ->assertInertia(fn (Assert $page) => $page->where('divisions', fn ($d) => collect($d)->pluck('quinzaine_id')->all() === [$this->qa->id]));
+    }
+
     public function test_the_equipe_grid_shows_a_day_pointed_in_another_division(): void
     {
         $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'PL HOMMES', 'is_active' => true]);

@@ -420,6 +420,15 @@ class PointageController extends Controller
             'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
             'equipes' => $equipes,
             'salairesFixes' => $salairesFixes,
+            // The same dates in the farm's other divisions (only their own for a division-locked
+            // user), for the division switcher.
+            'divisions' => Quinzaine::with('enterprise:id,name')
+                ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+                ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
+                ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
+                ->get(['id', 'enterprise_id', 'is_closed'])
+                ->map(fn ($q) => ['quinzaine_id' => $q->id, 'name' => $q->enterprise->name ?? '', 'is_closed' => (bool) $q->is_closed])
+                ->sortBy('name')->values(),
         ]);
     }
 

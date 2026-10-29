@@ -9,7 +9,7 @@ import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
 import OperationPicker from '@/Components/OperationPicker';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {} }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {}, divisions = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
     // Jour férié: the day whose header was clicked (action modal), and the per-division result
     // the server flashes back (summary modal).
@@ -159,12 +159,21 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     <option value="none">Sans équipe</option>
                 </select>
             ) : (
-                <select value={equipeFilter} onChange={(e) => setEquipeFilter(e.target.value)}
-                    className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
-                    <option value="all">Toutes les équipes</option>
-                    <option value="none">Sans équipe</option>
-                    {equipes.map(e => <option key={e.id} value={String(e.id)}>{equipeLabel(e)}</option>)}
-                </select>
+                <>
+                    {/* The same period in another division, on the same day. */}
+                    {divisions.length > 1 && (
+                        <select value={quinzaine.id} onChange={(e) => router.get(route('pointage.grid', e.target.value), { jour: currentDate })}
+                            className="text-xs font-bold rounded-lg border-primary-200 bg-primary-50 text-primary-800" title="Changer de division">
+                            {divisions.map(d => <option key={d.quinzaine_id} value={d.quinzaine_id}>{d.name}{d.is_closed ? ' (clôturée)' : ''}</option>)}
+                        </select>
+                    )}
+                    <select value={equipeFilter} onChange={(e) => setEquipeFilter(e.target.value)}
+                        className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
+                        <option value="all">Toutes les équipes</option>
+                        <option value="none">Sans équipe</option>
+                        {equipes.map(e => <option key={e.id} value={String(e.id)}>{equipeLabel(e)}</option>)}
+                    </select>
+                </>
             )}
         </div>
     );
