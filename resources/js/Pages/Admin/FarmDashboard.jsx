@@ -158,6 +158,57 @@ export default function FarmDashboard({
                         ].filter(Boolean)}
                     />
 
+                    {/* OPÉRATIONS DU JOUR — what the farm's workers are on today, with how many. */}
+                    {canAccessPointage && (
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            <div className="px-6 py-4 flex items-center justify-between gap-4 border-b border-gray-100">
+                                <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-widest">Opérations d'aujourd'hui</h3>
+                                <Link href={route('pointage.today')} className="text-xs font-bold text-primary-600 hover:text-primary-800 uppercase tracking-widest">
+                                    Pointage du jour →
+                                </Link>
+                            </div>
+                            {pointageDuJour.presents === 0 ? (
+                                <p className="px-6 py-8 text-center text-sm text-gray-500">Aucun ouvrier pointé aujourd'hui pour le moment.</p>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm">
+                                        <thead>
+                                            <tr className="text-left text-xs font-semibold text-gray-500 uppercase tracking-wider bg-gray-50">
+                                                <th className="px-6 py-2.5">Opération</th>
+                                                <th className="px-6 py-2.5">Blocs</th>
+                                                <th className="px-6 py-2.5 text-right">Effectif</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {(pointageDuJour.operations_jour || []).map((op) => (
+                                                <tr key={op.operation}>
+                                                    <td className="px-6 py-2.5 font-medium text-gray-900">
+                                                        {op.operation}
+                                                        {op.abreviation && <span className="ml-2 text-xs text-gray-400">{op.abreviation}</span>}
+                                                    </td>
+                                                    <td className="px-6 py-2.5 text-gray-600">{op.blocs.join(' · ')}</td>
+                                                    <td className="px-6 py-2.5 text-right font-semibold text-gray-900 tabular-nums">{formatInt(op.effectif)}</td>
+                                                </tr>
+                                            ))}
+                                            {pointageDuJour.a_preciser_jour > 0 && (
+                                                <tr className="bg-amber-50">
+                                                    <td className="px-6 py-2.5 font-medium text-amber-800" colSpan={2}>Présents, opération à préciser</td>
+                                                    <td className="px-6 py-2.5 text-right font-semibold text-amber-800 tabular-nums">{formatInt(pointageDuJour.a_preciser_jour)}</td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr className="border-t border-gray-200 bg-gray-50">
+                                                <td className="px-6 py-2.5 font-bold text-gray-900" colSpan={2}>Total présents</td>
+                                                <td className="px-6 py-2.5 text-right font-bold text-gray-900 tabular-nums">{formatInt(pointageDuJour.presents)}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* POINTAGE & PAIE — farm-wide financial pulse (all divisions combined); this is
                         unique to the Hub, it has no per-zone equivalent. */}
                     {canAccessPointage && (

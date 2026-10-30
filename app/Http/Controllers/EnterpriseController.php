@@ -226,10 +226,22 @@ class EnterpriseController extends Controller
         // declared) of the direct ones, and their transport (CoutFermeService).
         $periodes = app(\App\Services\CoutFermeService::class)->parPeriode(Quinzaine::with('enterprise')->whereIn('id', $openIds)->get(), $farm->id);
         $cout = collect($periodes);
+        // Today's work: the workers on each operation and the blocs it's on, biggest first.
+        $operationsJour = (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->whereNotNull('operation_id')
+            ->with('operation:id,name,abbreviation', 'bloc:id,name')->get(['operation_id', 'bloc_id', 'employee_id'])
+            ->groupBy('operation_id')
+            ->map(fn ($days) => [
+                'operation' => $days->first()->operation->name ?? '',
+                'abreviation' => $days->first()->operation->abbreviation ?? null,
+                'blocs' => $days->map(fn ($d) => $d->bloc->name ?? null)->filter()->unique()->sort()->values(),
+                'effectif' => $days->pluck('employee_id')->unique()->count(),
+            ])
+            ->sortByDesc('effectif')->values();
 
         return [
             'presents' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->distinct()->count('employee_id'),
             'a_preciser_jour' => (clone $jours($quinzaineIds))->whereDate('date', now()->toDateString())->whereNull('operation_id')->count(),
+            'operations_jour' => $operationsJour,
             'jours_periode' => (clone $jours($openIds))->count(),
             'net_periode' => round((float) PointageRecord::whereIn('quinzaine_id', $openIds)->sum('net'), 2),
             'cout_periode' => [

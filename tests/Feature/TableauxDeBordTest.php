@@ -88,6 +88,35 @@ class TableauxDeBordTest extends TestCase
                 ->where('stockStats.lowStock', 1));
     }
 
+    public function test_the_accueil_lists_todays_operations_with_their_headcount(): void
+    {
+        $division = Enterprise::create(['farm_id' => $this->farm->id, 'name' => 'A', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 97.44]);
+        $q = Quinzaine::create(['enterprise_id' => $division->id, 'label' => '2QZ', 'start_date' => '2026-10-16', 'end_date' => '2026-10-31', 'is_closed' => false]);
+        $irr = Operation::create(['farm_id' => $this->farm->id, 'name' => 'Irrigation', 'abbreviation' => 'Irr']);
+        $dm = Operation::create(['farm_id' => $this->farm->id, 'name' => 'Desherbage manuel', 'abbreviation' => 'D.M']);
+        $b1 = Bloc::create(['farm_id' => $this->farm->id, 'name' => 'B1']);
+        $b2 = Bloc::create(['farm_id' => $this->farm->id, 'name' => 'B2']);
+        // Today: 2 on D.M (on two blocs), 1 on Irr, 1 "à préciser". Yesterday's day doesn't count.
+        $jours = [['001', '2026-10-26', $dm, $b1], ['002', '2026-10-26', $dm, $b2], ['003', '2026-10-26', $irr, $b1], ['004', '2026-10-26', null, null], ['005', '2026-10-25', $irr, $b1]];
+        foreach ($jours as [$matricule, $date, $op, $bloc]) {
+            $worker = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $division->id, 'matricule' => $matricule, 'full_name' => "W{$matricule}", 'base_rate' => 97.44, 'is_active' => true]);
+            PointageRecord::create(['employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => $date, 'present' => true,
+                'operation_id' => $op?->id, 'bloc_id' => $bloc?->id, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 100]);
+        }
+
+        $this->actingAs($this->responsable)->get(route('dashboard'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('pointageDuJour.operations_jour', 2)
+                ->where('pointageDuJour.operations_jour.0.operation', 'Desherbage manuel')
+                ->where('pointageDuJour.operations_jour.0.abreviation', 'D.M')
+                ->where('pointageDuJour.operations_jour.0.blocs', ['B1', 'B2'])
+                ->where('pointageDuJour.operations_jour.0.effectif', 2)
+                ->where('pointageDuJour.operations_jour.1.operation', 'Irrigation')
+                ->where('pointageDuJour.operations_jour.1.effectif', 1)
+                ->where('pointageDuJour.a_preciser_jour', 1)
+                ->where('pointageDuJour.presents', 4));
+    }
+
     public function test_the_stock_dashboard_lists_what_to_reorder_furthest_under_first(): void
     {
         $peu = $this->produit('Un peu bas', 10);
