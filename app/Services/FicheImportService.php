@@ -390,6 +390,8 @@ class FicheImportService
 
     private function resolveCode(string $code, string $file, string $who): array
     {
+        // Our own export adds the day's H.S. ("B1|D.M|+2"); the hours come from the H.S column.
+        $code = preg_replace('/\|\+[\d.]+$/', '', $code);
         if (in_array($code, self::OPERATIONS_WITHOUT_BLOC, true)) {
             return [null, $this->operations[$code] ?? throw new RuntimeException("Opération inconnue {$code} ({$file})")];
         }

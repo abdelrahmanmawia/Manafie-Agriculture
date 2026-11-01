@@ -21,7 +21,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * One division's "FICHE DE POINTAGE DES OUVRIERS" for a quinzaine, laid out exactly like the
  * farm's own Excel fiches (October 2026 references: "P-AGRI INTERIM", "PERSEALAND",
  * "PERSEALAND NON DECLARE"). Like those, it's a live workbook, not a dump of computed numbers:
- * each day cell holds the "BLOC|ABREVIATION" code worked that day, and every total — TOTAL (days),
+ * each day cell holds the "BLOC|ABREVIATION" code worked that day ("|+2" after it: that day's H.S.
+ * hours, for reading only — the H.S column is what's paid), and every total — TOTAL (days),
  * TOTAL NET, NET FACTUR J / TTC, the per-bloc operation tables and the footer — is the fiche's own
  * Excel formula, so the office can still correct a cell in Excel and see everything follow.
  * The inputs written as values are what the system knows: SAL NET/J, H.S hours, J.F count, and
@@ -177,10 +178,13 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             // A present day whose operation is still "à préciser" shows P: it's paid and counted in
             // TOTAL, but has no bloc/operation to sit in the bloc tables (closing waits for it).
             $codes = [];
+            $cells = [];
             foreach ($worked as $record) {
-                $codes[$record->date->format('Y-m-d')] = $record->operation && $record->bloc
+                $date = $record->date->format('Y-m-d');
+                $codes[$date] = $record->operation && $record->bloc
                     ? $this->code($record->bloc->name, $this->abbreviation($record->operation))
                     : self::A_PRECISER;
+                $cells[$date] = $codes[$date].((float) $record->hours > 0 ? '|+'.(float) $record->hours : '');
             }
 
             // A salaried worker's days pay nothing (PointageRecordObserver): no day rate to show.
@@ -226,6 +230,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 'cin' => (string) $employee->cin,
                 'rib' => (string) $employee->rib,
                 'codes' => $codes,
+                'cells' => $cells,
                 'net_j' => $netJ,
                 // The day rate the records were priced at — what PayrollService::invoicingForRecords() invoices on.
                 'brut' => (float) ($employeeRecords->whereNull('quantity')->where('nature', PointageRecord::NATURE_JOUR)->first()?->rate ?? $this->enterprise->default_brut_rate),
@@ -419,8 +424,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $this->text($this->cell($c['rib'], $r), $row['rib']);
         }
         foreach ($days as $i => $day) {
-            if (isset($row['codes'][$day])) {
-                $this->text($this->cell($c['day'] + $i, $r), $row['codes'][$day]);
+            if (isset($row['cells'][$day])) {
+                $this->text($this->cell($c['day'] + $i, $r), $row['cells'][$day]);
             }
         }
 
@@ -465,7 +470,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         if ($c['rib']) {
             $this->style($this->cell($c['rib'], $r), ['font' => ['size' => 16], 'numberFormat' => ['formatCode' => '@']]);
         }
-        $this->style($this->range($c['day'], $r, $c['day'] + count($days) - 1, $r), ['font' => ['size' => $t['day_font']]]);
+        // A code with its H.S. is longer than the column: it shrinks rather than being cut off.
+        $this->style($this->range($c['day'], $r, $c['day'] + count($days) - 1, $r), ['font' => ['size' => $t['day_font']], 'alignment' => ['shrinkToFit' => true]]);
         $this->style($this->range($c['total_net'], $r, $c['print_last'], $r), [
             'font' => ['size' => $t['total_size'], 'bold' => $this->fiche === self::FICHE_FACTURE],
             'numberFormat' => ['formatCode' => '#,##0.00'],
@@ -598,11 +604,13 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 $this->text($this->cell($c['bloc_abbr'], $opRow), $abbr);
                 $abbrCell = '$'.$this->col($c['bloc_abbr']).$opRow;
                 $match = "\"{$q}|\"&{$abbrCell}";
+                // The same code followed by that day's H.S. ("B1|D.M|+2") is the same operation.
+                $matchHs = "{$match}&\"|+*\"";
 
                 foreach ($days as $i => $day) {
-                    $dayCol = $this->col($c['day'] + $i);
+                    $dayRange = $this->col($c['day'] + $i)."\${$first}:".$this->col($c['day'] + $i)."\${$last}";
                     $this->ws->setCellValue($this->cell($c['bloc_day'] + $i, $opRow),
-                        "=SUMPRODUCT(({$dayCol}\${$first}:{$dayCol}\${$last}=({$match}))*{$main('net_j')})");
+                        "=SUMIF({$dayRange},{$match},{$main('net_j')})+SUMIF({$dayRange},{$matchHs},{$main('net_j')})");
                 }
 
                 $dayCells = $this->col($c['bloc_day']).$opRow.':'.$this->col($c['bloc_day'] + $n - 1).$opRow;
@@ -618,7 +626,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                     $totalCell = $this->col($c['bloc_total']).$opRow;
                     $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "={$totalCell}+{$jfCell}+{$hsCell}");
                 } else {
-                    $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=COUNTIF({$daysRange},{$match})");
+                    $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=COUNTIF({$daysRange},{$match})+COUNTIF({$daysRange},{$matchHs})");
                     $this->ws->setCellValue($hsCell, $hours);
                     $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "=SUM({$dayCells})+{$jfCell}+{$hsCell}*{$hsRate}");
                 }

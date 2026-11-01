@@ -165,6 +165,7 @@ class PointageExportTest extends TestCase
         $this->assertSame('001', $ws->getCell('A6')->getValue());
         $this->assertSame('225330061806507661010229', $ws->getCell($col['RIB'].'6')->getValue());
         $this->assertSame('B1|D.M', $ws->getCell('F6')->getValue());
+        $this->assertSame('B1|D.M|+2', $ws->getCell('G6')->getValue());
         $this->assertSame('B2|Irr', $ws->getCell('H6')->getValue());
         $this->assertEquals(109.0, $ws->getCell($col['SAL  NET / J'].'6')->getValue());
         $this->assertEqualsWithDelta(18.13, $this->value($ws, $col['COMP'].'6'), 0.001);
@@ -214,6 +215,45 @@ class PointageExportTest extends TestCase
         $this->assertEqualsWithDelta(3 * 11.36, $line('Irr')['hs'], 0.001);
         $this->assertEqualsWithDelta(90.87, $line('Irr')['jf'], 0.001);
         $this->assertEqualsWithDelta(0, $this->footer($ws, 'ECART'), 0.05);
+    }
+
+    /** @dataProvider ficheDivisions */
+    public function test_a_day_with_hs_shows_them_and_still_counts_in_its_operation(array $attributes): void
+    {
+        $division = $this->division($attributes);
+        $q = $this->quinzaine($division);
+        $worker = $this->worker($division, '001');
+        $this->work($worker, $q, '2026-10-01');
+        $this->work($worker, $q, '2026-10-02', ['hours' => 1.5]);
+        $this->work($worker, $q, '2026-10-03', ['hours' => 2, 'operation_id' => null, 'bloc_id' => null, 'present' => true]);
+
+        $ws = $this->sheet($q);
+        $cells = [];
+        $header = null;
+        foreach ($ws->getRowIterator() as $row) {
+            foreach ($row->getCellIterator() as $cell) {
+                $cells[] = $cell->getValue();
+                if ($cell->getValue() === 'OPERATIONS') {
+                    $header ??= $row->getRowIndex();
+                }
+            }
+        }
+        $this->assertContains('B1|D.M|+1.5', $cells);
+        $this->assertContains('P|+2', $cells);
+
+        // Two days on D.M in the bloc table, the "P" day still waiting for its operation.
+        $total = $this->columns($ws, $header)['Total'].($header + 1);
+        $expected = isset($attributes['mo_declaree']) || isset($attributes['invoiced_to_client']) ? 2.0 : 2 * 90.87;
+        $this->assertEqualsWithDelta($expected, $this->value($ws, $total), 0.05);
+    }
+
+    public static function ficheDivisions(): array
+    {
+        return [
+            'declared' => [['name' => 'D']],
+            'invoiced' => [['name' => 'I', 'invoiced_to_client' => true]],
+            'non declared' => [['name' => 'N', 'mo_declaree' => false]],
+        ];
     }
 
     public function test_a_day_still_a_preciser_shows_p_and_is_paid(): void
