@@ -42,8 +42,9 @@ class PointageController extends Controller
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
 
-        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
-        $fileName = $cleanLabel.'.xlsx';
+        // Named like the farm's own files: "P-15102026 PERSEALAND.xlsx" (the period's last day, the division).
+        $division = trim(preg_replace('/[\\\\\/:*?"<>|]+/', ' ', strtoupper($quinzaine->enterprise->name)));
+        $fileName = 'P-'.$quinzaine->end_date->format('dmY').' '.$division.'.xlsx';
 
         return Excel::download(new PointageExport($quinzaine->enterprise, $quinzaine->start_date, $quinzaine->end_date, $quinzaine), $fileName);
     }

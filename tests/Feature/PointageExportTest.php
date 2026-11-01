@@ -421,7 +421,14 @@ class PointageExportTest extends TestCase
         $q = $this->quinzaine($division);
         $this->work($this->worker($division, '001'), $q, '2026-10-01');
 
-        $this->actingAs($this->manager)->get(route('pointage.export', $q->id))->assertOk()->assertDownload();
+        $this->actingAs($this->manager)->get(route('pointage.export', $q->id))->assertOk()->assertDownload('P-15102026 PERSEALAND.xlsx');
         $this->actingAs($this->manager)->get(route('pointage.exportAllDivisions', $q->id))->assertOk()->assertDownload();
+    }
+
+    public function test_a_division_name_a_file_cannot_hold_is_cleaned_from_the_file_name(): void
+    {
+        $q = $this->quinzaine($this->division(['name' => 'Mo/non: declare']));
+
+        $this->actingAs($this->manager)->get(route('pointage.export', $q->id))->assertOk()->assertDownload('P-15102026 MO NON  DECLARE.xlsx');
     }
 }
