@@ -4,6 +4,7 @@ import Modal from '@/Components/Modal';
 import SecondaryButton from '@/Components/SecondaryButton';
 import PrimaryButton from '@/Components/PrimaryButton';
 import { t } from '@/Helpers/i18n';
+import RibHint from '@/Components/RibHint';
 
 const emptyForm = {
     matricule: '', full_name: '', cin: '', cnss_number: '', dob: '', hire_date: '', phone: '',
@@ -138,7 +139,8 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                         </div>
                         <div className="md:col-span-2">
                             <label htmlFor="emp_rib" className="block text-xs font-black uppercase text-gray-400 mb-1">{t('rib')}</label>
-                            <input id="emp_rib" type="text" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
+                            <input id="emp_rib" type="text" inputMode="numeric" autoComplete="off" className="w-full rounded-lg border-gray-200" value={data.rib} onChange={e => setData('rib', e.target.value)} />
+                            <RibHint value={data.rib} error={errors.rib} />
                         </div>
 
                         {/* Enterprise Assignment — shown whenever there's more than one division to pick

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\TransportCompany;
+use App\Rules\RibMarocain;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -26,9 +27,10 @@ class TransportCompanyController extends Controller
 
         $farmId = $this->resolveWriteFarmId($request);
 
+        $request->merge(['rib' => RibMarocain::normaliser($request->input('rib')) ?: null]);
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', Rule::unique('transport_companies', 'name')->where('farm_id', $farmId)],
-            'rib' => 'nullable|string|max:100',
+            'rib' => ['nullable', 'string', 'max:100', new RibMarocain],
         ]);
 
         TransportCompany::create($validated + ['farm_id' => $farmId]);
@@ -40,9 +42,12 @@ class TransportCompanyController extends Controller
     {
         $this->assertFarmScope($request, $transportCompany->farm_id);
 
+        if ($request->has('rib')) {
+            $request->merge(['rib' => RibMarocain::normaliser($request->input('rib')) ?: null]);
+        }
         $validated = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('transport_companies', 'name')->where('farm_id', $transportCompany->farm_id)->ignore($transportCompany->id)],
-            'rib' => 'nullable|string|max:100',
+            'rib' => ['nullable', 'string', 'max:100', new RibMarocain($transportCompany->rib)],
             'is_active' => 'boolean',
         ]);
 

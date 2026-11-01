@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\TransportLocation;
+use App\Rules\RibMarocain;
 use App\Services\ChangementDivisionService;
 use App\Services\PayrollService;
 use App\Services\SalaireFixeService;
@@ -91,6 +92,7 @@ class EmployeeController extends Controller
         abort_unless($request->user()->canAccessPointage(), 403);
         $farmId = $this->assertEnterpriseInScope($request, (int) $request->enterprise_id)->farm_id;
 
+        $request->merge(['rib' => RibMarocain::normaliser($request->input('rib')) ?: null]);
         $validated = $request->validate([
             // matricule is not an input: it is generated below (sequential per farm) so nobody
             // can duplicate or change it by hand.
@@ -106,7 +108,7 @@ class EmployeeController extends Controller
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
             'bank_name' => 'nullable|string|max:100',
-            'rib' => 'nullable|string|max:100',
+            'rib' => ['nullable', 'string', 'max:100', new RibMarocain],
             'base_rate' => 'required|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],
@@ -147,6 +149,7 @@ class EmployeeController extends Controller
     {
         $this->assertEmployeeInScope($request, $employee);
 
+        $request->merge(['rib' => RibMarocain::normaliser($request->input('rib')) ?: null]);
         $validated = $request->validate([
             // Employee's farm_id is fixed (set once at creation) — CIN uniqueness is scoped to it,
             // not to whichever enterprise they're being reassigned to. The matricule is never
@@ -161,7 +164,7 @@ class EmployeeController extends Controller
             'phone' => 'nullable|string|max:50',
             'address' => 'nullable|string|max:255',
             'bank_name' => 'nullable|string|max:100',
-            'rib' => 'nullable|string|max:100',
+            'rib' => ['nullable', 'string', 'max:100', new RibMarocain($employee->rib)],
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
             // A fixed monthly salary replaces the day pay (SalaireFixeService); empty = paid by the day.

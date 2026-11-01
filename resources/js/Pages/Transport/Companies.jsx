@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import { peutSaisir } from '@/utils/acces';
+import RibHint from '@/Components/RibHint';
 
 // Farm-scoped list of transport companies (the "STE TRANSPORT") — each owns one or more
 // TransportVehicle entries (see Transport/Vehicles.jsx) and gets paid via its own RIB.
@@ -104,7 +105,7 @@ export default function Companies({ auth, companies }) {
                                                         value={editForm.data.rib}
                                                         onChange={(e) => editForm.setData('rib', e.target.value)}
                                                     />
-                                                    <InputError message={editForm.errors.rib} className="mt-1" />
+                                                    <RibHint value={editForm.data.rib} error={editForm.errors.rib} />
                                                 </div>
                                             </div>
                                             <div className="flex justify-end gap-2">
@@ -174,7 +175,7 @@ export default function Companies({ auth, companies }) {
                                     <PrimaryButton disabled={createForm.processing}>Ajouter</PrimaryButton>
                                 </div>
                                 <InputError message={createForm.errors.name} />
-                                <InputError message={createForm.errors.rib} />
+                                <RibHint value={createForm.data.rib} error={createForm.errors.rib} />
                             </form>
                         )}
                     </div>
