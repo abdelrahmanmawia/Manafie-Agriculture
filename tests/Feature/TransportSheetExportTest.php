@@ -108,4 +108,33 @@ class TransportSheetExportTest extends TestCase
         $this->assertSame('SANS TRANSPORT', $ws->getCell('B6')->getValue());
         $this->assertEquals(0, $ws->getCell('C3')->getCalculatedValue());
     }
+
+    public function test_the_sheet_downloads_on_its_own(): void
+    {
+        $company = TransportCompany::create(['farm_id' => $this->farm->id, 'name' => 'hafilaty', 'is_active' => true]);
+        $bus = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $company->id, 'code' => 'BUS', 'price_per_person' => 47, 'is_active' => true]);
+        $equipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'T1', 'transport_vehicle_id' => $bus->id, 'is_active' => true]);
+        $worker = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $this->divA->id, 'matricule' => 'W', 'full_name' => 'W', 'base_rate' => 97.44, 'is_active' => true, 'equipe_id' => $equipe->id]);
+        $this->actingAs($this->pointeur)->post('/pointage/cell', ['employee_id' => $worker->id, 'quinzaine_id' => $this->qa->id, 'date' => '2026-10-16', 'present' => true])->assertSessionHasNoErrors();
+
+        $response = $this->actingAs($this->pointeur)->get(route('pointage.exportTransport', $this->qa));
+
+        $response->assertOk()->assertDownload('Transport_Q.xlsx');
+        $book = IOFactory::load($response->baseResponse->getFile()->getPathname());
+        $this->assertSame(['TRANSPORT'], $book->getSheetNames());
+        // LA SOMME opens already computed, like the global export's.
+        $this->assertEquals(47, $book->getSheet(0)->getCell('C3')->getOldCalculatedValue());
+    }
+
+    public function test_only_who_sees_the_whole_farm_downloads_it(): void
+    {
+        $verrouille = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->divA->id]);
+        $this->actingAs($verrouille)->get(route('pointage.exportTransport', $this->qa))->assertForbidden();
+
+        $autreFerme = User::factory()->create(['role' => 'data_entry', 'farm_id' => Farm::create(['name' => 'Autre'])->id]);
+        $this->actingAs($autreFerme)->get(route('pointage.exportTransport', $this->qa))->assertForbidden();
+
+        $responsable = User::factory()->create(['role' => 'farm_manager', 'farm_id' => $this->farm->id, 'acces_pointage' => 'consultation']);
+        $this->actingAs($responsable)->get(route('pointage.exportTransport', $this->qa))->assertOk();
+    }
 }

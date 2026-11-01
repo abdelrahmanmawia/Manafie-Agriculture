@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithPreCalculateFormulas;
 use Maatwebsite\Excel\Concerns\WithTitle;
 use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Style\Border;
@@ -24,8 +25,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * marked absent, the vehicle costs nothing that day), then JOURS, PERS × J, PRIX / PERS, NET / J
  * and TOTAL as the fiche's own formulas; a SANS TRANSPORT line counts the present workers on no
  * vehicle, so TOTAL PAR JOUR equals everyone present. Vehicles are farm-pooled: one sheet for all.
+ * Also downloaded on its own ("Excel transport"), hence its own pre-calculated formulas.
  */
-class TransportSheetExport implements WithEvents, WithTitle
+class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 {
     use WritesSheetCells;
 

@@ -6,6 +6,7 @@ use App\Exports\DivisionsPointageExport;
 use App\Exports\FicheJoursExport;
 use App\Exports\PaiementEquipesExport;
 use App\Exports\PointageExport;
+use App\Exports\TransportSheetExport;
 use App\Models\Bloc;
 use App\Models\Employee;
 use App\Models\Equipe;
@@ -105,6 +106,22 @@ class PointageController extends Controller
         $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
 
         return Excel::download(new FicheJoursExport($quinzaine, $request->user()->enterprise_id), 'Fiche_Jours_'.$cleanLabel.'.xlsx');
+    }
+
+    /**
+     * The global export's TRANSPORT sheet on its own. Vehicles are farm-pooled, so like
+     * exportAllDivisions() it covers the whole farm: not for a division-locked user.
+     */
+    public function exportTransport(Request $request, Quinzaine $quinzaine)
+    {
+        abort_if($request->user()->enterprise_id, 403);
+
+        $quinzaine->loadMissing('enterprise.farm');
+        $this->assertQuinzaineInScope($request, $quinzaine);
+
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+
+        return Excel::download(new TransportSheetExport($quinzaine->enterprise->farm, $quinzaine->start_date->copy(), $quinzaine->end_date->copy()), 'Transport_'.$cleanLabel.'.xlsx');
     }
 
     /**

@@ -94,6 +94,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/pointage/export-all-divisions/{quinzaine}', [PointageController::class, 'exportAllDivisions'])->name('pointage.exportAllDivisions');
     Route::get('/pointage/paiement-equipes/{quinzaine}', [PointageController::class, 'exportPaiementEquipes'])->name('pointage.paiementEquipes');
     Route::get('/pointage/fiche-jours/{quinzaine}', [PointageController::class, 'exportFicheJours'])->name('pointage.ficheJours');
+    Route::get('/pointage/export-transport/{quinzaine}', [PointageController::class, 'exportTransport'])->name('pointage.exportTransport');
     Route::post('/pointage/cell', [PointageController::class, 'updateCell'])->name('pointage.cell');
     Route::post('/pointage/cell-bulk', [PointageController::class, 'updateCellBulk'])->name('pointage.cell.bulk');
     Route::post('/pointage/presence', [PointageController::class, 'markPresence'])->name('pointage.presence');

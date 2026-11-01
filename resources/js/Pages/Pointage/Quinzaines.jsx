@@ -273,6 +273,11 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                                     className="inline-flex items-center px-4 py-2 rounded-lg border border-green-300 bg-green-50 text-green-800 text-sm font-bold hover:bg-green-100">
                                                     {downloadingKey === `all-${period.key}` ? 'Génération…' : 'Excel toutes divisions'}
                                                 </a>
+                                                {/* The global export's TRANSPORT sheet alone (TransportSheetExport). */}
+                                                <a href={route('pointage.exportTransport', ref.id)} target="_blank" onClick={() => triggerDownload(`transport-${period.key}`)}
+                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-green-300 bg-green-50 text-green-800 text-sm font-bold hover:bg-green-100">
+                                                    {downloadingKey === `transport-${period.key}` ? 'Génération…' : 'Excel transport'}
+                                                </a>
                                                 {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport). */}
                                                 <a href={route('pointage.paiementEquipes', ref.id)} target="_blank" onClick={() => triggerDownload(`pay-${period.key}`)}
                                                     className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
