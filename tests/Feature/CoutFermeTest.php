@@ -122,7 +122,7 @@ class CoutFermeTest extends TestCase
     {
         $couts = app(CoutFermeService::class)->parQuinzaine(Quinzaine::with('enterprise')->get());
         $main = array_sum(array_column($couts, 'cout'));
-        $transport = 3 * 2 * 47; // three riders, two days, 47 DH a person
+        $transport = 3 * 2 * 47 * 1.1; // three riders, two days, 47 DH a person, + the transporter's 10%
 
         $this->actingAs($this->pointeur)->get(route('pointage.quinzaines'))
             ->assertOk()
@@ -148,6 +148,6 @@ class CoutFermeTest extends TestCase
         TransportVehicle::query()->update(['price_per_person' => 100]);
 
         $periode = app(CoutFermeService::class)->parPeriode(Quinzaine::with('enterprise')->get(), $this->farm->id);
-        $this->assertEqualsWithDelta(3 * 2 * 47, $periode['2026-10-16_2026-10-31']['transport'], 0.01);
+        $this->assertEqualsWithDelta(3 * 2 * 47 * 1.1, $periode['2026-10-16_2026-10-31']['transport'], 0.01);
     }
 }

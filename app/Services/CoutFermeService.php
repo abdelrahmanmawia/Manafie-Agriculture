@@ -13,8 +13,9 @@ use Illuminate\Support\Collection;
  * What a period costs the farm, which isn't what the workers are paid: an invoiced division
  * (AGRI INTERIM) costs the interim company's invoice, its TTC; a non-declared one its net + the
  * 4% margin; a declared direct one the net it pays its workers — each the LA SOMME of its fiche
- * (PointageExport) — plus the period's transport (TransportService), farm-wide for the dates:
- * frozen once every division has closed (transport_snapshots), live before.
+ * (PointageExport) — plus the period's transport (TransportService) with the transporter's 10%,
+ * the sheet's TOTAL NET FACTURE, farm-wide for the dates: frozen once every division has closed
+ * (transport_snapshots, which hold the net), live before.
  */
 class CoutFermeService
 {
@@ -96,17 +97,19 @@ class CoutFermeService
         return round($total, 2);
     }
 
-    /** The period's transport: frozen when all its divisions are closed, live before. */
+    /** The period's invoiced transport: frozen when all its divisions are closed, live before. */
     private function transport(Collection $siblings, int $farmId): float
     {
         $first = $siblings->first();
         if ($siblings->every(fn ($q) => $q->is_closed)) {
             $frozen = TransportSnapshot::whereIn('quinzaine_id', $siblings->pluck('id'));
             if ($frozen->exists()) {
-                return round((float) $frozen->sum('subtotal'), 2);
+                return round((float) $frozen->sum('subtotal') * TransportService::FACTURATION, 2);
             }
         }
 
-        return round((float) collect($this->transport->previewForDateRange($first->start_date, $first->end_date, $farmId))->sum('subtotal'), 2);
+        $net = (float) collect($this->transport->previewForDateRange($first->start_date, $first->end_date, $farmId))->sum('subtotal');
+
+        return round($net * TransportService::FACTURATION, 2);
     }
 }

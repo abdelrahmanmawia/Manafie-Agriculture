@@ -67,7 +67,7 @@ function CoutPeriode({ cout }) {
             {cout.ttc > 0 && part('TTC intérim (facture)', cout.ttc, 'text-blue-700')}
             {cout.net_direct > 0 && part('Net direct', cout.net_direct, 'text-green-700')}
             {cout.marge > 0 && part('Marge 4 % non déclaré', cout.marge, 'text-amber-700')}
-            {part('Transport', cout.transport)}
+            {part('Transport (+ 10 %)', cout.transport)}
             <div className="ml-auto text-right">
                 <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total ferme</div>
                 <div className="text-lg font-black text-gray-900">{formatNumber(cout.total)} DH</div>
