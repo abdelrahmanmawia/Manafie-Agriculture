@@ -191,7 +191,7 @@ class PointageController extends Controller
         $present = $dayRecords->pluck('employee_id')->flip();
         $aPreciser = $dayRecords->whereNull('operation_id')->pluck('employee_id')->flip();
 
-        $employees = Employee::where('farm_id', $farmId)->where('is_active', true)
+        $employees = Employee::where('farm_id', $farmId)->where('is_active', true)->whereNull('site_separe')
             ->when($user->enterprise_id, fn ($q, $id) => $q->where('enterprise_id', $id))
             ->get(['id', 'equipe_id', 'enterprise_id']);
         $equipes = Equipe::with(['chef:id,full_name', 'transportVehicle:id,code'])
@@ -361,7 +361,7 @@ class PointageController extends Controller
             // No (or an unknown) équipe chosen yet → an empty grid that asks the user to pick one.
             $equipe = $equipeId === 'none' ? null : $equipes->firstWhere('id', (int) $equipeId);
             $employees = ($equipeId === 'none' || $equipe)
-                ? Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)
+                ? Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)->whereNull('site_separe')
                     // "Sans équipe" also lists the members of a deactivated équipe, so nobody drops out.
                     ->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->where(fn ($q) => $q->whereNull('equipe_id')
                         ->orWhereIn('equipe_id', Equipe::where('farm_id', $farmId)->where('is_active', false)->select('id'))))
@@ -381,6 +381,9 @@ class PointageController extends Controller
             $employees = Employee::where(fn ($q) => $q->where('enterprise_id', $enterpriseId)->where('is_active', true))
                 ->orWhereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
                 ->get();
+            // A worker of another site isn't pointed here: not a row, their own table below it.
+            $autresSites = $employees->whereNotNull('site_separe')->values();
+            $employees = $employees->whereNull('site_separe')->values();
             $sameDates = collect([$enterpriseId => $quinzaine]);
         }
         $employees->each(function ($e) use ($sameDates) {
@@ -438,6 +441,12 @@ class PointageController extends Controller
             'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
             'equipes' => $equipes,
             'salairesFixes' => $salairesFixes,
+            'autresSites' => ($autresSites ?? collect())->map(fn ($e) => [
+                'id' => $e->id, 'site' => $e->site_separe, 'nom' => $e->full_name, 'cin' => $e->cin,
+                'salaire' => (float) $e->salaire_mensuel,
+                'paye' => PointageRecord::where('employee_id', $e->id)->where('quinzaine_id', $quinzaine->id)->where('nature', PointageRecord::NATURE_SALAIRE)->exists(),
+                'ttc' => round($this->payrollService->invoicingSiteSepare($e)['total_ttc'], 2),
+            ]),
             // The same dates in the farm's other divisions (only their own for a division-locked
             // user), for the division switcher.
             'divisions' => Quinzaine::with('enterprise:id,name')

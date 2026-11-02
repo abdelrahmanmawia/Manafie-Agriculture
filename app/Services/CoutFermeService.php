@@ -85,11 +85,18 @@ class CoutFermeService
     private function ttc(Quinzaine $quinzaine): float
     {
         $records = PointageRecord::where('quinzaine_id', $quinzaine->id)->get()->groupBy('employee_id');
-        $complements = Employee::whereIn('id', $records->keys())->pluck('complement', 'id');
+        $employees = Employee::whereIn('id', $records->keys())->get()->keyBy('id');
         $total = 0.0;
         foreach ($records as $employeeId => $employeeRecords) {
+            $employee = $employees[$employeeId] ?? null;
+            // A worker of another site isn't pointed: the month's salary is what's invoiced.
+            if ($employee?->site_separe !== null && $employeeRecords->contains('nature', PointageRecord::NATURE_SALAIRE)) {
+                $total += $this->payroll->invoicingSiteSepare($employee)['total_ttc'];
+
+                continue;
+            }
             $total += $this->payroll->invoicingForRecords(
-                $quinzaine->enterprise->contract_type, $employeeRecords, (float) ($complements[$employeeId] ?? 0),
+                $quinzaine->enterprise->contract_type, $employeeRecords, (float) ($employee?->complement ?? 0),
                 $quinzaine->enterprise->invoiced_to_client, $quinzaine->start_date
             )['total_ttc'];
         }

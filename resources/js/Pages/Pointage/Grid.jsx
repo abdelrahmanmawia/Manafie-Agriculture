@@ -9,7 +9,7 @@ import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
 import OperationPicker from '@/Components/OperationPicker';
 
-export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {}, divisions = [] }) {
+export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {}, divisions = [], autresSites = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
     // Jour férié: the day whose header was clicked (action modal), and the per-division result
     // the server flashes back (summary modal).
@@ -1029,6 +1029,33 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                             </table>
                         </div>
                     </section>
+
+                    {/* Workers of another site: not pointed here, paid by the month, their own table (fiche too). */}
+                    {autresSites.map(a => (
+                        <section key={a.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-widest text-center mb-4">{a.site}</h3>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-center border-collapse">
+                                    <thead>
+                                        <tr className="bg-gray-100 text-[10px] font-black uppercase tracking-widest text-gray-600">
+                                            <th className="p-2 border border-gray-300 text-left">Ouvrier</th>
+                                            <th className="p-2 border border-gray-300">CIN</th>
+                                            <th className="p-2 border border-gray-300">Salaire du mois</th>
+                                            <th className="p-2 border border-gray-300">Total TTC</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className="p-2 border border-gray-300 text-left font-bold">{a.nom}</td>
+                                            <td className="p-2 border border-gray-300">{a.cin}</td>
+                                            <td className="p-2 border border-gray-300">{formatNumber(a.salaire)} DH</td>
+                                            <td className="p-2 border border-gray-300 font-bold">{a.paye ? `${formatNumber(a.ttc)} DH` : '— (2ᵉ quinzaine du mois)'}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    ))}
 
                     {/* 2. PER-BLOC COST GRIDS */}
                     <div className="space-y-12">

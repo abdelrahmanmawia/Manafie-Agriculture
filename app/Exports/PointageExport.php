@@ -58,6 +58,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
     /** Day cell of a present day whose operation hasn't been entered yet. */
     private const A_PRECISER = 'P';
 
+    /** What a worker of another site does, on their table (writeSites()). */
+    private const SITE_OPERATION = 'Responsable domaine';
+
     private const MONTHS = [1 => 'janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
     private PayrollService $payroll;
@@ -77,6 +80,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
     /** The period's fixed monthly salaries: in no bloc table, so the footer adds them itself. */
     private float $salairesFixes = 0.0;
+
+    /** Workers of another site paid in this period, by site: their own table, see writeSites(). */
+    private array $sites = [];
 
     public function __construct(
         private Enterprise $enterprise,
@@ -126,13 +132,19 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
         if ($rows === []) {
             $this->writeEmpty();
+            if ($this->sites !== []) {
+                [$siteFacture, , $lastSiteRow] = $this->writeSites($days, $first + 2);
+                $this->formula($this->sommeCell(), '='.implode('+', $siteFacture));
+                $this->c['last_row'] = $lastSiteRow;
+            }
         } else {
             foreach ($rows as $i => $row) {
                 $this->writeEmployee($first + $i, $row, $days);
             }
             $totalsRow = $this->writeTotals($first, $last, $days);
             [$blocTotals, $lastBlocRow] = $this->writeBlocs($rows, $days, $first, $last, $totalsRow + 3);
-            $this->writeFooter($blocTotals, $lastBlocRow + 3, $totalsRow);
+            [$siteFacture, $siteTtc, $lastSiteRow] = $this->writeSites($days, $lastBlocRow + 2);
+            $this->writeFooter(array_merge($blocTotals, $siteFacture), $lastSiteRow + 3, $totalsRow, $siteTtc);
         }
 
         $this->pageSetup($last);
@@ -174,6 +186,11 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             }
             $this->salairesFixes += (float) $employeeRecords->where('nature', PointageRecord::NATURE_SALAIRE)->sum('net');
             $employee = $employeeRecords->first()->employee;
+            if ($this->fiche === self::FICHE_FACTURE && $employee->site_separe !== null && $salaried) {
+                $this->sites[$employee->site_separe][] = $employee;
+
+                continue;
+            }
 
             // A present day whose operation is still "à préciser" shows P: it's paid and counted in
             // TOTAL, but has no bloc/operation to sit in the bloc tables (closing waits for it).
@@ -370,11 +387,12 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         return $this->fiche === self::FICHE_DECLAREE ? 'B3' : 'C3';
     }
 
-    private function writeHeader(array $days): void
+    private function writeHeader(array $days, ?int $row = null): void
     {
         $c = $this->c;
         $t = $this->theme;
-        $row = $c['headerRow'];
+        $site = $row !== null; // A site's table: its monthly COMP stands where the H.S. are.
+        $row ??= $c['headerRow'];
 
         $labels = [1 => 'N°', 2 => 'NOM', 3 => 'PRENOM', 4 => 'CIN'];
         if ($c['rib']) {
@@ -397,6 +415,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             $c['ttc'] => 'TOTAL TTC ',
         ], fn ($v, $k) => $k !== '' && $k !== null, ARRAY_FILTER_USE_BOTH);
         unset($labels['']);
+        if ($site) {
+            $labels[$c['hs']] = 'COMP';
+        }
 
         foreach ($labels as $col => $label) {
             $this->text($this->cell($col, $row), $label);
@@ -676,7 +697,109 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         return [$totals, $lastRow ?? $r];
     }
 
-    private function writeFooter(array $blocTotals, int $r, int $totalsRow): void
+    /**
+     * One table per site of the division's workers from another farm, like the fiches' "ASSILAH":
+     * the worker's line (the month's salary across the days, not pointed; PayrollService::
+     * invoicingSiteSepare() as live formulas), then their operation and the site's total. Returns
+     * the invoiced total of each site (for the footer's sum of the blocs), their TTC cells, and the
+     * last row used — $r - 2 back when there's no site, so the footer stays where it was.
+     */
+    private function writeSites(array $days, int $r): array
+    {
+        $c = $this->c;
+        $t = $this->theme;
+        $n = count($days);
+        $p = PayrollService::class;
+        $deduction = $this->num($p::DEDUCTION_RATE);
+        $facture = [];
+        $ttc = [];
+        $last = $r - 2;
+
+        foreach ($this->sites as $site => $employees) {
+            $titre = $this->range(1, $r, $c['print_last'], $r);
+            $this->text($this->cell(1, $r), strtoupper($site));
+            $this->ws->mergeCells($titre);
+            $this->style($titre, $this->font($t['title_font'], $t['big'], true), $this->center(), $this->outline(Border::BORDER_MEDIUM));
+            $this->ws->getRowDimension($r)->setRowHeight(37.2);
+            $this->writeHeader($days, $r + 1);
+
+            $line = $r + 2;
+            foreach ($employees as $i => $employee) {
+                [$nom, $prenom] = $employee->last_name || $employee->first_name
+                    ? [$employee->last_name ?? '', $employee->first_name ?? '']
+                    : array_pad(explode(' ', $employee->full_name, 2), 2, '');
+                $this->ws->setCellValue($this->cell(1, $line), $i + 1);
+                $this->text($this->cell(2, $line), $nom);
+                $this->text($this->cell(3, $line), $prenom);
+                $this->text($this->cell(4, $line), (string) $employee->cin);
+                $this->text($this->cell($c['rib'], $line), (string) $employee->rib);
+                $this->ws->setCellValue($this->cell($c['day'], $line), (float) $employee->salaire_mensuel);
+                $this->ws->mergeCells($this->range($c['day'], $line, $c['day'] + $n - 1, $line));
+
+                $L = fn (string $key) => $this->col($c[$key]).$line;
+                $brut = $this->num((float) $employee->salaire_brut_mensuel);
+                $salaire = $this->num((float) $employee->salaire_mensuel);
+                $this->ws->setCellValue($L('total'), $p::SITE_JOURS);
+                $this->ws->setCellValue($L('net_j'), "=({$brut}-{$brut}*{$deduction})/{$L('total')}");
+                $this->ws->setCellValue($L('hs'), "={$salaire}-ROUND({$brut}-{$brut}*{$deduction},2)");
+                $this->ws->setCellValue($L('comp'), "=+{$L('hs')}/{$L('total')}");
+                $this->ws->setCellValue($L('brut'), "=+{$L('net_j')}*{$this->num($p::COMP_INVOICE_RATE)}");
+                $this->ws->setCellValue($L('factur'), "=(({$L('brut')}*{$this->num($p::CHARGE_RATE)}+{$this->num($p::SITE_CHARGE_1)}+{$this->num($p::SITE_CHARGE_2)})*{$this->num($p::TAX_ADJUSTMENT)}+({$L('hs')}/{$L('total')})*{$this->num($p::COMP_INVOICE_RATE)}*{$this->num($p::TAX_ADJUSTMENT)})*{$this->num($p::SERVICE_TAX)}");
+                $this->ws->setCellValue($L('marge'), "=+{$L('factur')}-{$L('brut')}");
+                $this->ws->setCellValue($L('total_net'), "=({$L('total')}*{$L('net_j')})+{$L('hs')}");
+                $this->ws->setCellValue($L('ttc'), "=+{$L('factur')}*{$L('total')}");
+                $ttc[] = $L('ttc');
+
+                $this->style($this->range(1, $line, $c['print_last'], $line), $this->font($t['font'], 14), $this->center(), ['borders' => ['vertical' => ['borderStyle' => Border::BORDER_THIN], 'outline' => ['borderStyle' => Border::BORDER_THIN], 'horizontal' => ['borderStyle' => Border::BORDER_HAIR]]], ['numberFormat' => ['formatCode' => '0.00']]);
+                $this->style($this->range(1, $line, 4, $line), ['font' => ['bold' => $t['names_bold']], 'numberFormat' => ['formatCode' => '@']]);
+                $this->style($this->cell($c['rib'], $line), ['font' => ['size' => 16], 'numberFormat' => ['formatCode' => '@']]);
+                $this->style($this->cell($c['day'], $line), ['numberFormat' => ['formatCode' => '#,##0.00']]);
+                $this->style($this->range($c['total_net'], $line, $c['print_last'], $line), ['font' => ['size' => $t['total_size'], 'bold' => true], 'numberFormat' => ['formatCode' => '#,##0.00']]);
+                $this->ws->getRowDimension($line)->setRowHeight($t['data_height']);
+                $line++;
+            }
+            $lastLine = $line - 1;
+
+            // The operation table under it: what the site's line invoices.
+            $header = $line + 1;
+            $labels = [$c['bloc_name'] => 'OPERATIONS', $c['bloc_total'] => 'TOT OP', $c['bloc_hs'] => 'TOT NET', $c['bloc_net'] => 'NET FACTURE'];
+            foreach ($days as $i => $day) {
+                $labels[$c['bloc_day'] + $i] = Carbon::parse($day)->format('d');
+            }
+            foreach ($labels as $col => $label) {
+                $this->text($this->cell($col, $header), $label);
+            }
+            $this->style($this->range($c['bloc_name'], $header, $c['bloc_net'], $header), $this->font($t['font'], 10, true), $this->fill($t['header_fill']), $this->center(), $this->borders(Border::BORDER_THIN));
+            $this->ws->getRowDimension($header)->setRowHeight(40);
+
+            $operation = $header + 1;
+            $total = $operation + 1;
+            $sum = fn (string $key) => '=SUM('.$this->col($c[$key]).($r + 2).':'.$this->col($c[$key]).$lastLine.')';
+            $this->text($this->cell($c['bloc_name'], $operation), self::SITE_OPERATION);
+            $this->ws->mergeCells($this->range($c['bloc_name'], $operation, $c['bloc_abbr'], $operation));
+            $this->ws->mergeCells($this->range($c['bloc_day'], $operation, $c['bloc_day'] + $n - 1, $operation));
+            $this->ws->setCellValue($this->cell($c['bloc_total'], $operation), $sum('total_net'));
+            $this->ws->setCellValue($this->cell($c['bloc_hs'], $operation), $sum('total_net'));
+            $this->ws->setCellValue($this->cell($c['bloc_net'], $operation), $sum('ttc'));
+            $this->text($this->cell($c['bloc_name'], $total), 'TOTAL VERGER');
+            $this->ws->mergeCells($this->range($c['bloc_name'], $total, $c['bloc_abbr'], $total));
+            foreach (['bloc_total', 'bloc_hs', 'bloc_net'] as $key) {
+                $this->ws->setCellValue($this->cell($c[$key], $total), '=+'.$this->cell($c[$key], $operation));
+            }
+            $this->style($this->range($c['bloc_name'], $operation, $c['bloc_net'], $operation), $this->font($t['font'], $t['day_font']), $this->center(), $this->fill('FFFFFF'), ['numberFormat' => ['formatCode' => '#,##0.00']], ['borders' => ['vertical' => ['borderStyle' => Border::BORDER_THIN], 'outline' => ['borderStyle' => Border::BORDER_THIN]]]);
+            $this->style($this->range($c['bloc_name'], $total, $c['bloc_net'], $total), $this->font($t['font'], 10, true), $this->fill(self::FILL_TOTAL), $this->center(), $this->borders(Border::BORDER_THIN), $this->outline(Border::BORDER_MEDIUM), ['numberFormat' => ['formatCode' => '#,##0.00']]);
+            $this->ws->getRowDimension($operation)->setRowHeight(40);
+            $this->ws->getRowDimension($total)->setRowHeight(40);
+
+            $facture[] = $this->cell($c['bloc_net'], $total);
+            $last = $total;
+            $r = $total + 2;
+        }
+
+        return [$facture, $ttc, $last];
+    }
+
+    private function writeFooter(array $blocTotals, int $r, int $totalsRow, array $siteTtc = []): void
     {
         $c = $this->c;
         $t = $this->theme;
@@ -721,7 +844,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
             if ($this->fiche === self::FICHE_FACTURE) {
                 $ttc = $this->cell($c['footer_ttc'][0], $row);
-                $this->ws->setCellValue($ttc, '=+'.$this->col($c['ttc']).$totalsRow);
+                $this->ws->setCellValue($ttc, '=+'.implode('+', [$this->col($c['ttc']).$totalsRow, ...$siteTtc]));
                 $this->ws->mergeCells($this->range($c['footer_ttc'][0], $row, $c['footer_ttc'][1], $row));
                 $lastCol = $c['footer_ttc'][1];
                 $this->formula($this->sommeCell(), '=+'.$ttc);

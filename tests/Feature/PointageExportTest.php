@@ -332,6 +332,86 @@ class PointageExportTest extends TestCase
         $this->fail('No D.M line');
     }
 
+    /** The farm's own "ASSILAH" table (P-30092026 PERSEALAND AGRI INTERIM.xlsx): 3500 a month, 5946.28 TTC. */
+    public function test_a_worker_of_another_site_has_their_own_table_and_is_not_pointed(): void
+    {
+        $division = $this->division(['name' => 'P-AGRI INTERIM', 'invoiced_to_client' => true]);
+        $q = $this->quinzaine($division, '2026-09-16', '2026-09-30');
+        $premiere = $this->quinzaine($division, '2026-10-01', '2026-10-15');
+        $ouvrier = $this->worker($division, '001');
+        $this->work($ouvrier, $q, '2026-09-16');
+        $yahya = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $division->id, 'matricule' => '002', 'full_name' => 'AUTRE SITE',
+            'last_name' => 'AUTRE', 'first_name' => 'SITE', 'cin' => 'ZZ000001', 'rib' => '000000000000000000000097', 'base_rate' => 97.44, 'is_active' => true,
+            'salaire_mensuel' => 3500, 'site_separe' => 'ASSILAH', 'salaire_brut_mensuel' => 3422.72]);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($yahya);
+
+        // Paid once, in the second quinzaine, as any fixed salary.
+        $this->assertSame(1, PointageRecord::where('employee_id', $yahya->id)->count());
+        $this->assertEquals(3500, PointageRecord::where('employee_id', $yahya->id)->sole()->net);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 4);
+        $this->assertSame('001', $ws->getCell('A5')->getValue());
+        $this->assertNotSame('AUTRE', $ws->getCell('B6')->getValue()); // not in the main table
+
+        $titre = null;
+        foreach ($ws->getRowIterator() as $row) {
+            if ($ws->getCell('A'.$row->getRowIndex())->getValue() === 'ASSILAH') {
+                $titre = $row->getRowIndex();
+            }
+        }
+        $this->assertNotNull($titre);
+        $ligne = $titre + 2;
+        $this->assertSame('AUTRE', $ws->getCell('B'.$ligne)->getValue());
+        $this->assertSame('000000000000000000000097', $ws->getCell('E'.$ligne)->getValue());
+        $this->assertEquals(3500, $ws->getCell('F'.$ligne)->getValue());
+        $this->assertEqualsWithDelta(122.77, $this->value($ws, $col['SAL  NET / J'].$ligne), 0.01);
+        $this->assertEquals(26, $this->value($ws, $col['TOTAL'].$ligne));
+        $this->assertEqualsWithDelta(3500, $this->value($ws, $col['TOTAL NET'].$ligne), 0.01);
+        $this->assertEqualsWithDelta(228.70, $this->value($ws, $col['NET FACTUR J'].$ligne), 0.01);
+        $this->assertEqualsWithDelta(5946.28, $this->value($ws, $col['TOTAL TTC'].$ligne), 0.01);
+
+        // The formulas are the service's; the footer and LA SOMME count it.
+        $calcul = app(PayrollService::class)->invoicingSiteSepare($yahya);
+        $this->assertEqualsWithDelta($calcul['total_ttc'], $this->value($ws, $col['TOTAL TTC'].$ligne), 0.01);
+        $ttcOuvrier = $this->value($ws, $col['TOTAL TTC'].'5');
+        $this->assertEqualsWithDelta($ttcOuvrier + 5946.28, $this->value($ws, 'C3'), 0.05);
+        $this->assertEqualsWithDelta($ttcOuvrier + 5946.28, $this->footer($ws, 'TOTAL FACTURE AVEC MARGE 4% ET 20% DE TVA'), 0.05);
+
+        // The farm's cost and the closing snapshot too.
+        $couts = app(\App\Services\CoutFermeService::class)->parQuinzaine(Quinzaine::with('enterprise')->whereKey($q->id)->get());
+        $this->assertEqualsWithDelta($ttcOuvrier + 5946.28, $couts[$q->id]['ttc'], 0.05);
+        $this->assertEqualsWithDelta($ttcOuvrier + 5946.28, app(PayrollService::class)->generateSnapshot($q)->total_ttc, 0.05);
+
+        // The Grid: no row, not in a team's list, their own table.
+        $this->actingAs($this->manager)->get(route('pointage.grid', $q->id))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 1)
+                ->where('employees.0.id', $ouvrier->id)
+                ->where('autresSites.0.site', 'ASSILAH')
+                ->where('autresSites.0.nom', 'AUTRE SITE')
+                ->where('autresSites.0.paye', true)
+                ->where('autresSites.0.ttc', fn ($v) => abs($v - 5946.28) < 0.01));
+        $this->actingAs($this->manager)->get(route('pointage.grid', ['quinzaine' => $q->id, 'mode' => 'equipe', 'equipe' => 'none']))
+            ->assertInertia(fn ($page) => $page->where('employees', fn ($e) => collect($e)->pluck('id')->doesntContain($yahya->id)));
+
+        // A first quinzaine doesn't pay them: no table, nothing added.
+        $this->assertSame('Aucun pointage pour cette période', $this->sheet($premiere)->getCell('B5')->getValue());
+        $this->actingAs($this->manager)->get(route('pointage.grid', $premiere->id))
+            ->assertInertia(fn ($page) => $page->where('autresSites.0.paye', false));
+    }
+
+    public function test_a_period_with_only_a_worker_of_another_site_still_counts_their_invoice(): void
+    {
+        $division = $this->division(['name' => 'P-AGRI INTERIM', 'invoiced_to_client' => true]);
+        $q = $this->quinzaine($division, '2026-10-16', '2026-10-31');
+        $yahya = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $division->id, 'matricule' => '002', 'full_name' => 'AUTRE SITE',
+            'base_rate' => 97.44, 'is_active' => true, 'salaire_mensuel' => 3500, 'site_separe' => 'ASSILAH', 'salaire_brut_mensuel' => 3422.72]);
+        app(\App\Services\SalaireFixeService::class)->syncEmployee($yahya);
+
+        $this->assertEqualsWithDelta(5946.28, $this->value($this->sheet($q), 'C3'), 0.01);
+    }
+
     public function test_non_declared_fiche_has_no_rib_and_adds_the_4_percent_margin(): void
     {
         $division = $this->division(['name' => 'PERSEALAND NON DECLARE', 'mo_declaree' => false]);

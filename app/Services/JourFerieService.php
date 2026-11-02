@@ -56,7 +56,7 @@ class JourFerieService
                 $row = ['division' => $enterprise->name, 'worked' => 0, 'paid' => 0, 'already' => 0, 'not_eligible' => [], 'manual' => []];
 
                 $recordsOnDay = PointageRecord::where('quinzaine_id', $quinzaine->id)->where('nature', PointageRecord::NATURE_JOUR)->whereDate('date', $day)->get()->keyBy('employee_id');
-                $employees = Employee::where('enterprise_id', $enterprise->id)->where('is_active', true)->get()
+                $employees = Employee::where('enterprise_id', $enterprise->id)->where('is_active', true)->whereNull('site_separe')->get()
                     ->merge(Employee::whereIn('id', $recordsOnDay->keys())->get())
                     ->unique('id')
                     ->sortBy('full_name');

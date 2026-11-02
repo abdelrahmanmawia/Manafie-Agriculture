@@ -10,10 +10,10 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
-        'farm_id', 'enterprise_id', 'matricule', 'full_name', 'last_name', 'first_name', 'complement', 'salaire_mensuel', 'cin', 'cnss_number',
+        'farm_id', 'enterprise_id', 'matricule', 'full_name', 'last_name', 'first_name', 'complement', 'salaire_mensuel', 'site_separe', 'salaire_brut_mensuel', 'cin', 'cnss_number',
         'dob', 'hire_date', 'phone', 'address', 'bank_name', 'rib',
         'base_rate', 'is_active', 'desactive_avec_equipe', 'badge_uuid', 'photo_path', 'cin_photo_path',
-        'residence_location_id', 'equipe_id'
+        'residence_location_id', 'equipe_id',
     ];
 
     protected $casts = [

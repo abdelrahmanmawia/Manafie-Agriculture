@@ -40,6 +40,12 @@ class PayrollService
 
     const COMP_INVOICE_RATE = 1.0674; // October 2026 formula: comp * 1.0674 inside NET FACTUR J
 
+    const SITE_JOURS = 26; // A worker of another site: the month's salary over 26 days, see invoicingSiteSepare()
+
+    const SITE_CHARGE_1 = 7.59;
+
+    const SITE_CHARGE_2 = 4.34;
+
     /**
      * Calculate a worker's own pay for a single day/record (brut, sal_net_j, hs_pay, total_net).
      *
@@ -164,6 +170,30 @@ class PayrollService
         return $netJ !== null ? (float) $netJ : round($this->calculate($contractType, $brutRate, 0, $complement)['sal_net_j'], 2);
     }
 
+    /**
+     * A worker of another site (employees.site_separe, the fiches' "ASSILAH" table) isn't pointed:
+     * their fixed monthly salary is invoiced over 26 days, from their monthly gross, by the fiche's
+     * own formula (P-30092026 PERSEALAND AGRI INTERIM.xlsx). PointageExport::writeSites() writes it
+     * as live Excel formulas: keep the two the same.
+     */
+    public function invoicingSiteSepare(\App\Models\Employee $employee): array
+    {
+        $salaire = (float) $employee->salaire_mensuel;
+        $brutMensuel = (float) $employee->salaire_brut_mensuel;
+        $salNetJ = $brutMensuel * (1 - self::DEDUCTION_RATE) / self::SITE_JOURS;
+        $comp = $salaire - round($brutMensuel * (1 - self::DEDUCTION_RATE), 2);
+        $brutJ = $salNetJ * self::COMP_INVOICE_RATE;
+        $netFacturJ = (($brutJ * self::CHARGE_RATE + self::SITE_CHARGE_1 + self::SITE_CHARGE_2) * self::TAX_ADJUSTMENT
+            + $comp / self::SITE_JOURS * self::COMP_INVOICE_RATE * self::TAX_ADJUSTMENT) * self::SERVICE_TAX;
+
+        return [
+            'sal_net_j' => $salNetJ,
+            'comp' => $comp,
+            'net_factur_j' => $netFacturJ,
+            'total_ttc' => $netFacturJ * self::SITE_JOURS,
+        ];
+    }
+
     /** Whether a quinzaine starting on $periodStart is invoiced with the October 2026 formula. */
     public function usesOctober2026Invoicing($periodStart): bool
     {
@@ -200,6 +230,7 @@ class PayrollService
      */
     public function invoicingForRecords($contractType, $records, $complement, $invoicedToClient = null, $periodStart = null): array
     {
+        // (A worker of another site is billed by the month instead: invoicingSiteSepare().)
         $dayRecords = $records->whereNull('quantity')->filter(fn ($r) => ($r->nature ?? 'jour') === 'jour');
         if ($dayRecords->isEmpty()) {
             return ['net_factur_j' => 0, 'total_ttc' => 0, 'days' => 0, 'jf' => 0, 'hs' => 0, 'rate' => null];
@@ -424,6 +455,11 @@ class PayrollService
                 $quinzaine->start_date
             );
             $totalTtc += $invoicing['total_ttc'];
+
+            $employee = $employeeRecords->first()->employee;
+            if ($employee->site_separe !== null && $invoicing['net_factur_j'] == 0 && $employeeRecords->contains('nature', \App\Models\PointageRecord::NATURE_SALAIRE) && \App\Exports\PointageExport::ficheFor($quinzaine->enterprise) === \App\Exports\PointageExport::FICHE_FACTURE) {
+                $totalTtc += $this->invoicingSiteSepare($employee)['total_ttc'];
+            }
         }
 
         // Format opCosts and blocCosts for Analytics-like output
