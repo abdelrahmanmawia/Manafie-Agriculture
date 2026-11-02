@@ -22,8 +22,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * The TRANSPORT sheet of the global export (DivisionsPointageExport), laid out like the division
  * fiches (PointageExport): per vehicle, its équipes and driver, the riders each day of the period
  * (TransportService::daily — distinct workers present whose day carries the vehicle; "ABS" when
- * marked absent, the vehicle costs nothing that day), then JOURS, PERS × J, PRIX / PERS, NET / J
- * and TOTAL as the fiche's own formulas; a SANS TRANSPORT line counts the present workers on no
+ * marked absent, the vehicle costs nothing that day), then JOURS, PERS × J, PRIX / PERS, NET / J,
+ * TOTAL and TOTAL NET FACTURE (TOTAL + 10%) as the fiche's own formulas; a SANS TRANSPORT line counts the present workers on no
  * vehicle, so TOTAL PAR JOUR equals everyone present. Vehicles are farm-pooled: one sheet for all.
  * Also downloaded on its own ("Excel transport"), hence its own pre-calculated formulas.
  */
@@ -65,8 +65,8 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
         $n = count($days);
         $d1 = self::FIRST_DAY_COL;
         $dn = $d1 + $n - 1;
-        [$cJours, $cPers, $cPrix, $cNetJ, $cTotal] = [$dn + 1, $dn + 2, $dn + 3, $dn + 4, $dn + 5];
-        $last = $cTotal;
+        [$cJours, $cPers, $cPrix, $cNetJ, $cTotal, $cFacture] = [$dn + 1, $dn + 2, $dn + 3, $dn + 4, $dn + 5, $dn + 6];
+        $last = $cFacture;
 
         $daily = app(TransportService::class)->daily($this->start, $this->end, $this->farm->id);
         $equipes = Equipe::where('farm_id', $this->farm->id)->whereNotNull('transport_vehicle_id')->orderBy('name')->get()->groupBy('transport_vehicle_id');
@@ -90,7 +90,7 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
             $ws->mergeCells($range);
             $this->style($range, $this->font($font, 14, true, null, true), $this->center(), $this->outline(Border::BORDER_MEDIUM));
         }
-        $campagne = $this->range($cNetJ, 1, $cTotal, 2);
+        $campagne = $this->range($cNetJ, 1, $last, 2);
         $this->text($this->cell($cNetJ, 1), 'CAMPAGNE  :   '.$this->start->year);
         $ws->mergeCells($campagne);
         $this->style($campagne, $this->font($font, 14, true), $this->center(), $this->outline(Border::BORDER_MEDIUM));
@@ -109,7 +109,7 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
         foreach ($days as $i => $day) {
             $labels[$d1 + $i] = Carbon::parse($day)->format('j');
         }
-        $labels += [$cJours => 'JOURS', $cPers => 'PERS. × J', $cPrix => 'PRIX / PERS', $cNetJ => 'NET / J (forfait)', $cTotal => 'TOTAL'];
+        $labels += [$cJours => 'JOURS', $cPers => 'PERS. × J', $cPrix => 'PRIX / PERS', $cNetJ => 'NET / J (forfait)', $cTotal => 'TOTAL', $cFacture => 'TOTAL NET FACTURE'];
         foreach ($labels as $col => $label) {
             $this->text($this->cell($col, $h), $label);
         }
@@ -145,6 +145,7 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
             // TransportService::dailyCost: the flat net per day when set, else riders × price.
             $L = fn ($c) => $this->cell($c, $r);
             $this->formula($L($cTotal), "=IF({$L($cNetJ)}<>\"\",{$L($cJours)}*{$L($cNetJ)},{$L($cPers)}*{$L($cPrix)})");
+            $this->formula($L($cFacture), "={$L($cTotal)}*".TransportService::FACTURATION);
             $r++;
         }
         $vehiclesLast = $r - 1;
@@ -164,8 +165,8 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
             ['borders' => ['vertical' => ['borderStyle' => Border::BORDER_THIN], 'outline' => ['borderStyle' => Border::BORDER_THIN], 'horizontal' => ['borderStyle' => Border::BORDER_HAIR]]]);
         $this->style($this->range(2, $first, 4, $lastRow), ['alignment' => ['horizontal' => 'left', 'wrapText' => true]]);
         $this->style($this->range(2, $first, 2, $vehiclesLast), ['font' => ['bold' => true]]);
-        $this->style($this->range($cPrix, $first, $cTotal, $lastRow), ['numberFormat' => ['formatCode' => '#,##0.00']]);
-        $this->style($this->range($cTotal, $first, $cTotal, $lastRow), ['font' => ['bold' => true, 'size' => 14]]);
+        $this->style($this->range($cPrix, $first, $last, $lastRow), ['numberFormat' => ['formatCode' => '#,##0.00']]);
+        $this->style($this->range($cTotal, $first, $last, $lastRow), ['font' => ['bold' => true, 'size' => 14]]);
         for ($row = $first; $row <= $lastRow; $row++) {
             $ws->getRowDimension($row)->setRowHeight(45.6);
         }
@@ -180,9 +181,11 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
         }
         $total = $this->col($cTotal);
         $this->formula("{$total}{$t}", "=SUM({$total}{$first}:{$total}{$vehiclesLast})");
+        $facture = $this->col($cFacture);
+        $this->formula("{$facture}{$t}", "=SUM({$facture}{$first}:{$facture}{$vehiclesLast})");
         $this->style($this->range(2, $t, $last, $t), $this->font($font, 10, true), $this->center(), $this->borders(Border::BORDER_THIN));
         $this->style($this->range($d1, $t, $last, $t), $this->fill(self::FILL_TOTAL));
-        $this->style($this->range($cTotal, $t, $cTotal, $t), ['font' => ['size' => 14], 'numberFormat' => ['formatCode' => '#,##0.00']]);
+        $this->style($this->range($cTotal, $t, $last, $t), ['font' => ['size' => 14], 'numberFormat' => ['formatCode' => '#,##0.00']]);
         $this->style($this->range(1, $h, $last, $t), $this->outline(Border::BORDER_MEDIUM));
         $ws->getRowDimension($t)->setRowHeight(40);
         $this->formula('C3', "=+{$total}{$t}");
@@ -194,7 +197,7 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
         foreach (range($d1, $dn) as $col) {
             $ws->getColumnDimension($this->col($col))->setWidth(6.5);
         }
-        foreach ([$cJours => 8.5, $cPers => 10, $cPrix => 11, $cNetJ => 12, $cTotal => 15.89] as $col => $width) {
+        foreach ([$cJours => 8.5, $cPers => 10, $cPrix => 11, $cNetJ => 12, $cTotal => 15.89, $cFacture => 15.89] as $col => $width) {
             $ws->getColumnDimension($this->col($col))->setWidth($width);
         }
         $ws->freezePane($this->cell($d1, $first));

@@ -26,6 +26,9 @@ use Illuminate\Support\Facades\DB;
  */
 class TransportService
 {
+    /** What the transport company invoices over the net: 10% (TOTAL NET FACTURE on the TRANSPORT sheet). */
+    const FACTURATION = 1.1;
+
     /**
      * The vehicle a worker rides today: their équipe's, if it rides one — and only while both the
      * équipe and the vehicle are active (a deactivated one no longer carries anyone; past days

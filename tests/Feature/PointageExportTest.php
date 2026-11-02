@@ -291,7 +291,45 @@ class PointageExportTest extends TestCase
             $this->assertEqualsWithDelta($expected['net_factur_j'], $this->value($ws, $col['NET FACTUR J'].'5'), 0.01, $start);
             $this->assertEqualsWithDelta($expected['total_ttc'], $this->value($ws, $col['TOTAL TTC'].'5'), 0.05, $start);
             $this->assertEqualsWithDelta($expected['total_ttc'], $this->value($ws, 'C3'), 0.05, $start);
+            // The operation tables bill too: the blocs add up to the workers' TTC.
+            $this->assertEqualsWithDelta($expected['total_ttc'], $this->footer($ws, 'TOTAL FACTURE AVEC MARGE 4% ET 20% DE TVA'), 0.05, $start);
         }
+    }
+
+    public function test_invoiced_bloc_tables_bill_each_day_at_net_factur_j(): void
+    {
+        $division = $this->division(['name' => 'P-AGRI INTERIM', 'invoiced_to_client' => true]);
+        $q = $this->quinzaine($division);
+        $a = $this->worker($division, '001', 18.27);
+        $b = $this->worker($division, '002');
+        // Three blocs' worth of operations, H.S. and a worked J.F., an unworked J.F. on top.
+        $this->work($a, $q, '2026-10-01', ['hours' => 3]);
+        $this->work($a, $q, '2026-10-02', ['bloc_id' => $this->b2->id, 'operation_id' => $this->irr->id, 'is_jf' => true]);
+        $this->work($b, $q, '2026-10-01');
+        $this->work($b, $q, '2026-10-02', ['bloc_id' => $this->b2->id, 'operation_id' => $this->irr->id]);
+        PointageRecord::create(['employee_id' => $b->id, 'quinzaine_id' => $q->id, 'date' => '2026-10-03', 'is_jf' => true, 'present' => false,
+            'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 90.87]);
+
+        $ws = $this->sheet($q);
+        $col = $this->columns($ws, 4);
+        $ttc = $this->value($ws, $col['TOTAL TTC'].'5') + $this->value($ws, $col['TOTAL TTC'].'6');
+        $this->assertEqualsWithDelta($ttc, $this->footer($ws, 'TOTAL FACTURE AVEC MARGE 4% ET 20% DE TVA'), 0.01);
+        $this->assertEqualsWithDelta($ttc, $this->value($ws, 'C3'), 0.01);
+
+        // The D.M line of the first day: one day of each worker, at their own NET FACTUR J.
+        foreach ($ws->getRowIterator() as $row) {
+            $r = $row->getRowIndex();
+            if ($ws->getCell('F'.$r)->getValue() === 'D.M' && $ws->getCell('E'.$r)->getValue() !== 'OPERATIONS') {
+                $header = $this->columns($ws, $r - 1);
+                $this->assertArrayHasKey('TOT FACTURE', $header);
+                $this->assertEqualsWithDelta($this->value($ws, $col['NET FACTUR J'].'5') + $this->value($ws, $col['NET FACTUR J'].'6'), $this->value($ws, $header['TOT FACTURE'].$r), 0.01);
+                $this->assertEquals(2, $this->value($ws, $header['Total'].$r));
+                $this->assertEquals(3, $this->value($ws, $header['H.SUP'].$r));
+
+                return;
+            }
+        }
+        $this->fail('No D.M line');
     }
 
     public function test_non_declared_fiche_has_no_rib_and_adds_the_4_percent_margin(): void

@@ -543,7 +543,10 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
      * workers on it cost (their SAL NET/J), its days, and the J.F / H.S. done on it. Unlike the
      * hand-made fiches (which charged a worker's whole H.S./J.F. to one "OP H.S / J.F" column),
      * those two come from the records, each hour/day on the operation it was worked on — values,
-     * not formulas. Returns the TOT NET cell of each bloc's total line, and the last row used.
+     * not formulas. The invoiced fiche's tables bill instead: each day at the worker's NET FACTUR J,
+     * which already carries the J.F / H.S. (their columns only inform), so the blocs add up to
+     * TOTAL TTC once every day has its operation — before October 2026 the TTC's separate J.F bonus
+     * is the J.F column, added. Returns the TOT cell of each bloc's total line, and the last row used.
      */
     private function writeBlocs(array $rows, array $days, int $first, int $last, int $r): array
     {
@@ -554,6 +557,9 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $blocs = [];
         $hsByCode = [];
         $jfByCode = [];
+        $jfDaysByCode = [];
+        $facturee = $this->fiche === self::FICHE_FACTURE;
+        $jfBonus = $facturee && $this->payroll->invoicesJfBonus($this->start);
         foreach ($rows as $row) {
             foreach ($row['codes'] as $code) {
                 if ($code === self::A_PRECISER) {
@@ -567,6 +573,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             }
             foreach ($row['jf_by_code'] as $code => $count) {
                 $jfByCode[$code] = ($jfByCode[$code] ?? 0) + round($count * $row['net_j'], 2);
+                $jfDaysByCode[$code] = ($jfDaysByCode[$code] ?? 0) + $count;
             }
         }
         $operationNames = $this->operationNames();
@@ -574,6 +581,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
         $main = fn (string $key) => '$'.$this->col($c[$key]).'$'.$first.':$'.$this->col($c[$key]).'$'.$last;
         $daysRange = '$'.$this->col($c['day']).'$'.$first.':$'.$this->col($c['day'] + $n - 1).'$'.$last;
+
+        $dayRate = $facturee ? 'factur' : 'net_j';
 
         $totals = [];
         foreach ($blocs as $bloc => $abbrs) {
@@ -588,7 +597,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
 
             $header = $r + 1;
             $labels = [$c['bloc_name'] => 'OPERATIONS', $c['bloc_abbr'] => 'ABREVIATION',
-                $c['bloc_total'] => 'Total', $c['bloc_jf'] => 'J.F', $c['bloc_hs'] => 'H.SUP', $c['bloc_net'] => 'TOT NET'];
+                $c['bloc_total'] => 'Total', $c['bloc_jf'] => 'J.F', $c['bloc_hs'] => 'H.SUP', $c['bloc_net'] => $facturee ? 'TOT FACTURE' : 'TOT NET'];
             foreach ($days as $i => $day) {
                 $labels[$c['bloc_day'] + $i] = Carbon::parse($day)->format($this->fiche === self::FICHE_FACTURE ? 'd' : 'j');
             }
@@ -610,7 +619,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 foreach ($days as $i => $day) {
                     $dayRange = $this->col($c['day'] + $i)."\${$first}:".$this->col($c['day'] + $i)."\${$last}";
                     $this->ws->setCellValue($this->cell($c['bloc_day'] + $i, $opRow),
-                        "=SUMIF({$dayRange},{$match},{$main('net_j')})+SUMIF({$dayRange},{$matchHs},{$main('net_j')})");
+                        "=SUMIF({$dayRange},{$match},{$main($dayRate)})+SUMIF({$dayRange},{$matchHs},{$main($dayRate)})");
                 }
 
                 $dayCells = $this->col($c['bloc_day']).$opRow.':'.$this->col($c['bloc_day'] + $n - 1).$opRow;
@@ -620,7 +629,17 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
                 $code = $this->code($bloc, $abbr);
                 $hours = $hsByCode[$code] ?? 0;
                 $this->ws->setCellValue($jfCell, $jfByCode[$code] ?? 0);
-                if ($this->fiche === self::FICHE_DECLAREE) {
+                if ($facturee) {
+                    $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=COUNTIF({$daysRange},{$match})+COUNTIF({$daysRange},{$matchHs})");
+                    $this->ws->setCellValue($hsCell, $hours);
+                    if ($jfBonus) {
+                        $this->ws->setCellValue($jfCell, round(($jfByCode[$code] ?? 0) * PayrollService::JF_TOTAL_TTC_MULTIPLIER, 2));
+                        $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "=SUM({$dayCells})+{$jfCell}");
+                    } else {
+                        $this->ws->setCellValue($jfCell, $jfDaysByCode[$code] ?? 0);
+                        $this->ws->setCellValue($this->cell($c['bloc_net'], $opRow), "=SUM({$dayCells})");
+                    }
+                } elseif ($this->fiche === self::FICHE_DECLAREE) {
                     $this->ws->setCellValue($this->cell($c['bloc_total'], $opRow), "=SUM({$dayCells})");
                     $this->ws->setCellValue($hsCell, round($hours * $this->hsRate, 2));
                     $totalCell = $this->col($c['bloc_total']).$opRow;

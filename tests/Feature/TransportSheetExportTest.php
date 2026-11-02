@@ -99,6 +99,13 @@ class TransportSheetExportTest extends TestCase
         $this->assertEquals(741, $appTotal);
         $this->assertEquals($appTotal, $val('Y'.($sans + 1)));
         $this->assertEquals($appTotal, $val('C3'));
+
+        // TOTAL NET FACTURE, right after TOTAL: the total + 10%, on each line and over the period.
+        $this->assertSame('TOTAL NET FACTURE', $ws->getCell('Z5')->getValue());
+        $this->assertEqualsWithDelta(141 * 1.1, $val("Z{$b}"), 0.001);
+        $this->assertEqualsWithDelta(600 * 1.1, $val("Z{$v}"), 0.001);
+        $this->assertNull($ws->getCell("Z{$sans}")->getValue());
+        $this->assertEqualsWithDelta($appTotal * 1.1, $val('Z'.($sans + 1)), 0.001);
     }
 
     public function test_a_farm_without_transport_still_gets_its_sheet(): void
