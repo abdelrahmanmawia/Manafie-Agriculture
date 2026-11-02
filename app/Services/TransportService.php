@@ -41,6 +41,34 @@ class TransportService
             ->value('equipes.transport_vehicle_id');
     }
 
+    /**
+     * Workers who just joined an équipe ride its vehicle on their present days of open periods
+     * that carry none yet. A day already on a vehicle keeps it, and closed periods don't change.
+     * Returns how many days were attached.
+     */
+    public function rattacherJoursSansVehicule(array $employeeIds): int
+    {
+        $rattaches = 0;
+        foreach ($employeeIds as $employeeId) {
+            $vehicleId = $this->riderVehicleId($employeeId);
+            if ($vehicleId === null) {
+                continue;
+            }
+            PointageRecord::where('employee_id', $employeeId)
+                ->where('nature', PointageRecord::NATURE_JOUR)
+                ->where('present', true)
+                ->whereNull('transport_vehicle_id')
+                ->whereHas('quinzaine', fn ($q) => $q->where('is_closed', false))
+                ->get()
+                ->each(function ($record) use ($vehicleId, &$rattaches) {
+                    $record->update(['transport_vehicle_id' => $vehicleId]);
+                    $rattaches++;
+                });
+        }
+
+        return $rattaches;
+    }
+
     public function dailyCost(TransportVehicle $vehicle, int $riders, bool $absent): float
     {
         if ($absent || $riders === 0) {

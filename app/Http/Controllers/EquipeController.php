@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Equipe;
 use App\Models\TransportVehicle;
 use App\Services\SalaireFixeService;
+use App\Services\TransportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -117,7 +118,11 @@ class EquipeController extends Controller
         ]);
         $employeeIds = $validated['employee_ids'] ?? [];
 
-        DB::transaction(function () use ($equipe, $employeeIds) {
+        $rattaches = DB::transaction(function () use ($equipe, $employeeIds) {
+            $arrivants = Employee::whereIn('id', $employeeIds)
+                ->where(fn ($q) => $q->whereNull('equipe_id')->orWhere('equipe_id', '!=', $equipe->id))
+                ->pluck('id')->all();
+
             Employee::where('equipe_id', $equipe->id)->whereNotIn('id', $employeeIds)->update(['equipe_id' => null]);
             Employee::whereIn('id', $employeeIds)->update(['equipe_id' => $equipe->id]);
 
@@ -126,9 +131,12 @@ class EquipeController extends Controller
             }
             // Someone who was chef of the équipe they just left isn't its chef any more.
             Equipe::whereIn('chef_employee_id', $employeeIds)->where('id', '!=', $equipe->id)->update(['chef_employee_id' => null]);
+
+            return app(TransportService::class)->rattacherJoursSansVehicule($arrivants);
         });
 
-        return redirect()->back()->with('success', 'Ouvriers de l\'équipe mis à jour.');
+        return redirect()->back()->with('success', 'Ouvriers de l\'équipe mis à jour.'
+            .($rattaches > 0 ? " {$rattaches} jour(s) de la période ouverte rattaché(s) à son transport." : ''));
     }
 
     private function rules(int $farmId): array
@@ -168,6 +176,10 @@ class EquipeController extends Controller
         }
 
         Equipe::where('chef_employee_id', $equipe->chef_employee_id)->where('id', '!=', $equipe->id)->update(['chef_employee_id' => null]);
+        $arrive = Employee::whereKey($equipe->chef_employee_id)->where(fn ($q) => $q->whereNull('equipe_id')->orWhere('equipe_id', '!=', $equipe->id))->exists();
         Employee::whereKey($equipe->chef_employee_id)->update(['equipe_id' => $equipe->id]);
+        if ($arrive) {
+            app(TransportService::class)->rattacherJoursSansVehicule([$equipe->chef_employee_id]);
+        }
     }
 }

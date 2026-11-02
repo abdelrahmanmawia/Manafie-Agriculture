@@ -187,6 +187,70 @@ class TransportCostTest extends TestCase
         $this->assertEquals(50, $byVehicle[$other->id]['subtotal']);
     }
 
+    public function test_joining_an_equipe_puts_open_days_without_a_vehicle_on_its_vehicle(): void
+    {
+        $sansVehicule = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Hommes']);
+        $autreBus = TransportVehicle::create(['farm_id' => $this->farm->id, 'transport_company_id' => $this->bus->transport_company_id, 'code' => 'T2', 'price_per_person' => 50]);
+        $autreEquipe = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Equipe 2', 'transport_vehicle_id' => $autreBus->id]);
+
+        $arrive = $this->worker('ARRIVE', $this->divA, $sansVehicule);
+        $this->work($arrive, '2026-01-05');
+        $this->work($arrive, '2026-01-06', ['operation_id' => null, 'bloc_id' => null, 'present' => true]);
+        // A closed period stays as it was paid and costed.
+        $fermee = Quinzaine::create(['enterprise_id' => $this->divA->id, 'label' => 'D', 'start_date' => '2025-12-16', 'end_date' => '2025-12-31', 'is_closed' => true]);
+        $ancien = PointageRecord::create(['employee_id' => $arrive->id, 'quinzaine_id' => $fermee->id, 'date' => '2025-12-20', 'present' => true, 'hours' => 0, 'rate' => 100, 'brut' => 100, 'net' => 100]);
+        // Not a day: an unworked J.F. has no rider.
+        $jf = PointageRecord::create(['employee_id' => $arrive->id, 'quinzaine_id' => $this->qa->id, 'date' => '2026-01-07', 'present' => false, 'is_jf' => true, 'hours' => 0, 'rate' => 100, 'brut' => 100, 'net' => 100]);
+
+        // Already on another vehicle: stays on it, the vehicle really came for them that day.
+        $change = $this->worker('CHANGE', $this->divA, $autreEquipe);
+        $this->work($change, '2026-01-05');
+
+        // Already a member, a day from when the équipe was inactive: not an arrival, left alone.
+        $membre = $this->worker('MEMBRE', $this->divA);
+        $this->work($membre, '2026-01-05');
+        $jourMembre = PointageRecord::where('employee_id', $membre->id)->sole();
+        $jourMembre->update(['transport_vehicle_id' => null]);
+
+        $this->actingAs($this->manager)->put(route('equipes.members', $this->equipe), ['employee_ids' => [$arrive->id, $change->id, $membre->id]])
+            ->assertSessionHas('success', "Ouvriers de l'équipe mis à jour. 2 jour(s) de la période ouverte rattaché(s) à son transport.");
+
+        $vehicule = fn ($date) => PointageRecord::where('employee_id', $arrive->id)->whereDate('date', $date)->sole()->transport_vehicle_id;
+        $this->assertSame($this->bus->id, $vehicule('2026-01-05'));
+        $this->assertSame($this->bus->id, $vehicule('2026-01-06'));
+        $this->assertNull($ancien->fresh()->transport_vehicle_id);
+        $this->assertNull($jf->fresh()->transport_vehicle_id);
+        $this->assertSame($autreBus->id, PointageRecord::where('employee_id', $change->id)->sole()->transport_vehicle_id);
+        $this->assertNull($jourMembre->fresh()->transport_vehicle_id);
+
+        // The Grille Transport counts them: 2 days at 30 on the bus, 1 at 50 on the other.
+        $byVehicle = collect($this->preview())->keyBy('transport_vehicle_id');
+        $this->assertEquals(60, $byVehicle[$this->bus->id]['subtotal']);
+        $this->assertEquals(50, $byVehicle[$autreBus->id]['subtotal']);
+    }
+
+    public function test_joining_an_equipe_without_a_vehicle_changes_no_day(): void
+    {
+        $sansVehicule = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Hommes']);
+        $worker = $this->worker('A', $this->divA, Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Sans bus']));
+        $this->work($worker, '2026-01-05');
+
+        $this->actingAs($this->manager)->put(route('equipes.members', $sansVehicule), ['employee_ids' => [$worker->id]])
+            ->assertSessionHas('success', "Ouvriers de l'équipe mis à jour.");
+
+        $this->assertNull(PointageRecord::where('employee_id', $worker->id)->sole()->transport_vehicle_id);
+    }
+
+    public function test_a_chef_joining_their_equipe_rides_its_vehicle_on_open_days(): void
+    {
+        $chef = $this->worker('CHEF', $this->divA, Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Hommes']));
+        $this->work($chef, '2026-01-05');
+
+        $this->actingAs($this->manager)->put(route('equipes.update', $this->equipe), ['chef_employee_id' => $chef->id])->assertSessionHasNoErrors();
+
+        $this->assertSame($this->bus->id, PointageRecord::where('employee_id', $chef->id)->sole()->transport_vehicle_id);
+    }
+
     public function test_a_worker_without_a_vehicle_is_nobodys_rider(): void
     {
         $walkers = Equipe::create(['farm_id' => $this->farm->id, 'name' => 'Walkers']);
