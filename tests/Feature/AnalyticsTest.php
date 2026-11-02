@@ -280,6 +280,95 @@ class AnalyticsTest extends TestCase
         $this->assertEqualsWithDelta((5000 - 100) / 10, $p['margePerHa'], 0.01);
     }
 
+    public function test_a_finished_period_compares_with_the_one_before(): void
+    {
+        $septembre = Quinzaine::create(['enterprise_id' => $this->direct->id, 'label' => 'S', 'start_date' => '2026-09-16', 'end_date' => '2026-09-30', 'is_closed' => false]);
+        $this->jour($this->w2, $septembre, '2026-09-20', $this->b2, 200);
+        $id = $this->octobre[$this->interim->id]->id;
+
+        $p = $this->props(['quinzaine_from' => $id, 'quinzaine_to' => $id]);
+
+        $this->assertFalse($p['periodeEnCours']);
+        $this->assertEqualsWithDelta(200, $p['precedente']['net'], 0.01);
+        $this->assertSame(1, $p['precedente']['employes']);
+        $this->assertEqualsWithDelta(200, $p['precedente']['net_par_jour'], 0.01);
+        $this->assertEqualsWithDelta(200, $p['precedente']['cout'], 0.01);
+        $this->assertEqualsWithDelta(10, $p['precedente']['cost_per_ha'], 0.01);
+        $this->assertStringStartsWith('2026-09-16', $p['precedente']['start_date']);
+
+        // The same bloc and the same division on both sides of the comparison.
+        $p = $this->props(['quinzaine_from' => $id, 'quinzaine_to' => $id, 'bloc_id' => $this->b1->id]);
+        $this->assertEqualsWithDelta(0, $p['precedente']['net'], 0.01);
+        $this->assertNull($p['precedente']['cout']);
+    }
+
+    public function test_only_one_finished_period_with_a_period_before_it_compares(): void
+    {
+        $oct = $this->octobre[$this->interim->id]->id;
+        $nov = $this->novembre[$this->interim->id]->id;
+
+        // All periods: no comparison.
+        $this->assertNull($this->props()['precedente']);
+        // The first period has nothing before it.
+        $this->assertNull($this->props(['quinzaine_from' => $oct, 'quinzaine_to' => $oct])['precedente']);
+        // A period still running is marked, not compared: its first days would read as a fall.
+        $p = $this->props(['quinzaine_from' => $nov, 'quinzaine_to' => $nov]);
+        $this->assertNull($p['precedente']);
+        $this->assertTrue($p['periodeEnCours']);
+    }
+
+    public function test_the_export_has_the_same_figures_for_the_same_filters(): void
+    {
+        $this->jour($this->w1, $this->octobre[$this->interim->id], '2026-10-31', null, 90, null, ['present' => false, 'is_jf' => true]);
+        $this->recolte('2026-10-20', 100, 5000);
+
+        $response = $this->actingAs($this->manager)->get(route('analytics.export'))->assertOk()->assertDownload();
+        $ws = \PhpOffice\PhpSpreadsheet\IOFactory::load($response->baseResponse->getFile()->getPathname())->getSheetByName('ANALYSES');
+        $lignes = [];
+        foreach ($ws->getRowIterator() as $row) {
+            $r = $row->getRowIndex();
+            $lignes[trim((string) $ws->getCell('A'.$r)->getValue())] ??= $ws->getCell('B'.$r)->getOldCalculatedValue() ?? $ws->getCell('B'.$r)->getValue();
+        }
+        $p = $this->props();
+
+        $this->assertEqualsWithDelta($p['cout']['total'], $lignes['Coût pour la ferme'], 0.01);
+        $this->assertEqualsWithDelta($p['cout']['ttc'], $lignes['TTC intérim'], 0.01);
+        $this->assertEqualsWithDelta($p['totalNet'], $lignes['Net versé aux ouvriers'], 0.01);
+        $this->assertEquals($p['employeeCount'], $lignes['Ouvriers payés sur la période']);
+        $this->assertEqualsWithDelta($p['avgCostPerHa'], $lignes['Coût moyen / ha par quinzaine'], 0.01);
+        $this->assertEqualsWithDelta(90, $lignes['J.F non travaillés (sans opération)'], 0.01);
+        // The operations and what's on none add up to the net.
+        $this->assertEqualsWithDelta($p['totalNet'], $lignes['TOTAL'], 0.01);
+        $this->assertEqualsWithDelta(100, $lignes['Total récolte (Kg)'], 0.01);
+        $this->assertEqualsWithDelta($p['costPerKg'], $lignes["Coût main d'œuvre / Kg"], 0.01);
+    }
+
+    public function test_the_export_follows_the_filters_and_the_scope(): void
+    {
+        $fichier = fn ($query, $as = null) => \PhpOffice\PhpSpreadsheet\IOFactory::load(
+            $this->actingAs($as ?? $this->manager)->get(route('analytics.export', $query))->assertOk()->baseResponse->getFile()->getPathname()
+        )->getSheetByName('ANALYSES');
+        $valeur = function ($ws, string $label) {
+            foreach ($ws->getRowIterator() as $row) {
+                if (trim((string) $ws->getCell('A'.$row->getRowIndex())->getValue()) === $label) {
+                    return $ws->getCell('B'.$row->getRowIndex())->getValue();
+                }
+            }
+
+            return null;
+        };
+
+        $this->assertEqualsWithDelta(900, $valeur($fichier(['bloc_id' => $this->b2->id]), 'Net versé aux ouvriers'), 0.01);
+        $this->assertNull($valeur($fichier(['bloc_id' => $this->b2->id]), 'Coût pour la ferme'));
+
+        // A division-locked user exports their division, whatever the link says; another farm's is refused.
+        $locked = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->direct->id]);
+        $this->assertEqualsWithDelta(900, $valeur($fichier(['enterprise_id' => $this->interim->id], $locked), 'Net versé aux ouvriers'), 0.01);
+        $autre = Farm::create(['name' => 'Autre']);
+        $etranger = Enterprise::create(['farm_id' => $autre->id, 'name' => 'E', 'contract_type' => 'avec_contrat', 'default_brut_rate' => 97.44]);
+        $this->actingAs($this->manager)->get(route('analytics.export', ['enterprise_id' => $etranger->id]))->assertForbidden();
+    }
+
     public function test_a_division_locked_user_gets_their_division_and_no_picker(): void
     {
         $locked = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->direct->id]);
