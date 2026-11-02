@@ -206,6 +206,24 @@ class PayrollService
         ];
     }
 
+    /**
+     * The workers of another site a closed quinzaine invoiced, as they stood when it closed:
+     * [employee id => site, salaire, brut]. Null when today's values apply (it's open, or closed
+     * before the snapshot kept them).
+     */
+    public function sitesFiges(\App\Models\Quinzaine $quinzaine): ?array
+    {
+        return $quinzaine->is_closed
+            ? (\App\Models\QuinzaineSummary::where('quinzaine_id', $quinzaine->id)->first()?->summary_data['sites'] ?? null)
+            : null;
+    }
+
+    /** A copy of the worker with the values $fige froze, for the fiche and the Grid. Never saved. */
+    public function employeFige(\App\Models\Employee $employee, array $fige): \App\Models\Employee
+    {
+        return (clone $employee)->forceFill(['site_separe' => $fige['site'], 'salaire_mensuel' => $fige['salaire'], 'salaire_brut_mensuel' => $fige['brut']]);
+    }
+
     /** Whether a quinzaine starting on $periodStart is invoiced with the October 2026 formula. */
     public function usesOctober2026Invoicing($periodStart): bool
     {
@@ -450,6 +468,7 @@ class PayrollService
         $opCosts = [];
         $blocCosts = [];
         $employees = [];
+        $sites = [];
 
         foreach ($quinzaine->pointageRecords as $record) {
             // Read straight from this record's own frozen rate/brut/net — never recompute via
@@ -493,6 +512,7 @@ class PayrollService
             $employee = $employeeRecords->first()->employee;
             if ($employee->site_separe !== null && $invoicing['net_factur_j'] == 0 && $employeeRecords->contains('nature', \App\Models\PointageRecord::NATURE_SALAIRE) && \App\Exports\PointageExport::ficheFor($quinzaine->enterprise) === \App\Exports\PointageExport::FICHE_FACTURE) {
                 $totalTtc += $this->invoicingSiteSepare($employee)['total_ttc'];
+                $sites[$employee->id] = ['site' => $employee->site_separe, 'salaire' => (float) $employee->salaire_mensuel, 'brut' => (float) $employee->salaire_brut_mensuel];
             }
         }
 
@@ -520,6 +540,7 @@ class PayrollService
                     'employee_nets' => $employeeNets,
                     'op_costs' => $formattedOpCosts,
                     'bloc_costs' => $formattedBlocCosts,
+                    'sites' => $sites,
                 ],
             ]
         );

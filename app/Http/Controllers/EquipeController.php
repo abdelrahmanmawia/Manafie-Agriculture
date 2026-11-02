@@ -41,6 +41,7 @@ class EquipeController extends Controller
             'employees' => Employee::with('enterprise:id,name')
                 ->where('farm_id', $farmId)
                 ->where('is_active', true)
+                ->whereNull('site_separe')
                 ->orderBy('full_name')
                 ->get(['id', 'matricule', 'full_name', 'equipe_id', 'enterprise_id']),
             'vehicles' => TransportVehicle::where('farm_id', $farmId)->where('is_active', true)->orderBy('code')->get(['id', 'code']),
@@ -114,7 +115,7 @@ class EquipeController extends Controller
 
         $validated = $request->validate([
             'employee_ids' => 'array',
-            'employee_ids.*' => [Rule::exists('employees', 'id')->where('farm_id', $equipe->farm_id)],
+            'employee_ids.*' => [Rule::exists('employees', 'id')->where('farm_id', $equipe->farm_id)->whereNull('site_separe')],
         ]);
         $employeeIds = $validated['employee_ids'] ?? [];
 
@@ -142,7 +143,7 @@ class EquipeController extends Controller
     private function rules(int $farmId): array
     {
         return [
-            'chef_employee_id' => ['nullable', Rule::exists('employees', 'id')->where('farm_id', $farmId)],
+            'chef_employee_id' => ['nullable', Rule::exists('employees', 'id')->where('farm_id', $farmId)->whereNull('site_separe')],
             'transport_vehicle_id' => ['nullable', Rule::exists('transport_vehicles', 'id')->where('farm_id', $farmId)],
         ];
     }

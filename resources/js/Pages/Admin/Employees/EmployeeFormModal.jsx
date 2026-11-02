@@ -8,7 +8,7 @@ import RibHint from '@/Components/RibHint';
 
 const emptyForm = {
     matricule: '', full_name: '', cin: '', cnss_number: '', dob: '', hire_date: '', phone: '',
-    address: '', bank_name: '', rib: '', base_rate: '', complement: 0, salaire_mensuel: '', enterprise_id: '',
+    address: '', bank_name: '', rib: '', base_rate: '', complement: 0, salaire_mensuel: '', site_separe: '', salaire_brut_mensuel: '', enterprise_id: '',
     residence_location_id: '', is_active: true, photo: null, cin_photo: null,
     remove_photo: false, remove_cin_photo: false,
 };
@@ -38,6 +38,8 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                 base_rate: employee.base_rate,
                 complement: employee.complement || 0,
                 salaire_mensuel: employee.salaire_mensuel ?? '',
+                site_separe: employee.site_separe || '',
+                salaire_brut_mensuel: employee.salaire_brut_mensuel ?? '',
                 enterprise_id: employee.enterprise_id,
                 residence_location_id: employee.residence_location_id || '',
                 is_active: employee.is_active,
@@ -50,8 +52,10 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
             reset();
             setData('enterprise_id', defaultEnterpriseId || (enterprises?.[0]?.id || ''));
         }
+        // By id: a refused save reloads the page's employee as a new object, which must not wipe
+        // the refusal and what was typed.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [show, employee]);
+    }, [show, employee?.id]);
 
     const handleClose = () => {
         reset();
@@ -198,13 +202,34 @@ export default function EmployeeFormModal({ show, onClose, employee, enterprises
                             <input id="emp_complement" type="number" step="0.01" className="w-full rounded-lg border-gray-200 font-bold text-green-700" value={data.complement} onChange={e => setData('complement', e.target.value)} />
                             {errors.complement && <div className="text-red-500 text-xs mt-1">{errors.complement}</div>}
                         </div>
-                        {employee && (
+                        {(employee || data.site_separe) && (
                             <div>
                                 <label htmlFor="emp_salaire_mensuel" className="block text-xs font-black uppercase text-gray-400 mb-1">Salaire mensuel fixe (DH)</label>
                                 <input id="emp_salaire_mensuel" type="number" step="0.01" min="0" className="w-full rounded-lg border-gray-200 font-bold" placeholder="Vide = payé à la journée" value={data.salaire_mensuel} onChange={e => setData('salaire_mensuel', e.target.value)} />
-                                <p className="text-[10px] text-gray-400 mt-1">Payé en entier dans la 2e quinzaine du mois ; ses jours restent pointés mais ne sont pas payés.</p>
+                                <p className="text-[11px] text-gray-500 mt-1">{data.site_separe ? 'Payé en entier dans la 2e quinzaine du mois.' : 'Payé en entier dans la 2e quinzaine du mois ; ses jours restent pointés mais ne sont pas payés.'}</p>
                                 {errors.salaire_mensuel && <div className="text-red-500 text-xs mt-1">{errors.salaire_mensuel}</div>}
                             </div>
+                        )}
+
+                        {/* A worker of another farm paid through the interim invoice: see EmployeeController::siteSepare(). */}
+                        <div>
+                            <label htmlFor="emp_site_separe" className="block text-xs font-black uppercase text-gray-400 mb-1">Autre site (optionnel)</label>
+                            <input id="emp_site_separe" type="text" maxLength={100} className="w-full rounded-lg border-gray-200 font-bold uppercase" placeholder="Ex : ASSILAH" value={data.site_separe} onChange={e => setData('site_separe', e.target.value)} />
+                            <p className="text-[11px] text-gray-500 mt-1">Vide = ouvrier de cette ferme, pointé normalement.</p>
+                            {errors.site_separe && <div className="text-red-500 text-xs mt-1">{errors.site_separe}</div>}
+                        </div>
+                        {data.site_separe && (
+                            <>
+                                <div>
+                                    <label htmlFor="emp_salaire_brut_mensuel" className="block text-xs font-black uppercase text-gray-400 mb-1">Salaire brut mensuel (DH)</label>
+                                    <input id="emp_salaire_brut_mensuel" type="number" step="0.01" min="0" className="w-full rounded-lg border-gray-200 font-bold" value={data.salaire_brut_mensuel} onChange={e => setData('salaire_brut_mensuel', e.target.value)} />
+                                    <p className="text-[11px] text-gray-500 mt-1">Sert au calcul du TTC facturé.</p>
+                                    {errors.salaire_brut_mensuel && <div className="text-red-500 text-xs mt-1">{errors.salaire_brut_mensuel}</div>}
+                                </div>
+                                <div role="note" className="md:col-span-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                                    Cet ouvrier ne sera pas pointé : pas de ligne dans la grille, aucune équipe. Il est facturé sur 26 jours, dans un tableau à part de la fiche de sa division (division intérimaire uniquement).
+                                </div>
+                            </>
                         )}
 
                         {/* Status (Edit Only) */}

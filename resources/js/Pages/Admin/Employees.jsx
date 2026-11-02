@@ -237,6 +237,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                     <div key={emp.id} className={`p-4 rounded-2xl border border-gray-100 ${!emp.is_active ? 'opacity-50 bg-gray-50' : 'bg-white'} shadow-sm`}>
                                         <div className="mb-2">
                                             <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
+                                            {emp.site_separe && <span className="ml-2 bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold">{emp.site_separe}</span>}
                                             <div className="text-xs text-gray-400">{emp.matricule}{auth.user.role === 'super_admin' && emp.enterprise?.name ? ` • ${emp.enterprise.name}` : ''}{equipeById[emp.equipe_id] ? ` • ${equipeById[emp.equipe_id].name}` : ''}</div>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 my-3 text-center">
@@ -339,6 +340,7 @@ export default function Employees({ auth, employees, enterprises, selectedEnterp
                                             <td className="px-4 py-3 font-medium text-gray-900">{emp.matricule}</td>
                                             <td className="px-4 py-3">
                                                 <a href={route('employees.show', emp.id)} className="font-bold text-gray-800 hover:text-primary-600 hover:underline">{emp.full_name}</a>
+                                                {emp.site_separe && <span className="ml-2 bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded text-[11px] font-bold">{emp.site_separe}</span>}
                                                 {equipeById[emp.equipe_id] && <div className="text-[10px] font-bold uppercase text-gray-400">{equipeById[emp.equipe_id].name}</div>}
                                             </td>
                                             {auth.user.role === 'super_admin' && (

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\PointageExport;
 use App\Models\Employee;
+use App\Models\Enterprise;
+use App\Models\Equipe;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
 use App\Models\TransportLocation;
@@ -15,10 +18,21 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class EmployeeController extends Controller
 {
+    private const REGLES_SITE = [
+        'site_separe' => 'nullable|string|max:100',
+        'salaire_brut_mensuel' => 'nullable|numeric|gt:0|required_with:site_separe',
+    ];
+
+    private const MESSAGES_SITE = [
+        'salaire_mensuel.required_with' => "Le salaire mensuel est obligatoire pour un ouvrier d'un autre site.",
+        'salaire_brut_mensuel.required_with' => "Le salaire brut mensuel est obligatoire pour un ouvrier d'un autre site.",
+    ];
+
     /**
      * Badge and CIN photos live on the private `local` disk (storage/app), never `public`:
      * anything on `public` is served by the web server to anyone holding the URL, with no login
@@ -112,7 +126,10 @@ class EmployeeController extends Controller
             'base_rate' => 'required|numeric|min:0',
             'enterprise_id' => 'required|exists:enterprises,id',
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $farmId)],
-        ]);
+            // A worker of another site comes with their salary from the start.
+            'salaire_mensuel' => 'nullable|numeric|min:0|required_with:site_separe',
+            ...self::REGLES_SITE,
+        ], self::MESSAGES_SITE);
 
         // Someone who looks like an existing worker (a name or CIN a typo away) is only created
         // once the user has seen them and confirmed it's another person (confirmer_doublon).
@@ -124,16 +141,54 @@ class EmployeeController extends Controller
             }
         }
         unset($validated['confirmer_doublon']);
+        $validated = $this->siteSepare($validated);
 
         DB::transaction(function () use ($validated, $farmId) {
-            Employee::create(array_merge($validated, [
+            $employee = Employee::create(array_merge($validated, [
                 'farm_id' => $farmId,
                 'matricule' => $this->nextMatricule($farmId),
                 'is_active' => true,
             ]));
+            if ($employee->salaire_mensuel !== null) {
+                app(SalaireFixeService::class)->syncEmployee($employee);
+            }
         });
 
         return redirect()->back();
+    }
+
+    /**
+     * A worker of another site (site_separe, e.g. "ASSILAH") isn't pointed: only their monthly
+     * salary, invoiced in a table of its own on the division's fiche (PointageExport::writeSites()).
+     * So: on an invoiced division only, in no équipe, and with no day to hide in an open period
+     * (days of closed periods stay as they are). Without a site, no monthly gross either.
+     */
+    private function siteSepare(array $validated, ?Employee $employee = null): array
+    {
+        if (! array_key_exists('site_separe', $validated)) {
+            return $validated;
+        }
+
+        $site = mb_strtoupper(trim((string) $validated['site_separe']));
+        if ($site === '') {
+            // The form only asks for a salary on creation along with a site.
+            return ($employee ? [] : ['salaire_mensuel' => null]) + ['site_separe' => null, 'salaire_brut_mensuel' => null] + $validated;
+        }
+
+        if (PointageExport::ficheFor(Enterprise::findOrFail($validated['enterprise_id'])) !== PointageExport::FICHE_FACTURE) {
+            throw ValidationException::withMessages(['site_separe' => "Un ouvrier d'un autre site n'est facturé que sur une division intérimaire (fiche AGRI INTERIM) : choisissez-en une."]);
+        }
+
+        if ($employee) {
+            $jours = PointageRecord::where('employee_id', $employee->id)->where('nature', PointageRecord::NATURE_JOUR)
+                ->whereHas('quinzaine', fn ($q) => $q->where('is_closed', false))->count();
+            if ($jours > 0) {
+                throw ValidationException::withMessages(['site_separe' => "Cet ouvrier a {$jours} jour(s) pointé(s) dans une période ouverte : un ouvrier d'un autre site n'est pas pointé. Effacez-les d'abord dans la grille."]);
+            }
+            Equipe::where('chef_employee_id', $employee->id)->update(['chef_employee_id' => null]);
+        }
+
+        return ['site_separe' => $site, 'equipe_id' => null] + $validated;
     }
 
     /** Next sequential matricule for a farm: one more than the highest numeric one, zero-padded. */
@@ -168,7 +223,8 @@ class EmployeeController extends Controller
             'base_rate' => 'required|numeric|min:0',
             'complement' => 'nullable|numeric|min:0',
             // A fixed monthly salary replaces the day pay (SalaireFixeService); empty = paid by the day.
-            'salaire_mensuel' => 'nullable|numeric|min:0',
+            'salaire_mensuel' => 'nullable|numeric|min:0|required_with:site_separe',
+            ...self::REGLES_SITE,
             'enterprise_id' => 'required|exists:enterprises,id',
             'residence_location_id' => ['nullable', Rule::exists('transport_locations', 'id')->where('farm_id', $employee->farm_id)],
             // Sent as a real JS boolean on a plain Inertia PUT, but as the literal string
@@ -184,7 +240,7 @@ class EmployeeController extends Controller
             // no replacement file is chosen.
             'remove_photo' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
             'remove_cin_photo' => ['sometimes', Rule::in([true, false, 0, 1, '0', '1', 'true', 'false'])],
-        ]);
+        ], self::MESSAGES_SITE);
 
         if (array_key_exists('is_active', $validated)) {
             $validated['is_active'] = $request->boolean('is_active');
@@ -192,6 +248,7 @@ class EmployeeController extends Controller
         }
 
         $this->assertEnterpriseInScope($request, (int) $validated['enterprise_id']);
+        $validated = $this->siteSepare($validated, $employee);
 
         if ($request->hasFile('photo')) {
             if ($employee->photo_path) {

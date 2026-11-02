@@ -179,6 +179,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $days = array_merge($days, $stray->all());
 
         $contract = $this->enterprise->contract_type;
+        // A closed period's workers of another site are the ones it closed with, at their salary then.
+        $sitesFiges = $this->payroll->sitesFiges($this->quinzaine);
         $rows = [];
         foreach ($records->groupBy('employee_id') as $employeeRecords) {
             $worked = $employeeRecords->where('present', true);
@@ -190,8 +192,10 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             }
             $this->salairesFixes += (float) $employeeRecords->where('nature', PointageRecord::NATURE_SALAIRE)->sum('net');
             $employee = $employeeRecords->first()->employee;
-            if ($this->fiche === self::FICHE_FACTURE && $employee->site_separe !== null && $salaried) {
-                $this->sites[$employee->site_separe][] = $employee;
+            $fige = $sitesFiges[$employee->id] ?? null;
+            $site = $sitesFiges === null ? $employee->site_separe : ($fige['site'] ?? null);
+            if ($this->fiche === self::FICHE_FACTURE && $site !== null && $salaried) {
+                $this->sites[$site][] = $fige ? $this->payroll->employeFige($employee, $fige) : $employee;
 
                 continue;
             }

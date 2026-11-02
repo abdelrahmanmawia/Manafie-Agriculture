@@ -389,9 +389,12 @@ class PointageController extends Controller
             $employees = Employee::where(fn ($q) => $q->where('enterprise_id', $enterpriseId)->where('is_active', true))
                 ->orWhereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
                 ->get();
-            // A worker of another site isn't pointed here: not a row, their own table below it.
-            $autresSites = $employees->whereNotNull('site_separe')->values();
-            $employees = $employees->whereNull('site_separe')->values();
+            // A worker of another site isn't pointed here: not a row, their own table below it. A
+            // closed period keeps the ones it closed with, whatever became of them since.
+            $sitesFiges = $this->payrollService->sitesFiges($quinzaine);
+            [$autresSites, $employees] = $employees->partition(fn ($e) => $sitesFiges === null ? $e->site_separe !== null : isset($sitesFiges[$e->id]));
+            $autresSites = $autresSites->map(fn ($e) => isset($sitesFiges[$e->id]) ? $this->payrollService->employeFige($e, $sitesFiges[$e->id]) : $e)->values();
+            $employees = $employees->values();
             $sameDates = collect([$enterpriseId => $quinzaine]);
         }
         $employees->each(function ($e) use ($sameDates) {

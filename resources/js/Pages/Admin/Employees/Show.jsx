@@ -167,6 +167,12 @@ export default function Show({ auth, employee, stats, recentQuinzaines, enterpri
                             {employee.salaire_mensuel !== null && employee.salaire_mensuel !== undefined && (
                                 <InfoRow label="Salaire mensuel fixe" value={`${formatNumber(employee.salaire_mensuel)} DH (2e quinzaine)`} />
                             )}
+                            {employee.site_separe && (
+                                <>
+                                    <InfoRow label="Autre site" value={employee.site_separe} />
+                                    <InfoRow label="Salaire brut mensuel" value={`${formatNumber(employee.salaire_brut_mensuel)} DH`} />
+                                </>
+                            )}
                             <InfoRow label="Net / Jour" value={<span className="text-green-700 font-black">{formatNumber(salNetJ)} DH</span>} />
                         </div>
 

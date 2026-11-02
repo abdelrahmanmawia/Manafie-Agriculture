@@ -73,7 +73,8 @@ class SalaireFixeService
 
     private function paysSalary(Quinzaine $quinzaine, Employee $employee): bool
     {
-        return $quinzaine->enterprise_id === $employee->enterprise_id && $employee->is_active && $this->isSecondHalf($quinzaine);
+        // (int): right after the worker form saves, enterprise_id can still be the form's string.
+        return $quinzaine->enterprise_id === (int) $employee->enterprise_id && $employee->is_active && $this->isSecondHalf($quinzaine);
     }
 
     private function isSecondHalf(Quinzaine $quinzaine): bool
