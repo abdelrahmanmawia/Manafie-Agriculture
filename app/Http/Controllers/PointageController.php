@@ -349,8 +349,9 @@ class PointageController extends Controller
         //  - equipe: one chef d'équipe's team — or "none", the workers in no équipe — whatever
         //    their division. This is the farm's first pointage step (the chefs' sheets); each
         //    person is pointed against THEIR OWN division's quinzaine for the same dates, so
-        //    payroll/closing stay per division (see the per-employee quinzaine_id below).
-        $mode = $request->query('mode') === 'equipe' ? 'equipe' : 'division';
+        //    payroll/closing stay per division (see the per-employee quinzaine_id below). "toutes"
+        //    lists everyone of every division the same way, with whoever has days in the period.
+        $mode =$request->query('mode') === 'equipe' ? 'equipe' : 'division';
         $equipeId = $request->query('equipe');
         $equipes = Equipe::with('chef:id,full_name')
             ->where('farm_id', $farmId)->where('is_active', true)
@@ -359,12 +360,17 @@ class PointageController extends Controller
 
         if ($mode === 'equipe') {
             // No (or an unknown) équipe chosen yet → an empty grid that asks the user to pick one.
-            $equipe = $equipeId === 'none' ? null : $equipes->firstWhere('id', (int) $equipeId);
-            $employees = ($equipeId === 'none' || $equipe)
-                ? Employee::with('enterprise')->where('farm_id', $farmId)->where('is_active', true)->whereNull('site_separe')
-                    // "Sans équipe" also lists the members of a deactivated équipe, so nobody drops out.
-                    ->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->where(fn ($q) => $q->whereNull('equipe_id')
-                        ->orWhereIn('equipe_id', Equipe::where('farm_id', $farmId)->where('is_active', false)->select('id'))))
+            $toutes = $equipeId === 'toutes';
+            $equipe = in_array($equipeId, ['none', 'toutes'], true) ? null : $equipes->firstWhere('id', (int) $equipeId);
+            $employees = ($toutes || $equipeId === 'none' || $equipe)
+                ? Employee::with('enterprise')->where('farm_id', $farmId)->whereNull('site_separe')
+                    ->when($toutes,
+                        // Like the division Grid, whoever has days in the period stays listed.
+                        fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->orWhereIn('id', PointageRecord::whereIn('quinzaine_id', Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+                            ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)->select('id'))->select('employee_id'))),
+                        // "Sans équipe" also lists the members of a deactivated équipe, so nobody drops out.
+                        fn ($q) => $q->where('is_active', true)->when($equipe, fn ($q) => $q->where('equipe_id', $equipe->id), fn ($q) => $q->where(fn ($q) => $q->whereNull('equipe_id')
+                            ->orWhereIn('equipe_id', Equipe::where('farm_id', $farmId)->where('is_active', false)->select('id')))))
                     // An enterprise-scoped user never sees other divisions' people, same as elsewhere.
                     ->when($user->enterprise_id, fn ($q) => $q->where('enterprise_id', $user->enterprise_id))
                     ->orderBy('full_name')->get()
@@ -438,7 +444,7 @@ class PointageController extends Controller
             'existingRecords' => $records,
             'ailleurs' => $ailleurs,
             'mode' => $mode,
-            'equipeId' => $mode === 'equipe' && $equipeId ? ($equipeId === 'none' ? 'none' : (int) $equipeId) : null,
+            'equipeId' => $mode === 'equipe' && $equipeId ? (in_array($equipeId, ['none', 'toutes'], true) ? $equipeId : (int) $equipeId) : null,
             'equipes' => $equipes,
             'salairesFixes' => $salairesFixes,
             'autresSites' => ($autresSites ?? collect())->map(fn ($e) => [
@@ -958,18 +964,21 @@ class PointageController extends Controller
     {
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
-        $request->validate(['employee_ids' => 'sometimes|array', 'employee_ids.*' => 'integer']);
+        $request->validate(['employee_ids' => 'sometimes|array', 'employee_ids.*' => 'integer', 'toutes' => 'sometimes|boolean']);
 
         // The équipe Grid (employee_ids: its workers) sums those workers across their divisions'
-        // quinzaines for the same dates, like its rows — not the reference division.
+        // quinzaines for the same dates, like its rows — not the reference division. "toutes":
+        // every worker of the Grid's all-divisions view (too many to send in a URL).
         $quinzaineIds = [$quinzaine->id];
         $employeeIds = null;
-        if ($request->filled('employee_ids')) {
+        if ($request->filled('employee_ids') || $request->boolean('toutes')) {
             $quinzaineIds = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $quinzaine->enterprise->farm_id))
                 ->when($request->user()->enterprise_id, fn ($q) => $q->where('enterprise_id', $request->user()->enterprise_id))
                 ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
                 ->pluck('id')->all();
-            $employeeIds = $request->input('employee_ids');
+            $employeeIds = $request->boolean('toutes')
+                ? Employee::where('farm_id', $quinzaine->enterprise->farm_id)->whereNull('site_separe')->pluck('id')->all()
+                : $request->input('employee_ids');
         }
 
         // Inner-joining operations/blocs would silently drop paid-holiday records that have no

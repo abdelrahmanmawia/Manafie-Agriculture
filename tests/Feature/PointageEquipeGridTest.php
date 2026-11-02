@@ -52,6 +52,49 @@ class PointageEquipeGridTest extends TestCase
                 ->where('employees.1.quinzaine_closed', true));
     }
 
+    public function test_toutes_lists_every_worker_of_every_division_in_one_grid(): void
+    {
+        [$manager, $qa, $qb, , $a, $b, $c] = $this->setUpFarm();
+        // Gone since, but with a day in the period: stays listed, so the totals still add up.
+        $parti = Employee::create(['farm_id' => $a->farm_id, 'enterprise_id' => $a->enterprise_id, 'matricule' => 'P', 'full_name' => 'Parti', 'base_rate' => 97.44, 'is_active' => false]);
+        // Inactive with no day in the period, and a worker of another site: not listed.
+        Employee::create(['farm_id' => $a->farm_id, 'enterprise_id' => $a->enterprise_id, 'matricule' => 'V', 'full_name' => 'Vieux', 'base_rate' => 97.44, 'is_active' => false]);
+        Employee::create(['farm_id' => $a->farm_id, 'enterprise_id' => $a->enterprise_id, 'matricule' => 'S', 'full_name' => 'Site', 'base_rate' => 97.44, 'is_active' => true, 'salaire_mensuel' => 3500, 'site_separe' => 'ASSILAH', 'salaire_brut_mensuel' => 3422.72]);
+        $jour = fn ($e, $q, $date, $net) => \App\Models\PointageRecord::create(['employee_id' => $e->id, 'quinzaine_id' => $q->id, 'date' => $date, 'present' => true, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => $net]);
+        $jour($parti, $qa, '2026-09-16', 90);
+        $jour($b, $qb, '2026-09-16', 100);
+        $jour($a, $qa, '2026-09-17', 110);
+
+        $this->actingAs($manager)->get(route('pointage.grid', ['quinzaine' => $qa->id, 'mode' => 'equipe', 'equipe' => 'toutes']))
+            ->assertInertia(fn ($p) => $p
+                ->where('mode', 'equipe')
+                ->where('equipeId', 'toutes')
+                ->has('employees', 4)
+                ->where('employees', fn ($e) => collect($e)->pluck('full_name')->sort()->values()->all() === ['A Member', 'B Member', 'C Loner', 'Parti'])
+                // Each row in its own division's quinzaine, its division on the row.
+                ->where('employees', fn ($e) => collect($e)->firstWhere('id', $b->id)['quinzaine_id'] === $qb->id && collect($e)->firstWhere('id', $b->id)['enterprise']['name'] === 'B')
+                ->where('employees', fn ($e) => collect($e)->firstWhere('id', $a->id)['quinzaine_id'] === $qa->id)
+                ->where("existingRecords.{$b->id}.2026-09-16.0.net", fn ($n) => abs($n - 100) < 0.01));
+
+        // The footer sums the whole farm, the same whichever division the Grid was opened from.
+        foreach ([$qa, $qb] as $q) {
+            $total = $this->actingAs($manager)->getJson(route('pointage.summary', ['quinzaine' => $q->id, 'toutes' => 1]))->assertOk()->json('daily_totals');
+            $this->assertEqualsWithDelta(300, array_sum($total), 0.01);
+        }
+    }
+
+    public function test_a_division_locked_user_sees_only_their_division_in_toutes(): void
+    {
+        [, $qa, $qb, , $a, $b, $c] = $this->setUpFarm();
+        $locked = User::factory()->create(['role' => 'data_entry', 'farm_id' => $a->farm_id, 'enterprise_id' => $a->enterprise_id]);
+        \App\Models\PointageRecord::create(['employee_id' => $b->id, 'quinzaine_id' => $qb->id, 'date' => '2026-09-16', 'present' => true, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 100]);
+
+        $this->actingAs($locked)->get(route('pointage.grid', ['quinzaine' => $qa->id, 'mode' => 'equipe', 'equipe' => 'toutes']))
+            ->assertInertia(fn ($p) => $p->where('employees', fn ($e) => collect($e)->pluck('id')->sort()->values()->all() === collect([$a->id, $c->id])->sort()->values()->all()));
+        $total = $this->actingAs($locked)->getJson(route('pointage.summary', ['quinzaine' => $qa->id, 'toutes' => 1]))->assertOk()->json('daily_totals');
+        $this->assertEqualsWithDelta(0, array_sum($total), 0.01);
+    }
+
     public function test_the_chef_is_listed_first(): void
     {
         [$manager, $qa, , $equipe, , $b] = $this->setUpFarm();

@@ -114,7 +114,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     const [equipeFilter, setEquipeFilter] = useState('all');
     const equipeLabel = (e) => `${e.name}${e.chef ? ` — chef : ${e.chef.full_name}` : ''} (${e.employees_count})`;
     const chefId = mode === 'equipe' ? equipes.find(e => String(e.id) === String(equipeId))?.chef_employee_id : null;
-    const equipeName = equipeId === 'none' ? 'Sans équipe' : (equipes.find(e => String(e.id) === String(equipeId))?.name || 'choisir une équipe');
+    const toutes = equipeId === 'toutes';
+    const equipeName = toutes ? 'Toutes les divisions' : equipeId === 'none' ? 'Sans équipe' : (equipes.find(e => String(e.id) === String(equipeId))?.name || 'choisir une équipe');
     const openMode = (m, t) => router.get(
         route('pointage.grid', quinzaine.id),
         m === 'equipe' ? { mode: 'equipe', ...(t ? { equipe: t } : {}) } : {},
@@ -146,12 +147,19 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'division' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
                     Par division
                 </button>
-                <button type="button" onClick={() => mode !== 'equipe' && openMode('equipe', equipeId || (equipes[0]?.id ?? null))}
-                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'equipe' ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                <button type="button" onClick={() => (mode !== 'equipe' || toutes) && openMode('equipe', (!toutes && equipeId) || (equipes[0]?.id ?? null))}
+                    className={`px-3 py-1.5 rounded-[10px] transition-all ${mode === 'equipe' && !toutes ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
                     Par équipe
                 </button>
+                {/* Everyone of the farm in one Grid, each row pointed in its own division. */}
+                {!auth.user.enterprise_id && (
+                    <button type="button" onClick={() => !toutes && openMode('equipe', 'toutes')}
+                        className={`px-3 py-1.5 rounded-[10px] transition-all ${toutes ? 'bg-white text-primary-700 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}>
+                        Toutes les divisions
+                    </button>
+                )}
             </div>
-            {mode === 'equipe' ? (
+            {toutes ? null : mode === 'equipe' ? (
                 <select value={equipeId || ''} onChange={(e) => openMode('equipe', e.target.value)}
                     className="text-xs font-bold rounded-lg border-gray-200 bg-gray-50">
                     <option value="">-- Choisir une équipe --</option>
@@ -540,7 +548,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         try {
             // In the équipe Grid, the équipe's workers across their divisions — like the rows.
             const response = await axios.get(route('pointage.summary', quinzaine.id), {
-                params: mode === 'equipe' ? { employee_ids: employees.map(e => e.id) } : {},
+                params: toutes ? { toutes: 1 } : mode === 'equipe' ? { employee_ids: employees.map(e => e.id) } : {},
             });
             setSummaryData(response.data);
         } catch (error) {
@@ -731,7 +739,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 <div className="flex justify-between items-center">
                     <div className="flex flex-col">
                         <h2 className="font-black text-xl text-gray-800 leading-tight tracking-tighter uppercase">
-                            {mode === 'equipe' ? `Pointage par équipe : ${equipeName}` : `Gestion Pointage : ${quinzaine.enterprise?.name}`}
+                            {toutes ? `Pointage : ${equipeName}` : mode === 'equipe' ? `Pointage par équipe : ${equipeName}` : `Gestion Pointage : ${quinzaine.enterprise?.name}`}
                         </h2>
                         <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{formatDate(quinzaine.start_date)} au {formatDate(quinzaine.end_date)}</span>
                     </div>
@@ -739,13 +747,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                         {/* A team spans divisions: its export is its payment sheet, not one division's fiche. */}
                         {mode === 'equipe' ? (equipeId && (
                             <a
-                                href={route('pointage.paiementEquipes', { quinzaine: quinzaine.id, equipe: equipeId })}
+                                href={route('pointage.paiementEquipes', { quinzaine: quinzaine.id, ...(toutes ? {} : { equipe: equipeId }) })}
                                 target="_blank"
                                 onClick={() => triggerDownload('paiement')}
                                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-1.5 rounded-full font-black text-xs shadow-lg flex items-center gap-2 transition-all"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                {downloadingKey === 'paiement' ? 'GÉNÉRATION...' : "PAIEMENT DE L'ÉQUIPE"}
+                                {downloadingKey === 'paiement' ? 'GÉNÉRATION...' : toutes ? 'PAIEMENT PAR ÉQUIPE' : "PAIEMENT DE L'ÉQUIPE"}
                             </a>
                         )) : (<>
                         <a
@@ -884,9 +892,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                             {days.map(day => (
                                                 <th key={day} className="border border-gray-300 p-0.5">
                                                     <div className="flex items-center justify-center gap-0.5">
-                                                        <button type="button" onClick={() => markAllPresent(day)} title="Tous présents (opération à préciser)"
-                                                            className="w-4 h-4 rounded bg-green-100 hover:bg-green-200 text-green-700 text-[9px] font-black leading-none">✓</button>
-                                                        <button type="button" onClick={() => openRepartition(day)} title={mode === 'equipe' ? "Répartir l'équipe par effectif" : 'Répartir par effectif'}
+                                                        {/* Not on the whole farm: one click would mark everyone present. */}
+                                                        {!toutes && (
+                                                            <button type="button" onClick={() => markAllPresent(day)} title="Tous présents (opération à préciser)"
+                                                                className="w-4 h-4 rounded bg-green-100 hover:bg-green-200 text-green-700 text-[9px] font-black leading-none">✓</button>
+                                                        )}
+                                                        <button type="button" onClick={() => openRepartition(day)} title={toutes ? 'Répartir toutes les divisions par effectif' : mode === 'equipe' ? "Répartir l'équipe par effectif" : 'Répartir par effectif'}
                                                             className="w-4 h-4 rounded bg-primary-100 hover:bg-primary-200 text-primary-700 text-[9px] font-black leading-none">≡</button>
                                                     </div>
                                                     {dayAPreciser(day) > 0 && <div className="text-[7px] font-black text-amber-700">{dayAPreciser(day)} P</div>}
@@ -926,7 +937,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                                                                 {emp.full_name}
                                                                 {emp.id === chefId && <span className="ml-1 px-1 rounded bg-amber-100 text-amber-700 text-[7px] font-black align-middle">CHEF</span>}
                                                             </span>
-                                                            <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}</span>
+                                                            <span className="text-[7px] text-gray-400 font-black tracking-widest">{emp.matricule}{toutes && ` · ${emp.enterprise?.name ?? ''}`}</span>
                                                         </div>
                                                         {clipboard && (
                                                             <button
@@ -1262,7 +1273,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                 {repartitionDay && (
                     <div className="p-6 space-y-4">
                         <div>
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Répartir{mode === 'equipe' ? " l'équipe" : ''} — {formatDay(repartitionDay)}</h3>
+                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-tighter">Répartir{toutes ? ' toutes les divisions' : mode === 'equipe' ? " l'équipe" : ''} — {formatDay(repartitionDay)}</h3>
                             <p className="text-xs text-gray-500 mt-1">
                                 {dayPresent(repartitionDay)} présent(s), dont {dayAPreciser(repartitionDay)} « à préciser ». Indiquez le nombre total d'ouvriers par opération :
                                 ceux déjà affectés restent, les « à préciser » sont répartis en gardant d'abord l'opération de leur dernier jour travaillé.
