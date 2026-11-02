@@ -9,12 +9,14 @@ const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'
 export default function Analytics({
     auth,
     opCosts = [],
+    autresOperations = 0,
     blocCosts = [],
+    horsBlocs = null,
     trend = [],
     totalNet = 0,
+    cout = null,
     employeeCount = 0,
-    avgNetPerEmployee = 0,
-    avgCostPerHour = 0,
+    netMoyenParJour = 0,
     avgCostPerHa = 0,
     selectedQuinzaineId = '',
     quinzaineFromId = '',
@@ -33,15 +35,23 @@ export default function Analytics({
     harvestBySector = [],
     totalHarvestKg = 0,
     totalHarvestRevenue = 0,
+    recoltesHorsPeriode = 0,
     costPerKg = null,
+    coutBaseNet = false,
+    ratiosComparables = true,
     totalAreaHa = 0,
     // Productivity metrics
-    revenuePerHa = 0,
-    yieldPerHa = 0,
-    laborCostPercentage = 0,
-    profitPerHa = 0,
+    revenuePerHa = null,
+    yieldPerHa = null,
+    laborCostPercentage = null,
+    margePerHa = null,
 }) {
-    const [activeTab, setActiveTab] = useState('financial');
+    // A period still running is named so: its first days aren't a fall in the trend.
+    const trendData = trend.map(t => ({ ...t, label: t.en_cours ? `${t.label} (en cours)` : t.label }));
+    // Why a figure against production is empty, rather than a misleading number.
+    const ratioNote = totalHarvestKg <= 0 ? 'Aucune récolte sur cette période'
+        : !ratiosComparables ? 'Récolte de toute la ferme : voir sans filtre de division ni de secteur'
+        : null;
 
     // Group quinzaines by unique periods (start_date + end_date)
     const getUniquePeriods = () => {
@@ -162,7 +172,7 @@ export default function Analytics({
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <h2 className="font-black text-2xl text-gray-800 leading-tight uppercase tracking-tighter shrink-0">Tableau de Bord Analytique</h2>
                         <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full justify-end">
-                            {(auth.user.role === 'super_admin' || auth.user.farm_id) && (
+                            {enterprises.length > 0 && (
                                 <select
                                     className="rounded-xl border-gray-200 bg-white font-bold text-xs shadow-sm focus:ring-primary-500 min-w-[150px]"
                                     value={enterprise?.id || ''}
@@ -194,7 +204,7 @@ export default function Analytics({
 
                         {blocId && (
                             <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Secteur:</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest" title="Le pointage n'a pas de secteur : ce filtre s'applique à la récolte.">Secteur (récolte):</span>
                                 <select
                                     className="rounded-xl border-gray-200 bg-white font-bold text-[10px] shadow-sm focus:ring-primary-500 min-w-[120px]"
                                     value={sectorId || ''}
@@ -283,77 +293,99 @@ export default function Analytics({
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-primary-600">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Masse Salariale Net</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Net versé aux ouvriers</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {formatNumber(totalNet)}
                                     <small className="text-xs ml-1 font-bold">DH</small>
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-green-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Top Opération</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Top Opération (net)</span>
                                 <p className="text-xl sm:text-2xl font-black text-gray-900 leading-none uppercase truncate">{opCosts[0]?.name || 'N/A'}</p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-yellow-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Top Bloc (Coût)</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Top Bloc (net)</span>
                                 <p className="text-xl sm:text-2xl font-black text-gray-900 leading-none uppercase truncate">{blocCosts[0]?.name || 'N/A'}</p>
                             </div>
 
-                                {/* PREDICTIVE FORECAST CARD REMOVED FOR NOW */}
-                            <div className="bg-primary-900 p-6 rounded-2xl shadow-xl border-l-8 border-primary-400 text-white relative overflow-hidden group hover:scale-[1.02] transition-transform duration-300">
-                                <div className="relative z-10">
-                                    <span className="text-[10px] font-black uppercase text-primary-300 tracking-widest block mb-1 flex items-center gap-1">
-                                        Vue d'ensemble
-                                    </span>
-                                    <p className="text-sm font-bold text-primary-200 opacity-80">
-                                        Ferme: {farm?.name || 'Globale'}
-                                    </p>
-                                    <p className="text-sm font-bold text-primary-200 opacity-80">
-                                        Division: {enterprise?.name || 'Toutes'}
-                                    </p>
-                                </div>
+                            {/* What the farm pays, not what the workers get (CoutFermeService). */}
+                            <div className="bg-primary-900 p-6 rounded-2xl shadow-xl border-l-8 border-primary-400 text-white">
+                                <span className="text-[10px] font-black uppercase text-primary-300 tracking-widest block mb-1">
+                                    Coût pour la ferme{enterprise ? ' (hors transport)' : ''}
+                                </span>
+                                {cout ? (
+                                    <>
+                                        <p className="text-2xl sm:text-3xl font-black leading-none">
+                                            {formatNumber(cout.total)}
+                                            <small className="text-xs ml-1 font-bold">DH</small>
+                                        </p>
+                                        <div className="mt-2 text-[10px] font-bold text-primary-200 space-y-0.5">
+                                            {cout.ttc > 0 && <div className="flex justify-between gap-2"><span>TTC intérim</span><span>{formatNumber(cout.ttc)}</span></div>}
+                                            {cout.net_direct > 0 && <div className="flex justify-between gap-2"><span>Net direct</span><span>{formatNumber(cout.net_direct)}</span></div>}
+                                            {cout.marge > 0 && <div className="flex justify-between gap-2"><span>Marge 4 %</span><span>{formatNumber(cout.marge)}</span></div>}
+                                            {cout.transport !== null && <div className="flex justify-between gap-2"><span>Transport (+ 10 %)</span><span>{formatNumber(cout.transport)}</span></div>}
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-2xl sm:text-3xl font-black leading-none">—</p>
+                                        <p className="mt-2 text-[10px] font-bold text-primary-200">Connu par division, pas par bloc.</p>
+                                    </>
+                                )}
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-8">
                             <div className="bg-green-50 p-6 rounded-2xl shadow-sm border-l-8 border-green-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Total Salariés Actifs</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Ouvriers payés sur la période</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">{formatNumber(employeeCount, 0)}</p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-primary-600">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Net Moyen par Salarié</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Net moyen par jour travaillé</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
-                                    {formatNumber(avgNetPerEmployee)} <small className="text-xs ml-1 font-bold">DH</small>
+                                    {formatNumber(netMoyenParJour)} <small className="text-xs ml-1 font-bold">DH</small>
                                 </p>
                             </div>
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-yellow-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Coût Moyen / ha</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">{coutBaseNet ? 'Net moyen / ha par quinzaine' : 'Coût moyen / ha par quinzaine'}</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {formatNumber(avgCostPerHa)} <small className="text-xs ml-1 font-bold">DH</small>
                                 </p>
+                                <p className="text-[10px] font-bold text-gray-400 mt-1">Hors période en cours, s'il y en a d'autres</p>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                             <div className="bg-white p-4 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
-                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Coûts par Opération (Top 10)</h4>
+                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Net par Opération (Top 10)</h4>
                                 <div className="h-64 sm:h-80 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={opCosts} layout="vertical"><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f3f4f6" /><XAxis type="number" hide /><YAxis dataKey="name" type="category" width={80} tick={{fontSize: 8, fontWeight: 'bold'}} /><Tooltip contentStyle={{borderRadius: '12px', border: 'none'}} /><Bar dataKey="total_net" fill="#3b82f6" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div>
+                                {autresOperations > 0 && <p className="text-[10px] font-bold text-gray-400 mt-3">+ autres opérations : {formatNumber(autresOperations)} DH</p>}
                             </div>
                             <div className="bg-white p-4 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
-                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Répartition par Bloc</h4>
+                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Net par Bloc</h4>
                                 <div className="h-64 sm:h-80 w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={blocCosts}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="name" tick={{fontSize: 8, fontWeight: 'bold'}} /><YAxis /><Tooltip /><Bar dataKey="total_net" fill="#10b981" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+                                {/* The rest of the total: paid, but on no bloc. */}
+                                {horsBlocs && (horsBlocs.jf > 0 || horsBlocs.salaires > 0 || horsBlocs.a_preciser > 0) && (
+                                    <p className="text-[10px] font-bold text-gray-400 mt-3">
+                                        + hors bloc :
+                                        {horsBlocs.jf > 0 && ` J.F non travaillés ${formatNumber(horsBlocs.jf)} DH`}
+                                        {horsBlocs.salaires > 0 && ` · salaires fixes ${formatNumber(horsBlocs.salaires)} DH`}
+                                        {horsBlocs.a_preciser > 0 && ` · jours à préciser ${formatNumber(horsBlocs.a_preciser)} DH`}
+                                    </p>
+                                )}
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 mt-8">
                             <div className="bg-white p-4 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
-                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Tendance (Masse Salariale)</h4>
-                                <div className="h-64 sm:h-80 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={trend}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="label" tick={{fontSize: 8, fontWeight: 'bold'}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Line type="monotone" dataKey="total_net" stroke="#10b981" strokeWidth={4} dot={{r: 6}} /></LineChart></ResponsiveContainer></div>
+                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Tendance (Net versé)</h4>
+                                <div className="h-64 sm:h-80 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={trendData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" /><XAxis dataKey="label" tick={{fontSize: 8, fontWeight: 'bold'}} /><YAxis tick={{fontSize: 10}} /><Tooltip /><Line type="monotone" dataKey="total_net" stroke="#10b981" strokeWidth={4} dot={{r: 6}} /></LineChart></ResponsiveContainer></div>
                             </div>
                             <div className="bg-white p-4 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
-                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Coût Moyen / ha (DH/ha)</h4>
+                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">{coutBaseNet ? 'Net / ha par quinzaine (DH/ha)' : 'Coût / ha par quinzaine (DH/ha)'}</h4>
                                 <div className="h-64 sm:h-80 w-full">
                                     <ResponsiveContainer width="100%" height="100%">
-                                        <LineChart data={trend}>
+                                        <LineChart data={trendData}>
                                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                                             <XAxis dataKey="label" tick={{fontSize: 8, fontWeight: 'bold'}} />
                                             <YAxis tick={{fontSize: 10}} />
@@ -377,6 +409,12 @@ export default function Analytics({
                             </h3>
                         </div>
 
+                        {recoltesHorsPeriode > 0 && (
+                            <p className="text-xs font-bold text-amber-700 bg-amber-50 rounded-xl px-4 py-2 mb-6">
+                                {recoltesHorsPeriode} récolte(s) en dehors de ces périodes ne sont pas comptées : la production est comparée aux mêmes dates que la paie.
+                            </p>
+                        )}
+
                         {/* KPI Cards row */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
                             <div className="bg-white p-6 rounded-2xl shadow-sm border-l-8 border-green-500">
@@ -394,18 +432,18 @@ export default function Analytics({
                                 </p>
                             </div>
                             <div className={`p-6 rounded-2xl shadow-sm border-l-8 ${costPerKg !== null ? 'bg-amber-50 border-amber-500' : 'bg-gray-50 border-gray-300'}`}>
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Coût Main d'Œuvre / Kg</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">{coutBaseNet ? 'Net Main d\'Œuvre / Kg' : 'Coût Main d\'Œuvre / Kg'}</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
                                     {costPerKg !== null ? formatNumber(costPerKg) : '—'}
                                     {costPerKg !== null && <small className="text-xs ml-1 font-bold">DH/Kg</small>}
                                 </p>
-                                {costPerKg === null && <p className="text-xs text-gray-400 mt-1">Aucune récolte enregistrée</p>}
+                                {costPerKg === null && ratioNote && <p className="text-xs text-gray-400 mt-1">{ratioNote}</p>}
                             </div>
                             <div className="bg-purple-50 p-6 rounded-2xl shadow-sm border-l-8 border-purple-500">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Rendement / ha</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
-                                    {formatNumber(yieldPerHa, 0)}
-                                    <small className="text-xs ml-1 font-bold">Kg/ha</small>
+                                    {yieldPerHa !== null ? formatNumber(yieldPerHa, 0) : '—'}
+                                    {yieldPerHa !== null && <small className="text-xs ml-1 font-bold">Kg/ha</small>}
                                 </p>
                             </div>
                         </div>
@@ -415,23 +453,26 @@ export default function Analytics({
                             <div className="bg-primary-50 p-6 rounded-2xl shadow-sm border-l-8 border-primary-500">
                                 <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Revenu / ha</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
-                                    {formatNumber(revenuePerHa)}
-                                    <small className="text-xs ml-1 font-bold">DH/ha</small>
+                                    {revenuePerHa !== null ? formatNumber(revenuePerHa) : '—'}
+                                    {revenuePerHa !== null && <small className="text-xs ml-1 font-bold">DH/ha</small>}
                                 </p>
                             </div>
                             <div className="bg-green-50 p-6 rounded-2xl shadow-sm border-l-8 border-green-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Profit / ha</span>
+                                {/* Not a profit: inputs, fuel and the rest aren't in it. */}
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Marge sur main-d'œuvre / ha</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
-                                    {formatNumber(profitPerHa)}
-                                    <small className="text-xs ml-1 font-bold">DH/ha</small>
+                                    {margePerHa !== null ? formatNumber(margePerHa) : '—'}
+                                    {margePerHa !== null && <small className="text-xs ml-1 font-bold">DH/ha</small>}
                                 </p>
+                                {margePerHa === null && ratioNote && <p className="text-xs text-gray-400 mt-1">{ratioNote}</p>}
                             </div>
                             <div className="bg-orange-50 p-6 rounded-2xl shadow-sm border-l-8 border-orange-500">
-                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Coût Main d'Œuvre %</span>
+                                <span className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">{coutBaseNet ? 'Net Main d\'Œuvre % du CA' : 'Coût Main d\'Œuvre % du CA'}</span>
                                 <p className="text-2xl sm:text-3xl font-black text-gray-900 leading-none">
-                                    {formatNumber(laborCostPercentage, 1)}
-                                    <small className="text-xs ml-1 font-bold">%</small>
+                                    {laborCostPercentage !== null ? formatNumber(laborCostPercentage, 1) : '—'}
+                                    {laborCostPercentage !== null && <small className="text-xs ml-1 font-bold">%</small>}
                                 </p>
+                                {laborCostPercentage === null && ratioNote && <p className="text-xs text-gray-400 mt-1">{ratioNote}</p>}
                             </div>
                         </div>
 
@@ -440,7 +481,7 @@ export default function Analytics({
 
                             {/* Charge / Hectare table */}
                             <div className="bg-white p-4 sm:p-8 rounded-3xl shadow-sm border border-gray-100">
-                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Charge Main d'Œuvre par Hectare</h4>
+                                <h4 className="text-[10px] sm:text-sm font-black text-gray-400 mb-6 uppercase tracking-widest">Net Main d'Œuvre par Hectare</h4>
                                 {blocCosts.length === 0 ? (
                                     <p className="text-gray-400 text-sm text-center py-8">Aucune donnée disponible</p>
                                 ) : (
