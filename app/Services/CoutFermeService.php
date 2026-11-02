@@ -6,6 +6,7 @@ use App\Exports\PointageExport;
 use App\Models\Employee;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
+use App\Models\QuinzaineSummary;
 use App\Models\TransportSnapshot;
 use Illuminate\Support\Collection;
 
@@ -13,7 +14,7 @@ use Illuminate\Support\Collection;
  * What a period costs the farm, which isn't what the workers are paid: an invoiced division
  * (AGRI INTERIM) costs the interim company's invoice, its TTC; a non-declared one its net + the
  * 4% margin; a declared direct one the net it pays its workers — each the LA SOMME of its fiche
- * (PointageExport) — plus the period's transport (TransportService) with the transporter's 10%,
+ * (PointageExport), a closed one's invoice being the TTC frozen in its snapshot — plus the period's transport (TransportService) with the transporter's 10%,
  * the sheet's TOTAL NET FACTURE, farm-wide for the dates: frozen once every division has closed
  * (transport_snapshots, which hold the net), live before.
  */
@@ -34,12 +35,16 @@ class CoutFermeService
         $nets = PointageRecord::whereIn('quinzaine_id', $quinzaines->pluck('id'))
             ->groupBy('quinzaine_id')->selectRaw('quinzaine_id, SUM(net) as net')
             ->pluck('net', 'quinzaine_id');
+        // What a closed quinzaine invoiced was frozen with it: it no longer depends on anyone's
+        // complement of today, and needs no reading of its records.
+        $figes = QuinzaineSummary::whereIn('quinzaine_id', $quinzaines->where('is_closed', true)->pluck('id'))
+            ->pluck('total_ttc', 'quinzaine_id');
 
         $result = [];
         foreach ($quinzaines as $q) {
             $fiche = PointageExport::ficheFor($q->enterprise);
             $net = round((float) ($nets[$q->id] ?? 0), 2);
-            $ttc = $fiche === PointageExport::FICHE_FACTURE ? $this->ttc($q) : null;
+            $ttc = $fiche === PointageExport::FICHE_FACTURE ? (isset($figes[$q->id]) ? round((float) $figes[$q->id], 2) : $this->ttc($q)) : null;
             $marge = $fiche === PointageExport::FICHE_NON_DECLAREE ? round($net * self::MARGE_NON_DECLAREE, 2) : 0.0;
             $result[$q->id] = [
                 'fiche' => $fiche,

@@ -167,6 +167,21 @@ class TransportService
     }
 
     /**
+     * What each vehicle's price was when this period closed, keyed by vehicle: only once all its
+     * divisions are closed (the frozen picture). Empty otherwise: today's prices apply.
+     */
+    public function prixFiges(Carbon $start, Carbon $end, int $farmId)
+    {
+        $siblings = Quinzaine::whereHas('enterprise', fn ($q) => $q->where('farm_id', $farmId))
+            ->whereDate('start_date', $start->toDateString())->whereDate('end_date', $end->toDateString())
+            ->get();
+
+        return $siblings->isNotEmpty() && $siblings->every(fn ($q) => $q->is_closed)
+            ? TransportSnapshot::whereIn('quinzaine_id', $siblings->pluck('id'))->get()->keyBy('transport_vehicle_id')
+            : collect();
+    }
+
+    /**
      * Freezes this period's transport cost into transport_snapshots — one row per vehicle that
      * had riders at least one day. "This period" means every sibling Quinzaine sharing the exact
      * same start/end dates for this farm, not just the one quinzaine being closed: several

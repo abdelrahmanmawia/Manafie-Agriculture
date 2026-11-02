@@ -69,6 +69,8 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
         $last = $cFacture;
 
         $daily = app(TransportService::class)->daily($this->start, $this->end, $this->farm->id);
+        // A closed period's prices are the ones it closed at, same as its frozen cost.
+        $figes = app(TransportService::class)->prixFiges($this->start, $this->end, $this->farm->id);
         $equipes = Equipe::where('farm_id', $this->farm->id)->whereNotNull('transport_vehicle_id')->orderBy('name')->get()->groupBy('transport_vehicle_id');
         // Present workers that day on no vehicle (an équipe without transport, or none at all).
         $sansTransport = PointageRecord::query()
@@ -136,11 +138,14 @@ class TransportSheetExport implements WithEvents, WithPreCalculateFormulas, With
             // JOURS = days it rode (a number in the day cell; "ABS" days are text, not counted).
             $this->formula($this->cell($cJours, $r), '=COUNT('.$dayRange($r).')');
             $this->formula($this->cell($cPers, $r), '=SUM('.$dayRange($r).')');
-            if ($vehicle->price_per_person !== null) {
-                $ws->setCellValue($this->cell($cPrix, $r), (float) $vehicle->price_per_person);
+            [$prix, $netJour] = isset($figes[$vehicle->id])
+                ? [$figes[$vehicle->id]->price_per_person, $figes[$vehicle->id]->net_per_day]
+                : [$vehicle->price_per_person, $vehicle->fixed_net_per_day];
+            if ($prix !== null) {
+                $ws->setCellValue($this->cell($cPrix, $r), (float) $prix);
             }
-            if ($vehicle->fixed_net_per_day !== null) {
-                $ws->setCellValue($this->cell($cNetJ, $r), (float) $vehicle->fixed_net_per_day);
+            if ($netJour !== null) {
+                $ws->setCellValue($this->cell($cNetJ, $r), (float) $netJour);
             }
             // TransportService::dailyCost: the flat net per day when set, else riders × price.
             $L = fn ($c) => $this->cell($c, $r);

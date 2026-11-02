@@ -10,11 +10,17 @@ use App\Models\Harvest;
 use App\Models\Operation;
 use App\Models\PointageRecord;
 use App\Models\Quinzaine;
+use App\Models\QuinzaineSummary;
+use App\Models\TransportSnapshot;
 use App\Models\User;
 use App\Services\PayrollService;
+use App\Services\SalaireFixeService;
 use App\Services\TransportService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class EnterpriseController extends Controller
@@ -378,6 +384,7 @@ class EnterpriseController extends Controller
     public function closeQuinzaine(Request $request, Quinzaine $quinzaine)
     {
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
+        $this->assertTerminee($request, $quinzaine);
 
         $aPreciser = $this->closeOne($quinzaine);
         if ($aPreciser > 0) {
@@ -391,37 +398,104 @@ class EnterpriseController extends Controller
 
     /**
      * Closes the period for every division the user manages (the quinzaines of the farm with the
-     * same dates as $quinzaine) — all or nothing: if any still has days "à préciser", none closes
-     * and the page lists them.
+     * same dates as $quinzaine) — all or nothing, in one transaction: if any still has days "à
+     * préciser", or a snapshot fails, none closes and the page lists what's missing.
      */
     public function closePeriode(Request $request, Quinzaine $quinzaine)
     {
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
+        $this->assertTerminee($request, $quinzaine);
 
         $period = Quinzaine::with('enterprise')
             ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $quinzaine->enterprise->farm_id))
             ->when($request->user()->enterprise_id, fn ($q, $id) => $q->where('enterprise_id', $id))
             ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
             ->where('is_closed', false)
+            ->orderBy('id')
             ->get();
 
-        $pending = $period->map(fn ($q) => [$q->enterprise->name, PointageRecord::where('quinzaine_id', $q->id)->where('present', true)->whereNull('operation_id')->count()])
-            ->filter(fn ($row) => $row[1] > 0);
-        if ($pending->isNotEmpty()) {
-            return redirect()->back()->withErrors([
-                'quinzaine' => 'Clôture impossible, jours de présence sans opération (« à préciser ») : '
-                    .$pending->map(fn ($row) => "{$row[0]} {$row[1]}")->implode(', ').". Complétez-les d'abord dans la grille.",
-            ]);
-        }
-
-        // Each one closes on its own lock and snapshot, exactly like a single close; a day turned
-        // "à préciser" meanwhile leaves that division open, and the page says which.
-        $leftOpen = $period->filter(fn ($q) => $this->closeOne($q) > 0)->map(fn ($q) => $q->enterprise->name);
-        if ($leftOpen->isNotEmpty()) {
-            return redirect()->back()->withErrors(['quinzaine' => 'Restée(s) ouverte(s), des jours « à préciser » y ont été ajoutés : '.$leftOpen->implode(', ').'.']);
-        }
+        // Each one closes on its own lock and snapshot, exactly like a single close; thrown from
+        // inside the transaction, the refusal rolls back the divisions already closed.
+        DB::transaction(function () use ($period) {
+            $pending = $period->map(fn ($q) => [$q->enterprise->name, $this->closeOne($q)])->filter(fn ($row) => $row[1] > 0);
+            if ($pending->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'quinzaine' => 'Clôture impossible, jours de présence sans opération (« à préciser ») : '
+                        .$pending->map(fn ($row) => "{$row[0]} {$row[1]}")->implode(', ').". Complétez-les d'abord dans la grille.",
+                ]);
+            }
+        });
 
         return redirect()->back()->with('success', 'Période clôturée pour '.$period->map(fn ($q) => $q->enterprise->name)->implode(', ').'.');
+    }
+
+    /**
+     * Back to open, for a period closed by mistake: only a super_admin, since a close is what
+     * the payroll relies on. Its snapshot goes (the next close writes it again), and so does the
+     * period's frozen transport, live again until every division is closed once more.
+     */
+    public function reopenQuinzaine(Request $request, Quinzaine $quinzaine)
+    {
+        abort_unless($request->user()->role === 'super_admin', 403);
+        $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
+
+        DB::transaction(function () use ($quinzaine) {
+            Quinzaine::lockForUpdate()->findOrFail($quinzaine->id)->update(['is_closed' => false]);
+            QuinzaineSummary::where('quinzaine_id', $quinzaine->id)->delete();
+            TransportSnapshot::whereIn('quinzaine_id', $this->memePeriode($quinzaine)->pluck('id'))->delete();
+        });
+
+        Log::info('Quinzaine rouverte', ['quinzaine' => $quinzaine->id, 'label' => $quinzaine->label, 'division' => $quinzaine->enterprise->name, 'user' => $request->user()->id]);
+
+        return redirect()->back()->with('success', 'Période rouverte pour '.$quinzaine->enterprise->name.'.');
+    }
+
+    /** A period not over yet only closes when the request says so: nothing can be pointed after. */
+    private function assertTerminee(Request $request, Quinzaine $quinzaine): void
+    {
+        if ($quinzaine->end_date->gte(today()) && ! $request->boolean('avant_fin')) {
+            throw ValidationException::withMessages([
+                'quinzaine' => "Cette période n'est pas terminée (fin le {$quinzaine->end_date->format('d/m/Y')}) : confirmez la clôture avant la fin.",
+            ]);
+        }
+    }
+
+    /** The quinzaines of the farm with the same dates: one pay period across its divisions. */
+    private function memePeriode(Quinzaine $quinzaine)
+    {
+        return Quinzaine::with('enterprise')
+            ->whereHas('enterprise', fn ($q) => $q->where('farm_id', $quinzaine->enterprise->farm_id))
+            ->whereDate('start_date', $quinzaine->start_date)->whereDate('end_date', $quinzaine->end_date)
+            ->get();
+    }
+
+    /**
+     * A division's periods never overlap: each day of a worker's pay has to belong to one.
+     * $sauf: the periods being moved themselves. Throws under $champ; an exact duplicate when
+     * opening is sorted out before this.
+     */
+    private function assertDatesLibres(Enterprise $enterprise, string $start, string $end, array $sauf, string $champ): void
+    {
+        $chevauche = Quinzaine::where('enterprise_id', $enterprise->id)->whereNotIn('id', $sauf)
+            ->whereDate('start_date', '<=', $end)->whereDate('end_date', '>=', $start)
+            ->orderBy('start_date')->first();
+        if ($chevauche) {
+            throw ValidationException::withMessages([$champ => "Ces dates chevauchent une période de {$enterprise->name} : "
+                .($chevauche->label ? "« {$chevauche->label} » " : '')."({$chevauche->start_date->format('d/m/Y')} – {$chevauche->end_date->format('d/m/Y')})."]);
+        }
+    }
+
+    /** The dates of a period being opened or edited: a pay period is 31 days at most. */
+    private function validateDates(Request $request): void
+    {
+        $request->validate([
+            'label' => 'nullable|string|max:255',
+            'start_date' => 'required|date',
+            'end_date' => 'required|date|after:start_date',
+        ]);
+        if (Carbon::parse($request->start_date)->diffInDays(Carbon::parse($request->end_date)) >= 31) {
+            throw ValidationException::withMessages(['end_date' => 'Une période ne peut pas dépasser 31 jours.']);
+        }
     }
 
     /** Closes one quinzaine; returns its number of days "à préciser" (0 = closed, or already was). */
@@ -493,7 +567,8 @@ class EnterpriseController extends Controller
     /**
      * Opens a pay period — for every division picked at once (enterprise_ids), the farm's usual
      * case, or a single one (enterprise_id). A division that already has these dates is skipped;
-     * if all of them do, nothing is created and the page says so.
+     * if all of them do, nothing is created and the page says so. Dates overlapping a division's
+     * other period refuse the whole request.
      */
     public function createQuinzaine(Request $request)
     {
@@ -501,10 +576,8 @@ class EnterpriseController extends Controller
             'enterprise_ids' => 'required_without:enterprise_id|array|min:1',
             'enterprise_ids.*' => 'integer',
             'enterprise_id' => 'required_without:enterprise_ids',
-            'label' => 'nullable|string|max:255',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
         ]);
+        $this->validateDates($request);
 
         $enterprises = collect($request->input('enterprise_ids', [$request->enterprise_id]))->unique()
             ->map(fn ($id) => Enterprise::findOrFail($id));
@@ -526,6 +599,7 @@ class EnterpriseController extends Controller
 
                     continue;
                 }
+                $this->assertDatesLibres($enterprise, $request->start_date, $request->end_date, [], 'quinzaine');
 
                 $quinzaine = Quinzaine::create([
                     'enterprise_id' => $enterprise->id,
@@ -554,26 +628,39 @@ class EnterpriseController extends Controller
     {
         abort_if($quinzaine->is_closed, 403, 'Cannot edit a closed quinzaine.');
 
-        $request->validate([
-            'label' => 'nullable|string|max:255',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-        ]);
+        $this->validateDates($request);
 
         $this->assertEnterpriseManagerAccess($request, $quinzaine->enterprise);
 
-        // Check for duplicate dates (excluding current quinzaine)
-        $duplicate = Quinzaine::where('enterprise_id', $quinzaine->enterprise_id)
-            ->where('id', '!=', $quinzaine->id)
-            ->whereDate('start_date', $request->start_date)
-            ->whereDate('end_date', $request->end_date)
-            ->exists();
-        if ($duplicate) {
-            return redirect()->back()->withErrors(['start_date' => 'Une période existe déjà pour ces dates dans cette division.']);
+        $period = $this->memePeriode($quinzaine);
+        $locked = $request->user()->enterprise_id;
+
+        if ($quinzaine->start_date->toDateString() === Carbon::parse($request->start_date)->toDateString()
+            && $quinzaine->end_date->toDateString() === Carbon::parse($request->end_date)->toDateString()) {
+            // The label alone. A division-locked user names only their own line of the period.
+            ($locked ? $period->where('enterprise_id', $locked) : $period)->each->update(['label' => $request->label]);
+
+            return redirect()->back()->with('success', 'Période modifiée.');
         }
 
-        // Check if there are pointage records that would fall outside the new date range
-        $hasRecordsOutsideRange = PointageRecord::where('quinzaine_id', $quinzaine->id)
+        // The dates are the period's, across its divisions: moving one alone would split the
+        // period in two, each counting the transport of the days they share.
+        if ($locked && $period->count() > 1) {
+            return redirect()->back()->withErrors(['start_date' => 'Les dates concernent toutes les divisions de la période : seul un compte de toute la ferme peut les changer.']);
+        }
+        $fermees = $period->where('is_closed', true);
+        if ($fermees->isNotEmpty()) {
+            return redirect()->back()->withErrors(['start_date' => 'Une division de cette période est déjà clôturée ('.$fermees->map(fn ($q) => $q->enterprise->name)->implode(', ').') : ses dates ne peuvent plus changer.']);
+        }
+
+        foreach ($period as $q) {
+            $this->assertDatesLibres($q->enterprise, $request->start_date, $request->end_date, $period->pluck('id')->all(), 'start_date');
+        }
+
+        // Check if there are pointed days that would fall outside the new date range (a fixed
+        // salary's row is no day: it follows the period, below)
+        $hasRecordsOutsideRange = PointageRecord::whereIn('quinzaine_id', $period->pluck('id'))
+            ->where('nature', PointageRecord::NATURE_JOUR)
             ->where(function ($query) use ($request) {
                 $query->whereDate('date', '<', $request->start_date)
                     ->orWhereDate('date', '>', $request->end_date);
@@ -584,13 +671,18 @@ class EnterpriseController extends Controller
             return redirect()->back()->withErrors(['start_date' => 'Des jours sont déjà pointés en dehors de ces dates : choisissez une période qui les inclut.']);
         }
 
-        $quinzaine->update([
-            'label' => $request->label,
-            'start_date' => $request->start_date,
-            'end_date' => $request->end_date,
-        ]);
+        DB::transaction(function () use ($period, $request) {
+            foreach ($period as $q) {
+                $q->update([
+                    'label' => $request->label,
+                    'start_date' => $request->start_date,
+                    'end_date' => $request->end_date,
+                ]);
+                app(SalaireFixeService::class)->datesChanged($q->fresh());
+            }
+        });
 
-        return redirect()->back()->with('success', 'Période modifiée.');
+        return redirect()->back()->with('success', 'Période modifiée pour '.$period->map(fn ($q) => $q->enterprise->name)->implode(', ').'.');
     }
 
     public function deleteQuinzaine(Request $request, Quinzaine $quinzaine)

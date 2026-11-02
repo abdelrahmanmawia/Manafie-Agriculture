@@ -117,12 +117,16 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
     private function build(Worksheet $ws): void
     {
         $this->ws = $ws;
-        $brut = (float) $this->enterprise->default_brut_rate;
+        // The rate the period was pointed at, which the division's current one may no longer be.
+        $brut = (float) ($this->quinzaine
+            ? PointageRecord::where('quinzaine_id', $this->quinzaine->id)->where('nature', PointageRecord::NATURE_JOUR)->whereNull('quantity')->where('rate', '>', 0)
+                ->groupBy('rate')->orderByRaw('COUNT(*) DESC')->value('rate')
+            : null) ?: (float) $this->enterprise->default_brut_rate;
         $contract = $this->enterprise->contract_type;
         $this->stdNetJ = round($this->payroll->calculate($contract, $brut)['sal_net_j'], 2);
         $this->hsRate = round($this->payroll->calculate($contract, $brut, 1)['hs_pay'], 2);
 
-        [$days, $rows] = $this->rows();
+        [$days, $rows] = $this->rows($brut);
         $this->layout(count($days));
 
         $this->writeTitle($days);
@@ -155,7 +159,7 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
      * or is paid a fixed monthly salary in it, by matricule, with what the system knows about
      * their period.
      */
-    private function rows(): array
+    private function rows(float $brut): array
     {
         $days = collect(CarbonPeriod::create($this->start, $this->end))->map(fn ($d) => $d->format('Y-m-d'))->all();
         if (! $this->quinzaine) {
@@ -205,8 +209,8 @@ class PointageExport implements WithEvents, WithPreCalculateFormulas, WithTitle
             }
 
             // A salaried worker's days pay nothing (PointageRecordObserver): no day rate to show.
-            $netJ = $employee->salaire_mensuel !== null ? 0.0
-                : $this->payroll->salNetJFromRecords($contract, $worked, $employee->complement, $this->enterprise->default_brut_rate);
+            $netJ = $salaried ? 0.0
+                : $this->payroll->salNetJFromRecords($contract, $worked, $employee->complement, $brut);
 
             $hs = (float) $worked->sum('hours');
             $jf = $employeeRecords->where('is_jf', true)->count();

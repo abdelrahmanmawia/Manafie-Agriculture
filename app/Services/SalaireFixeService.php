@@ -57,6 +57,20 @@ class SalaireFixeService
             ->get()->each(fn ($employee) => $this->writeSalary($employee, $quinzaine));
     }
 
+    /**
+     * A period's dates moved: its salary rows stay dated its last day, and leave if it isn't a
+     * month's second quinzaine any more (or arrive, if it just became one).
+     */
+    public function datesChanged(Quinzaine $quinzaine): void
+    {
+        PointageRecord::where('quinzaine_id', $quinzaine->id)->where('nature', PointageRecord::NATURE_SALAIRE)->get()
+            ->each(fn ($record) => $this->isSecondHalf($quinzaine)
+                ? $record->update(['date' => $quinzaine->end_date->toDateString()])
+                : $record->delete());
+
+        $this->syncQuinzaine($quinzaine);
+    }
+
     private function paysSalary(Quinzaine $quinzaine, Employee $employee): bool
     {
         return $quinzaine->enterprise_id === $employee->enterprise_id && $employee->is_active && $this->isSecondHalf($quinzaine);

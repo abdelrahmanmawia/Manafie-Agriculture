@@ -166,6 +166,18 @@ class PayrollService
             ->sortByDesc('date')
             ->map(fn ($r) => number_format($r->net, 2, '.', ''))
             ->countBy()->sortDesc()->keys()->first();
+        if ($netJ !== null) {
+            return (float) $netJ;
+        }
+
+        // Only days with H.S. or a J.F.: what they paid, without the H.S. and the holiday's second
+        // NET/J, so a closed period doesn't follow the complement of today either.
+        $netJ = collect($records)
+            ->filter(fn ($r) => $r->present && $r->quantity === null)
+            ->sortByDesc('date')
+            ->map(fn ($r) => number_format(((float) $r->net - $this->calculate($contractType, $r->rate, $r->hours)['hs_pay'])
+                / ($contractType === 'avec_contrat' && $r->is_jf ? 2 : 1), 2, '.', ''))
+            ->countBy()->sortDesc()->keys()->first();
 
         return $netJ !== null ? (float) $netJ : round($this->calculate($contractType, $brutRate, 0, $complement)['sal_net_j'], 2);
     }

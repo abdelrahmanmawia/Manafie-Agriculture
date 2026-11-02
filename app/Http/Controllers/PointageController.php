@@ -332,6 +332,8 @@ class PointageController extends Controller
             'quinzaines' => $quinzaines,
             'enterprises' => $this->selectableEnterprises($request),
             'coutsPeriodes' => $enterpriseId ? null : $couts->parPeriode($quinzaines, $farmId),
+            'divisionFiltree' => $enterpriseId,
+            'aujourdhui' => today()->toDateString(),
         ]);
     }
 

@@ -94,7 +94,7 @@ class QuinzainesPageTest extends TestCase
         $worker = Employee::create(['farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'matricule' => '001', 'full_name' => 'W', 'base_rate' => 97.44, 'is_active' => true]);
         PointageRecord::create(['employee_id' => $worker->id, 'quinzaine_id' => $q->id, 'date' => '2026-11-02', 'present' => true, 'hours' => 0, 'rate' => 97.44, 'brut' => 97.44, 'net' => 100]);
 
-        $this->actingAs($this->manager)->from(route('pointage.quinzaines'))->post(route('settings.quinzaine.close', $q))
+        $this->actingAs($this->manager)->from(route('pointage.quinzaines'))->post(route('settings.quinzaine.close', $q), ['avant_fin' => 1])
             ->assertSessionHasErrors('quinzaine');
         $this->assertFalse($q->fresh()->is_closed);
     }
@@ -115,12 +115,12 @@ class QuinzainesPageTest extends TestCase
         $this->day($qa, '001', true);
         $this->day($qb, '002', false);
 
-        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa))->assertSessionHasErrors('quinzaine');
+        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa), ['avant_fin' => 1])->assertSessionHasErrors('quinzaine');
         $this->assertFalse($qa->fresh()->is_closed);
         $this->assertFalse($qb->fresh()->is_closed);
 
         PointageRecord::whereNull('operation_id')->update(['operation_id' => Operation::sole()->id, 'bloc_id' => Bloc::sole()->id]);
-        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa))
+        $this->actingAs($this->manager)->post(route('settings.quinzaine.close-periode', $qa), ['avant_fin' => 1])
             ->assertSessionHas('success', 'Période clôturée pour A, B.');
         $this->assertTrue($qa->fresh()->is_closed);
         $this->assertTrue($qb->fresh()->is_closed);
@@ -132,7 +132,7 @@ class QuinzainesPageTest extends TestCase
         $pointeur = User::factory()->create(['role' => 'data_entry', 'farm_id' => $this->farm->id, 'enterprise_id' => $this->a->id, 'acces_pointage' => 'saisie']);
         $qa = Quinzaine::where('enterprise_id', $this->a->id)->sole();
 
-        $this->actingAs($pointeur)->post(route('settings.quinzaine.close-periode', $qa))->assertSessionHas('success', 'Période clôturée pour A.');
+        $this->actingAs($pointeur)->post(route('settings.quinzaine.close-periode', $qa), ['avant_fin' => 1])->assertSessionHas('success', 'Période clôturée pour A.');
         $this->assertFalse(Quinzaine::where('enterprise_id', $this->b->id)->sole()->is_closed);
     }
 

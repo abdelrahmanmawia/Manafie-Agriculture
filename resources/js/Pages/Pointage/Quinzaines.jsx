@@ -9,6 +9,7 @@ import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
 
 const MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const MONTHS_SHORT = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
 // Dates arrive as "2026-10-16T00:00:00.000000Z"; only the calendar day matters, so it's read
 // from the string itself (never through a Date, which would shift it by the time zone).
@@ -16,7 +17,7 @@ const day = (d) => (d || '').slice(0, 10);
 const ymd = (y, m, dd) => `${y}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
 const formatDate = (d) => {
     const [y, m, dd] = day(d).split('-').map(Number);
-    return y ? `${String(dd).padStart(2, '0')} ${MONTHS[m - 1].slice(0, 4)}. ${y}` : '';
+    return y ? `${dd} ${MONTHS_SHORT[m - 1]} ${y}` : '';
 };
 // The farm's own way of naming a period: "1ERE Qz octobre 2026" / "2EME Qz octobre 2026".
 const periodLabel = (start) => {
@@ -45,9 +46,9 @@ function Stat({ label, value, tone = 'gray', hint }) {
     const tones = { gray: 'text-gray-800', green: 'text-green-700', red: 'text-red-600', blue: 'text-blue-700', amber: 'text-amber-700' };
     return (
         <div className="min-w-[64px]">
-            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`text-sm font-black ${tones[tone]}`}>{value}</div>
-            {hint && <div className="text-[9px] font-bold text-gray-400">{hint}</div>}
+            {hint && <div className="text-[11px] font-semibold text-gray-500">{hint}</div>}
         </div>
     );
 }
@@ -57,21 +58,41 @@ function Stat({ label, value, tone = 'gray', hint }) {
 function CoutPeriode({ cout }) {
     const part = (label, value, tone = 'text-gray-800') => (
         <div>
-            <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">{label}</div>
+            <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
             <div className={`text-sm font-black ${tone}`}>{formatNumber(value)} DH</div>
         </div>
     );
     return (
-        <div className="px-6 py-3 bg-slate-50 border-b border-gray-100 flex flex-wrap items-center gap-x-8 gap-y-2">
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-500">Coût pour la ferme</div>
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-b border-gray-100 flex flex-wrap items-center gap-x-8 gap-y-2">
+            <div className="text-xs font-black uppercase tracking-wide text-slate-600">Coût pour la ferme</div>
             {cout.ttc > 0 && part('TTC intérim (facture)', cout.ttc, 'text-blue-700')}
             {cout.net_direct > 0 && part('Net direct', cout.net_direct, 'text-green-700')}
             {cout.marge > 0 && part('Marge 4 % non déclaré', cout.marge, 'text-amber-700')}
             {part('Transport (+ 10 %)', cout.transport)}
             <div className="ml-auto text-right">
-                <div className="text-[9px] font-black uppercase tracking-widest text-gray-400">Total ferme</div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Total ferme</div>
                 <div className="text-lg font-black text-gray-900">{formatNumber(cout.total)} DH</div>
             </div>
+        </div>
+    );
+}
+
+// Where a period stands: a finished one still open is the one waiting for its close.
+const STATUTS = {
+    en_cours: { label: 'En cours', classe: 'bg-green-100 text-green-800' },
+    a_cloturer: { label: 'À clôturer', classe: 'bg-amber-100 text-amber-800' },
+    cloturee: { label: 'Clôturée', classe: 'bg-gray-200 text-gray-700' },
+};
+
+// A period not over yet closes only on an explicit confirmation (EnterpriseController::assertTerminee()).
+function AvantFin({ fin, confirme, onChange }) {
+    return (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 space-y-2">
+            <p><strong>Cette période n'est pas terminée</strong> : elle va jusqu'au {formatDate(fin)}. Une fois clôturée, les jours suivants ne pourront plus être pointés.</p>
+            <label className="flex items-center gap-2 font-semibold cursor-pointer">
+                <input type="checkbox" className="rounded border-amber-400 text-amber-600" checked={confirme} onChange={e => onChange(e.target.checked)} />
+                Je confirme la clôture avant la fin de la période
+            </label>
         </div>
     );
 }
@@ -79,7 +100,7 @@ function CoutPeriode({ cout }) {
 // One card per pay period (its dates), one line per division inside it: the farm points a
 // period for all divisions together — presence per équipe first (one Grid across divisions),
 // then the operations division by division — so that's how the page is laid out.
-export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriodes = null }) {
+export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriodes = null, divisionFiltree = null, aujourdhui = '' }) {
     const { props } = usePage();
     const pageErrors = props.errors || {};
 
@@ -88,6 +109,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
     // payroll), but a farm-scoped one with Pointage access is exactly like a farm_manager here.
     const canExportAllDivisions = !auth.user.enterprise_id;
     const canManage = peutSaisir(auth.user, 'pointage');
+    // A close is what the payroll relies on: undoing one is the admin's alone.
+    const canReopen = auth.user.role === 'super_admin';
     // A division-locked user gets no list (selectableEnterprises()) and only ever opens their own.
     const divisionChoices = enterprises || [];
 
@@ -96,8 +119,10 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
     const [deleting, setDeleting] = useState(null);
     const [closing, setClosing] = useState(null);
     const [closingPeriod, setClosingPeriod] = useState(null);
+    const [reopening, setReopening] = useState(null);
+    const [avantFinConfirme, setAvantFinConfirme] = useState(false);
     const [busy, setBusy] = useState(false);
-    const [filterEnterpriseId, setFilterEnterpriseId] = useState(props.ziggy?.query?.enterprise_id || '');
+    const [filterEnterpriseId, setFilterEnterpriseId] = useState(divisionFiltree ? String(divisionFiltree) : '');
 
     const createForm = useForm({ label: '', start_date: '', end_date: '', enterprise_ids: [] });
     const editForm = useForm({ label: '', start_date: '', end_date: '' });
@@ -123,13 +148,19 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
             .map(p => ({ ...p, quinzaines: p.quinzaines.sort((a, b) => (a.enterprise?.name || '').localeCompare(b.enterprise?.name || '')) }));
     }, [quinzaines]);
 
-    // Which periods to show: '' all, 'open' / 'closed', or one period's key (client-side — the
-    // page already has them all; the division filter is the server-side one).
+    const statutOf = (p) => (p.quinzaines.every(q => q.is_closed) ? 'cloturee' : day(p.end_date) >= aujourdhui ? 'en_cours' : 'a_cloturer');
+    const enCours = (q) => day(q.end_date) >= aujourdhui;
+
+    // Which periods to show: '' the open ones and the last closed, 'toutes', 'open' / 'closed',
+    // or one period's key (client-side — the page already has them all; the division filter is
+    // the server-side one).
     const [periodFilter, setPeriodFilter] = useState('');
-    const shownPeriods = periods.filter(p => periodFilter === ''
-        || (periodFilter === 'open' ? p.quinzaines.some(q => !q.is_closed)
-            : periodFilter === 'closed' ? p.quinzaines.every(q => q.is_closed)
-                : p.key === periodFilter));
+    const lastClosed = periods.find(p => p.quinzaines.every(q => q.is_closed));
+    const shownPeriods = periods.filter(p => (periodFilter === '' ? p.quinzaines.some(q => !q.is_closed) || p === lastClosed
+        : periodFilter === 'toutes' ? true
+            : periodFilter === 'open' ? p.quinzaines.some(q => !q.is_closed)
+                : periodFilter === 'closed' ? p.quinzaines.every(q => q.is_closed)
+                    : p.key === periodFilter));
 
     const openCreate = () => {
         createForm.clearErrors();
@@ -149,17 +180,21 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
         editForm.setData({ label: q.label || '', start_date: day(q.start_date), end_date: day(q.end_date) });
         setEditingQuinzaine(q);
     };
+    const openClose = (setter, value) => {
+        setAvantFinConfirme(false);
+        setter(value);
+    };
     const submitEdit = (e) => {
         e.preventDefault();
         editForm.put(route('settings.quinzaine.update', editingQuinzaine.id), { preserveScroll: true, onSuccess: () => setEditingQuinzaine(null) });
     };
 
     // Delete / close: a refusal comes back as errors.quinzaine, shown in the banner above.
-    const run = (method, url, close) => {
+    const run = (method, url, close, data = {}) => {
         setBusy(true);
         const options = { preserveScroll: true, onFinish: () => { setBusy(false); close(); } };
         if (method === 'delete') router.delete(url, options);
-        else router.post(url, {}, options);
+        else router.post(url, data, options);
     };
 
     const handleFilterChange = (e) => {
@@ -174,7 +209,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
             user={auth.user}
             header={
                 <div className="flex flex-wrap justify-between items-center gap-4">
-                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Gestion des Quinzaines</h2>
+                    <h2 className="font-semibold text-xl text-gray-800 leading-tight">Quinzaines</h2>
                     {canManage && (
                         <button onClick={openCreate} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold shadow transition-all flex items-center gap-2">
                             <span>+</span> Ouvrir une Période
@@ -185,8 +220,8 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
         >
             <Head title="Quinzaines" />
 
-            <div className="py-12">
-                <div className="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            <div className="py-6 sm:py-10">
+                <div className="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8 space-y-6">
                     {pageErrors.quinzaine && (
                         <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
                             {pageErrors.quinzaine}
@@ -194,12 +229,13 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                     )}
 
                     {periods.length > 0 && (
-                        <div className="flex flex-wrap items-center justify-end gap-3">
+                        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-3">
                             <span className="flex items-center gap-2">
-                            <label htmlFor="period_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Période :</label>
+                            <label htmlFor="period_filter_select" className="w-16 sm:w-auto shrink-0 text-sm font-medium text-gray-700 whitespace-nowrap">Période :</label>
                             <select id="period_filter_select" value={periodFilter} onChange={e => setPeriodFilter(e.target.value)}
-                                className={`w-auto min-w-[220px] text-sm rounded-md shadow-sm ${periodFilter ? 'border-primary-300 bg-primary-50 font-bold' : 'border-gray-300'}`}>
-                                <option value="">Toutes les périodes ({periods.length})</option>
+                                className={`flex-1 min-w-0 sm:flex-none sm:min-w-[220px] text-sm rounded-md shadow-sm ${periodFilter ? 'border-primary-300 bg-primary-50 font-bold' : 'border-gray-300'}`}>
+                                <option value="">Ouvertes et dernière clôturée</option>
+                                <option value="toutes">Toutes les périodes ({periods.length})</option>
                                 <option value="open">Ouvertes ({periods.filter(p => p.quinzaines.some(q => !q.is_closed)).length})</option>
                                 <option value="closed">Clôturées ({periods.filter(p => p.quinzaines.every(q => q.is_closed)).length})</option>
                                 <optgroup label="Une période">
@@ -209,15 +245,15 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                             </span>
                             {!auth.user.enterprise_id && divisionChoices.length > 1 && (
                                 <span className="flex items-center gap-2">
-                                    <label htmlFor="enterprise_filter_select" className="text-sm font-medium text-gray-700 whitespace-nowrap">Division :</label>
-                                    <select id="enterprise_filter_select" className="w-auto min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>
+                                    <label htmlFor="enterprise_filter_select" className="w-16 sm:w-auto shrink-0 text-sm font-medium text-gray-700 whitespace-nowrap">Division :</label>
+                                    <select id="enterprise_filter_select" className="flex-1 min-w-0 sm:flex-none sm:min-w-[200px] text-sm border-gray-300 rounded-md shadow-sm" value={filterEnterpriseId} onChange={handleFilterChange}>
                                         <option value="">Toutes les Divisions</option>
                                         {divisionChoices.map(ent => <option key={ent.id} value={ent.id}>{ent.name}</option>)}
                                     </select>
                                 </span>
                             )}
                             {periodFilter && (
-                                <button type="button" onClick={() => setPeriodFilter('')} className="text-xs font-bold text-gray-500 hover:text-red-600 underline underline-offset-2">Réinitialiser</button>
+                                <button type="button" onClick={() => setPeriodFilter('')} className="text-xs font-bold text-gray-500 hover:text-red-600 underline underline-offset-2 text-left">Réinitialiser</button>
                             )}
                         </div>
                     )}
@@ -237,25 +273,28 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                     {shownPeriods.map(period => {
                         const open = period.quinzaines.filter(q => !q.is_closed);
                         const ref = open[0] || period.quinzaines[0];
+                        const statut = STATUTS[statutOf(period)];
                         const total = period.quinzaines.reduce((s, q) => ({
                             jours: s.jours + q.stats.jours, net: s.net + q.stats.net, a_preciser: s.a_preciser + q.stats.a_preciser,
                         }), { jours: 0, net: 0, a_preciser: 0 });
 
                         return (
                             <div key={period.key} className={`bg-white rounded-2xl border-2 shadow-sm overflow-hidden ${open.length ? 'border-primary-100' : 'border-gray-100'}`}>
-                                <div className="p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100">
+                                <div className="p-4 sm:p-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100">
                                     <div>
-                                        <div className="flex items-center gap-3">
-                                            <h3 className="text-2xl font-black uppercase tracking-tighter text-primary-600 leading-none">{periodLabel(period.start_date)}</h3>
-                                            {open.length ? (
-                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-[9px] font-black uppercase">
-                                                    Ouverte{open.length < period.quinzaines.length && ` · ${period.quinzaines.length - open.length}/${period.quinzaines.length} clôturée(s)`}
-                                                </span>
-                                            ) : (
-                                                <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-[9px] font-black uppercase">Clôturée</span>
+                                        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                            <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-primary-600 leading-none">{periodLabel(period.start_date)}</h3>
+                                            <span className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${statut.classe}`}>
+                                                {statut.label}{open.length > 0 && open.length < period.quinzaines.length && ` · ${period.quinzaines.length - open.length}/${period.quinzaines.length} clôturée(s)`}
+                                            </span>
+                                            {canManage && open.length > 0 && (
+                                                <button type="button" onClick={() => openEdit(ref)} title="Modifier le libellé ou les dates de la période" aria-label="Modifier la période"
+                                                    className="p-2 text-gray-500 hover:text-primary-600">
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                                                </button>
                                             )}
                                         </div>
-                                        <p className="text-sm font-bold text-gray-400 mt-1">
+                                        <p className="text-sm font-semibold text-gray-500 mt-1">
                                             {formatDate(period.start_date)} — {formatDate(period.end_date)}
                                             {' · '}{total.jours} jour(s) · {formatNumber(total.net)} DH
                                             {total.a_preciser > 0 && <span className="text-red-600"> · {total.a_preciser} à préciser</span>}
@@ -267,6 +306,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                             className="inline-flex items-center px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-black hover:bg-primary-700 shadow-sm">
                                             Pointage par équipe
                                         </Link>
+                                        {/* The whole farm's: not for a division-locked user. */}
                                         {canExportAllDivisions && (
                                             <>
                                                 <a href={route('pointage.exportAllDivisions', ref.id)} target="_blank" onClick={() => triggerDownload(`all-${period.key}`)}
@@ -278,20 +318,20 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                                     className="inline-flex items-center px-4 py-2 rounded-lg border border-green-300 bg-green-50 text-green-800 text-sm font-bold hover:bg-green-100">
                                                     {downloadingKey === `transport-${period.key}` ? 'Génération…' : 'Excel transport'}
                                                 </a>
-                                                {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport). */}
-                                                <a href={route('pointage.paiementEquipes', ref.id)} target="_blank" onClick={() => triggerDownload(`pay-${period.key}`)}
-                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
-                                                    {downloadingKey === `pay-${period.key}` ? 'Génération…' : 'Paiement par équipe'}
-                                                </a>
-                                                {/* Days, H.S. and J.F. per transport, in one workbook to sign (FicheJoursExport). */}
-                                                <a href={route('pointage.ficheJours', ref.id)} target="_blank" onClick={() => triggerDownload(`jours-${period.key}`)}
-                                                    className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
-                                                    {downloadingKey === `jours-${period.key}` ? 'Génération…' : 'Fiche des jours'}
-                                                </a>
                                             </>
                                         )}
+                                        {/* Same period, workers grouped by équipe with how each is paid (PaiementEquipesExport); a division-locked user gets their division's. */}
+                                        <a href={route('pointage.paiementEquipes', ref.id)} target="_blank" onClick={() => triggerDownload(`pay-${period.key}`)}
+                                            className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
+                                            {downloadingKey === `pay-${period.key}` ? 'Génération…' : 'Paiement par équipe'}
+                                        </a>
+                                        {/* Days, H.S. and J.F. per transport, in one workbook to sign (FicheJoursExport). */}
+                                        <a href={route('pointage.ficheJours', ref.id)} target="_blank" onClick={() => triggerDownload(`jours-${period.key}`)}
+                                            className="inline-flex items-center px-4 py-2 rounded-lg border border-primary-300 bg-white text-primary-700 text-sm font-bold hover:bg-primary-50">
+                                            {downloadingKey === `jours-${period.key}` ? 'Génération…' : 'Fiche des jours'}
+                                        </a>
                                         {canManage && open.length > 1 && (
-                                            <button type="button" onClick={() => setClosingPeriod({ ...period, open })}
+                                            <button type="button" onClick={() => openClose(setClosingPeriod, { ...period, open })}
                                                 className="inline-flex items-center px-4 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-sm font-bold hover:bg-amber-100">
                                                 Clôturer la période
                                             </button>
@@ -303,13 +343,13 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
 
                                 <div className="divide-y divide-gray-100">
                                     {period.quinzaines.map(q => (
-                                        <div key={q.id} className={`px-6 py-4 flex flex-col xl:flex-row xl:items-center gap-4 ${q.is_closed ? 'bg-gray-50' : ''}`}>
+                                        <div key={q.id} className={`px-4 sm:px-6 py-4 flex flex-col xl:flex-row xl:items-center gap-4 ${q.is_closed ? 'bg-gray-50' : ''}`}>
                                             <div className="xl:w-64 shrink-0">
                                                 <div className="flex items-center gap-2">
                                                     <p className="font-black text-gray-800">{q.enterprise?.name}</p>
-                                                    {q.is_closed && <span className="bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded text-[9px] font-black uppercase">Clôturée</span>}
+                                                    {q.is_closed && <span className="bg-gray-200 text-gray-700 px-1.5 py-0.5 rounded text-[11px] font-bold">Clôturée</span>}
                                                 </div>
-                                                {q.label && q.label !== periodLabel(q.start_date) && <p className="text-xs text-gray-400">{q.label}</p>}
+                                                {q.label && q.label !== periodLabel(q.start_date) && <p className="text-xs text-gray-500">{q.label}</p>}
                                             </div>
 
                                             <div className="flex flex-wrap gap-x-6 gap-y-2 flex-1">
@@ -326,29 +366,38 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
 
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <Link href={route('pointage.grid', q.id)}
-                                                    className={`px-3 py-2 rounded-lg text-xs font-black ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100'}`}>
+                                                    className={`inline-flex items-center min-h-[40px] px-3 py-2 rounded-lg text-xs font-black ${q.is_closed ? 'bg-gray-800 text-white hover:bg-black' : 'bg-primary-50 text-primary-700 border border-primary-200 hover:bg-primary-100'}`}>
                                                     {q.is_closed ? 'Voir' : q.stats.a_preciser > 0 ? 'Préciser les opérations' : 'Grille'}
                                                 </Link>
                                                 <a href={route('pointage.export', q.id)} target="_blank" onClick={() => triggerDownload(`excel-${q.id}`)}
-                                                    className="px-3 py-2 bg-green-50 text-green-700 rounded-lg text-[10px] font-black border border-green-200 hover:bg-green-100">
-                                                    {downloadingKey === `excel-${q.id}` ? '…' : 'EXCEL'}
+                                                    title="Fiche de pointage de la division"
+                                                    className="inline-flex items-center min-h-[40px] px-3 py-2 bg-green-50 text-green-800 rounded-lg text-xs font-bold border border-green-200 hover:bg-green-100">
+                                                    {downloadingKey === `excel-${q.id}` ? 'Génération…' : 'Fiche Excel'}
                                                 </a>
                                                 <a href={route('payroll.general-payslip', q.id)} target="_blank" onClick={() => triggerDownload(`pdf-${q.id}`)}
-                                                    className="px-3 py-2 bg-red-50 text-red-700 rounded-lg text-[10px] font-black border border-red-200 hover:bg-red-100">
-                                                    {downloadingKey === `pdf-${q.id}` ? '…' : 'PDF'}
+                                                    title="État global des salaires, à signer"
+                                                    className="inline-flex items-center min-h-[40px] px-3 py-2 bg-red-50 text-red-800 rounded-lg text-xs font-bold border border-red-200 hover:bg-red-100">
+                                                    {downloadingKey === `pdf-${q.id}` ? 'Génération…' : 'État global PDF'}
                                                 </a>
                                                 {!q.is_closed && canManage && (
                                                     <>
-                                                        <button type="button" onClick={() => openEdit(q)} title="Modifier" className="p-2 text-gray-400 hover:text-primary-600">
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                                                        </button>
-                                                        <button type="button" onClick={() => setDeleting(q)} title="Supprimer" className="p-2 text-gray-400 hover:text-red-600">
-                                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                                        </button>
-                                                        <button type="button" onClick={() => setClosing(q)} className="px-2 py-2 text-[10px] font-black uppercase text-red-500 hover:text-red-700 hover:underline">
+                                                        <button type="button" onClick={() => openClose(setClosing, q)}
+                                                            className="inline-flex items-center min-h-[40px] px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-bold hover:bg-amber-100">
                                                             Clôturer
                                                         </button>
+                                                        {/* Only a period with no pointed day can go (deleteQuinzaine()). */}
+                                                        {q.stats.jours === 0 && (
+                                                            <button type="button" onClick={() => setDeleting(q)} title="Supprimer cette période vide" aria-label="Supprimer cette période vide" className="p-2 text-gray-500 hover:text-red-600">
+                                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                            </button>
+                                                        )}
                                                     </>
+                                                )}
+                                                {q.is_closed && canReopen && (
+                                                    <button type="button" onClick={() => setReopening(q)}
+                                                        className="inline-flex items-center min-h-[40px] px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-xs font-bold hover:bg-gray-100">
+                                                        Rouvrir
+                                                    </button>
                                                 )}
                                             </div>
                                         </div>
@@ -357,6 +406,14 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                             </div>
                         );
                     })}
+
+                    {periodFilter === '' && shownPeriods.length < periods.length && (
+                        <div className="text-center">
+                            <button type="button" onClick={() => setPeriodFilter('toutes')} className="text-sm font-bold text-primary-700 hover:underline">
+                                Voir aussi les {periods.length - shownPeriods.length} période(s) plus ancienne(s)
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -406,7 +463,10 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
             <Modal show={editingQuinzaine !== null} onClose={() => setEditingQuinzaine(null)}>
                 {editingQuinzaine && (
                     <form onSubmit={submitEdit} className="p-8 space-y-5">
-                        <h3 className="text-xl font-bold text-gray-800 border-b pb-4">Modifier — {editingQuinzaine.enterprise?.name}</h3>
+                        <div className="border-b pb-4">
+                            <h3 className="text-xl font-bold text-gray-800">Modifier {periodLabel(editingQuinzaine.start_date)}</h3>
+                            <p className="text-sm text-gray-500 mt-1">Le libellé et les dates s'appliquent à toutes les divisions de la période.</p>
+                        </div>
                         <div>
                             <label className="block text-xs font-black uppercase text-gray-400 mb-1">Libellé</label>
                             <input type="text" className="w-full rounded-lg border-gray-300" value={editForm.data.label} onChange={e => editForm.setData('label', e.target.value)} />
@@ -436,10 +496,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                     <div className="p-8">
                         <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-4">Supprimer la période</h2>
                         <p className="text-gray-600 mb-6">
-                            Supprimer <strong>{nameOf(deleting)}</strong> de <strong>{deleting.enterprise?.name}</strong> ?
-                            {deleting.stats.jours > 0
-                                ? <> Ses <strong className="text-red-600">{deleting.stats.jours} jour(s) pointés ({formatNumber(deleting.stats.net)} DH)</strong> seront supprimés avec elle.</>
-                                : ' Elle ne contient aucun jour pointé.'} Cette action est irréversible.
+                            Supprimer <strong>{nameOf(deleting)}</strong> de <strong>{deleting.enterprise?.name}</strong> ? Elle ne contient aucun jour pointé.
                         </p>
                         <div className="flex justify-end gap-3">
                             <SecondaryButton type="button" onClick={() => setDeleting(null)}>Annuler</SecondaryButton>
@@ -467,15 +524,18 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                     <p>Complétez-les dans la grille avant de clôturer.</p>
                                 </div>
                             ) : (
-                                <p className="text-gray-600 mb-6">
-                                    Clôturer la période pour <strong>{closingPeriod.open.map(q => q.enterprise?.name).join(', ')}</strong> ? Le pointage ne pourra plus être modifié.
-                                </p>
+                                <>
+                                    <p className="text-gray-600 mb-6">
+                                        Clôturer la période pour <strong>{closingPeriod.open.map(q => q.enterprise?.name).join(', ')}</strong> ? Le pointage ne pourra plus être modifié{!canReopen && " : seul l'administrateur peut rouvrir une période"}.
+                                    </p>
+                                    {enCours(closingPeriod) && <AvantFin fin={closingPeriod.end_date} confirme={avantFinConfirme} onChange={setAvantFinConfirme} />}
+                                </>
                             )}
                             <div className="flex justify-end gap-3">
                                 <SecondaryButton type="button" onClick={() => setClosingPeriod(null)}>Annuler</SecondaryButton>
                                 {pending.length === 0 && (
-                                    <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy}
-                                        onClick={() => run('post', route('settings.quinzaine.close-periode', closingPeriod.open[0].id), () => setClosingPeriod(null))}>
+                                    <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy || (enCours(closingPeriod) && !avantFinConfirme)}
+                                        onClick={() => run('post', route('settings.quinzaine.close-periode', closingPeriod.open[0].id), () => setClosingPeriod(null), enCours(closingPeriod) ? { avant_fin: 1 } : {})}>
                                         {busy ? 'Clôture…' : 'Tout clôturer'}
                                     </PrimaryButton>
                                 )}
@@ -495,9 +555,12 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                 Complétez-les dans la grille (« ≡ Répartir » ou ouvrier par ouvrier) avant de clôturer.
                             </p>
                         ) : (
-                            <p className="text-gray-600 mb-6">
-                                Clôturer <strong>{nameOf(closing)}</strong> de <strong>{closing.enterprise?.name}</strong> ? Le pointage ne pourra plus être modifié.
-                            </p>
+                            <>
+                                <p className="text-gray-600 mb-6">
+                                    Clôturer <strong>{nameOf(closing)}</strong> de <strong>{closing.enterprise?.name}</strong> ? Le pointage ne pourra plus être modifié{!canReopen && " : seul l'administrateur peut rouvrir une période"}.
+                                </p>
+                                {enCours(closing) && <AvantFin fin={closing.end_date} confirme={avantFinConfirme} onChange={setAvantFinConfirme} />}
+                            </>
                         )}
                         <div className="flex justify-end gap-3">
                             <SecondaryButton type="button" onClick={() => setClosing(null)}>Annuler</SecondaryButton>
@@ -506,10 +569,28 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                     Ouvrir la grille
                                 </Link>
                             ) : (
-                                <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy} onClick={() => run('post', route('settings.quinzaine.close', closing.id), () => setClosing(null))}>
+                                <PrimaryButton className="!bg-amber-600 hover:!bg-amber-700" disabled={busy || (enCours(closing) && !avantFinConfirme)}
+                                    onClick={() => run('post', route('settings.quinzaine.close', closing.id), () => setClosing(null), enCours(closing) ? { avant_fin: 1 } : {})}>
                                     {busy ? 'Clôture…' : 'Clôturer'}
                                 </PrimaryButton>
                             )}
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            <Modal show={reopening !== null} onClose={() => setReopening(null)}>
+                {reopening && (
+                    <div className="p-8">
+                        <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter mb-4">Rouvrir la période</h2>
+                        <p className="text-gray-600 mb-6">
+                            Rouvrir <strong>{nameOf(reopening)}</strong> de <strong>{reopening.enterprise?.name}</strong> ? Le pointage redevient modifiable, et ses chiffres figés seront recalculés à la prochaine clôture.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <SecondaryButton type="button" onClick={() => setReopening(null)}>Annuler</SecondaryButton>
+                            <PrimaryButton disabled={busy} onClick={() => run('post', route('settings.quinzaine.reopen', reopening.id), () => setReopening(null))}>
+                                {busy ? 'Réouverture…' : 'Rouvrir'}
+                            </PrimaryButton>
                         </div>
                     </div>
                 )}
