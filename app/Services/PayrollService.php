@@ -256,12 +256,16 @@ class PayrollService
      * priced as day-rate ones — so Gains − Retenues didn't match the net actually paid.
      *
      * Day-rate records are re-run through calculate() with their own frozen rate; piece-rate
-     * records (quantity set) are a gain equal to their stored net, with no deduction.
-     * total_net is the sum of the records' stored net, same as the Grid/Excel export.
+     * records (quantity set) are a gain equal to their stored net, with no deduction. The complement
+     * is what each record was paid above that rate, never the worker's current one, so a closed
+     * period's payslip still says what was paid. An unworked paid J.F. is no day of presence: it has
+     * its own line. Without cotisations (a non-declared division) the day shows at its net, with no
+     * CNSS/AMO line. total_net is the sum of the records' stored net, same as the Grid/Excel export.
      */
-    public function payslipBreakdown(string $contractType, $records, $complement, ?float $salaireMensuel = null): array
+    public function payslipBreakdown(string $contractType, $records, ?float $salaireMensuel = null, bool $cotisations = true): array
     {
         $isAvecContrat = $contractType === 'avec_contrat';
+        $avecRetenues = $isAvecContrat && $cotisations;
         $salaire = $records->filter(fn ($r) => ($r->nature ?? 'jour') === 'salaire_mensuel');
         $records = $records->reject(fn ($r) => ($r->nature ?? 'jour') === 'salaire_mensuel');
         // On a fixed monthly salary the days pay nothing (PointageRecordObserver): the salary line is the pay.
@@ -269,40 +273,58 @@ class PayrollService
         $pieceRecords = $records->whereNotNull('quantity');
 
         $base = 0;
+        $days = 0;
+        $jfChomes = 0;
+        $jfChomePay = 0;
         $hsPay = 0;
         $jfPay = 0;
         $jfDays = 0;
+        $complementPay = 0;
         foreach ($dayRecords as $record) {
             $worked = $record->present;
-            $calc = $this->calculate($contractType, $record->rate, $record->hours, $complement, $record->is_jf, null, $worked);
+            $jfTravaille = $isAvecContrat && $record->is_jf && $worked;
+            $calc = $this->calculate($contractType, $record->rate, $record->hours, 0, $record->is_jf, null, $worked);
+            $complement = $isAvecContrat ? ((float) $record->net - $calc['total_net']) / ($jfTravaille ? 2 : 1) : 0;
+            $journee = $avecRetenues ? $calc['brut'] : $calc['sal_net_j'];
 
-            $base += $calc['brut'];
+            if ($worked) {
+                $base += $journee;
+                $days++;
+            } else {
+                $jfChomePay += $journee;
+                $jfChomes++;
+            }
             $hsPay += $calc['hs_pay'];
+            $complementPay += $complement;
             // Mirrors calculate(): only avec_contrat pays a JF bonus, and only on a worked JF day.
-            if ($isAvecContrat && $record->is_jf && $worked) {
-                $jfPay += $calc['sal_net_j'];
+            if ($jfTravaille) {
+                $jfPay += $calc['sal_net_j'] + $complement;
                 $jfDays++;
             }
         }
 
         $dayRate = $dayRecords->last()?->rate;
-        $rateCalc = $dayRate !== null ? $this->calculate($contractType, $dayRate, 1, $complement) : null;
-        $complementPay = $isAvecContrat ? $dayRecords->count() * $complement : 0;
+        $rateCalc = $dayRate !== null ? $this->calculate($contractType, $dayRate, 1, 0) : null;
+        $joursPayes = $days + $jfChomes;
         $piecePay = (float) $pieceRecords->sum('net');
-        $cnss = $isAvecContrat ? $base * self::CNSS_RATE : 0;
-        $amo = $isAvecContrat ? $base * self::AMO_RATE : 0;
+        $assiette = $base + $jfChomePay;
+        $cnss = $avecRetenues ? $assiette * self::CNSS_RATE : 0;
+        $amo = $avecRetenues ? $assiette * self::AMO_RATE : 0;
 
         return [
-            'days' => $dayRecords->count(),
-            'day_rate' => $dayRate,
+            'days' => $days,
+            'day_rate' => $rateCalc ? ($avecRetenues ? $rateCalc['brut'] : $rateCalc['sal_net_j']) : null,
             'base' => $base,
+            'jf_chomes' => $jfChomes,
+            'jf_chome_pay' => $jfChomePay,
             'hs_hours' => (float) $dayRecords->sum('hours'),
             'hs_hourly_rate' => $rateCalc['hs_pay'] ?? 0,
             'hs_pay' => $hsPay,
             'jf_days' => $jfDays,
-            'jf_day_rate' => $rateCalc['sal_net_j'] ?? 0,
+            'jf_day_rate' => $jfDays > 0 ? $jfPay / $jfDays : 0,
             'jf_pay' => $jfPay,
-            'complement' => $isAvecContrat ? $complement : 0,
+            'jours_payes' => $joursPayes,
+            'complement' => $joursPayes > 0 ? $complementPay / $joursPayes : 0,
             'complement_pay' => $complementPay,
             'piece_days' => $pieceRecords->count(),
             'piece_pay' => $piecePay,
@@ -310,7 +332,7 @@ class PayrollService
             'amo' => $amo,
             'salaire_fixe' => (float) $salaire->sum('net'),
             'days_present' => $records->filter(fn ($r) => $r->present ?? true)->count(),
-            'total_gains' => $base + $hsPay + $jfPay + $complementPay + $piecePay + (float) $salaire->sum('net'),
+            'total_gains' => $base + $jfChomePay + $hsPay + $jfPay + $complementPay + $piecePay + (float) $salaire->sum('net'),
             'total_retenues' => $cnss + $amo,
             'total_net' => (float) $records->sum('net') + (float) $salaire->sum('net'),
         ];

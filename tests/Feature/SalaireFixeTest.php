@@ -151,7 +151,7 @@ class SalaireFixeTest extends TestCase
             ->assertInertia(fn ($p) => $p->where("salairesFixes.{$worker->id}", 3500)->has("existingRecords.{$worker->id}", 1));
 
         $records = PointageRecord::where('employee_id', $worker->id)->get();
-        $payslip = app(PayrollService::class)->payslipBreakdown('avec_contrat', $records, 43.75, 3500.0);
+        $payslip = app(PayrollService::class)->payslipBreakdown('avec_contrat', $records, 3500.0);
         $this->assertEquals(3500, $payslip['salaire_fixe']);
         $this->assertEquals(3500, $payslip['total_net']);
         $this->assertEquals(3500, $payslip['total_gains']);

@@ -43,7 +43,7 @@
         </div>
         <div class="info-box" style="margin-left: 2%;">
             <div class="label">Contrat</div>
-            <div class="value uppercase">{{ str_replace('_', ' ', $quinzaine->enterprise->contract_type) }}</div>
+            <div class="value uppercase">{{ $declare ? ucfirst(str_replace('_', ' ', $quinzaine->enterprise->contract_type)) : 'À la tâche' }}</div>
             <div class="label" style="margin-top:8px;">RIB</div>
             <div class="value">{{ $employee->rib ?: 'Paiement Espèces' }}</div>
             <div class="label" style="margin-top:8px;">Banque</div>
@@ -71,8 +71,19 @@
             <tr>
                 <td>Salaire de base (Jours de présence)</td>
                 <td style="text-align: center;">{{ $payslip['days'] }} J</td>
-                <td style="text-align: right;">{{ number_format($payslip['day_rate'], 2) }}</td>
-                <td style="text-align: right;">{{ number_format($payslip['base'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['day_rate'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['base'], 2, ',', ' ') }}</td>
+                <td></td>
+            </tr>
+            @endif
+
+            {{-- An unworked paid J.F.: no day of presence, one day's pay of its own. --}}
+            @if($payslip['jf_chomes'] > 0)
+            <tr>
+                <td>Jour férié payé (non travaillé)</td>
+                <td style="text-align: center;">{{ $payslip['jf_chomes'] }} J</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_chome_pay'] / $payslip['jf_chomes'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_chome_pay'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
@@ -83,7 +94,7 @@
                 <td>Travail à la tâche</td>
                 <td style="text-align: center;">{{ $payslip['piece_days'] }} J</td>
                 <td></td>
-                <td style="text-align: right;">{{ number_format($payslip['piece_pay'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['piece_pay'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
@@ -93,31 +104,33 @@
             <tr>
                 <td>Heures Supplémentaires (H.S)</td>
                 <td style="text-align: center;">{{ $payslip['hs_hours'] }} H</td>
-                <td style="text-align: right;">{{ number_format($payslip['hs_hourly_rate'], 2) }}</td>
-                <td style="text-align: right;">{{ number_format($payslip['hs_pay'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['hs_hourly_rate'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['hs_pay'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
 
-            {{-- 4. Jours Fériés — worked JF days only (an unworked JF day is a normal paid day,
-                 already in the base line), and avec_contrat only, same as calculate(). --}}
+            {{-- 4. Jours Fériés — the bonus of a worked JF day (an unworked one has its own line above),
+                 avec_contrat only, same as calculate(). --}}
             @if($payslip['jf_days'] > 0)
             <tr>
-                <td>Primes Jour Férié (JF)</td>
+                <td>Prime Jour Férié travaillé (JF)</td>
                 <td style="text-align: center;">{{ $payslip['jf_days'] }} J</td>
-                <td style="text-align: right;">{{ number_format($payslip['jf_day_rate'], 2) }}</td>
-                <td style="text-align: right;">{{ number_format($payslip['jf_pay'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_day_rate'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['jf_pay'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
 
             {{-- 5. Complément / Primes — avec_contrat only (payslipBreakdown() zeroes it otherwise). --}}
-            @if($payslip['complement_pay'] > 0)
+            {{-- Under a centime a day it isn't a complement, only the days' net stored to the centime. --}}
+            @if(abs($payslip['complement_pay']) >= 0.005)
+            @php $arrondi = abs($payslip['complement']) < 0.01; @endphp
             <tr>
-                <td>Complément / Prime de rendement</td>
-                <td style="text-align: center;">{{ $payslip['days'] }} J</td>
-                <td style="text-align: right;">{{ number_format($payslip['complement'], 2) }}</td>
-                <td style="text-align: right;">{{ number_format($payslip['complement_pay'], 2) }}</td>
+                <td>{{ $arrondi ? 'Arrondi des centimes' : 'Complément / Prime de rendement' }}</td>
+                <td style="text-align: center;">{{ $arrondi ? '' : $payslip['jours_payes'].' J' }}</td>
+                <td style="text-align: right;">{{ $arrondi ? '' : number_format($payslip['complement'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['complement_pay'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
@@ -128,41 +141,41 @@
                 <td>Salaire mensuel fixe</td>
                 <td style="text-align: center;">{{ $payslip['days_present'] }} J</td>
                 <td></td>
-                <td style="text-align: right;">{{ number_format($payslip['salaire_fixe'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['salaire_fixe'], 2, ',', ' ') }}</td>
                 <td></td>
             </tr>
             @endif
 
-            {{-- 6. Deductions (CNSS / AMO) — together PayrollService::DEDUCTION_RATE of the base. --}}
+            {{-- 6. Deductions (CNSS / AMO) — together PayrollService::DEDUCTION_RATE of the base; none on a non-declared worker. --}}
             @if($payslip['total_retenues'] > 0)
                 <tr>
-                    <td>Cotisation CNSS ({{ number_format(\App\Services\PayrollService::CNSS_RATE * 100, 2) }}%)</td>
+                    <td>Cotisation CNSS ({{ number_format(\App\Services\PayrollService::CNSS_RATE * 100, 2, ',', ' ') }}%)</td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td style="text-align: right;">{{ number_format($payslip['cnss'], 2) }}</td>
+                    <td style="text-align: right;">{{ number_format($payslip['cnss'], 2, ',', ' ') }}</td>
                 </tr>
                 <tr>
-                    <td>Cotisation AMO ({{ number_format(\App\Services\PayrollService::AMO_RATE * 100, 2) }}%)</td>
+                    <td>Cotisation AMO ({{ number_format(\App\Services\PayrollService::AMO_RATE * 100, 2, ',', ' ') }}%)</td>
                     <td></td>
                     <td></td>
                     <td></td>
-                    <td style="text-align: right;">{{ number_format($payslip['amo'], 2) }}</td>
+                    <td style="text-align: right;">{{ number_format($payslip['amo'], 2, ',', ' ') }}</td>
                 </tr>
             @endif
         </tbody>
         <tfoot>
             <tr class="total-row">
                 <td colspan="3" style="text-align: right; text-transform: uppercase;">Total Général</td>
-                <td style="text-align: right;">{{ number_format($payslip['total_gains'], 2) }}</td>
-                <td style="text-align: right;">{{ number_format($payslip['total_retenues'], 2) }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['total_gains'], 2, ',', ' ') }}</td>
+                <td style="text-align: right;">{{ number_format($payslip['total_retenues'], 2, ',', ' ') }}</td>
             </tr>
         </tfoot>
     </table>
 
     <div style="text-align: right; margin-top: 10px;">
         <div class="label">Net à Payer</div>
-        <div class="net-pay">{{ number_format($payslip['total_net'], 2) }} DH</div>
+        <div class="net-pay">{{ number_format($payslip['total_net'], 2, ',', ' ') }} DH</div>
     </div>
 
     <div class="signature">
@@ -171,7 +184,7 @@
     </div>
 
     <div class="footer">
-        Document généré automatiquement par PointageApp - {{ date('d/m/Y H:i') }}
+        Document généré automatiquement par Manafie Agriculture - {{ date('d/m/Y H:i') }}
     </div>
 </body>
 </html>

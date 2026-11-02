@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\HistoriquePaieExport;
+use App\Exports\PointageExport;
 use App\Models\Employee;
+use App\Models\Enterprise;
 use App\Models\Quinzaine;
 use App\Models\PointageRecord;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
+use Maatwebsite\Excel\Facades\Excel;
 
+use App\Services\HistoriquePaieService;
 use App\Services\PayrollService;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -26,9 +30,9 @@ class PayrollController extends Controller
         $quinzaine = Quinzaine::with('enterprise')->findOrFail($quinzaineId);
         $this->assertQuinzaineInScope($request, $quinzaine);
 
-        // Including whoever worked in this quinzaine and has since moved to another division.
-        $employees = Employee::where('enterprise_id', $quinzaine->enterprise_id)
-            ->orWhereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
+        // Whoever has a record in this quinzaine (a worker since moved to another division too):
+        // the sheet to sign lists, numbers and counts them, nobody else of the division.
+        $employees = Employee::whereIn('id', PointageRecord::where('quinzaine_id', $quinzaine->id)->select('employee_id'))
             ->orderBy('full_name')->get();
 
         $records = PointageRecord::where('quinzaine_id', $quinzaineId)
@@ -39,10 +43,11 @@ class PayrollController extends Controller
             'quinzaine' => $quinzaine,
             'employees' => $employees,
             'records' => $records,
-            'payrollService' => $this->payrollService
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->download('Etat_Global_' . ($quinzaine->label ?: 'Pointage') . '.pdf');
+        $cleanLabel = str_replace([' ', '/', '\\'], '_', $quinzaine->label ?: 'Pointage');
+
+        return $pdf->download('Etat_Global_'.$cleanLabel.'.pdf');
     }
 
     public function downloadPayslip(Request $request, $employeeId, $quinzaineId)
@@ -65,11 +70,12 @@ class PayrollController extends Controller
 
         // Every line (and the totals) comes from PayrollService::payslipBreakdown() — see there
         // for what the hand-rolled math that used to live here got wrong.
+        $declare = PointageExport::ficheFor($quinzaine->enterprise) !== PointageExport::FICHE_NON_DECLAREE;
         $payslip = $this->payrollService->payslipBreakdown(
             $quinzaine->enterprise->contract_type,
             $records,
-            $employee->complement,
-            $employee->salaire_mensuel !== null ? (float) $employee->salaire_mensuel : null
+            $employee->salaire_mensuel !== null ? (float) $employee->salaire_mensuel : null,
+            $declare
         );
 
         $pdf = Pdf::loadView('exports.payslip', [
@@ -77,6 +83,7 @@ class PayrollController extends Controller
             'quinzaine' => $quinzaine,
             'records' => $records,
             'payslip' => $payslip,
+            'declare' => $declare,
         ]);
 
         // Same filename sanitizing as PointageController::export() — a label like "1QZ 01/2026"
@@ -86,7 +93,7 @@ class PayrollController extends Controller
         return $pdf->download('Bulletin_' . $employee->matricule . '_' . $cleanLabel . '.pdf');
     }
 
-    public function history(Request $request)
+    public function history(Request $request, HistoriquePaieService $historique)
     {
         $farmId = $this->scopedFarmId($request);
         $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
@@ -95,135 +102,34 @@ class PayrollController extends Controller
             abort(403);
         }
 
-        // Get all quinzaines for this enterprise (or every enterprise in the active farm, if none picked)
-        $quinzaines = Quinzaine::query()
-            ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
-            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
-            ->orderBy('start_date', 'desc')
-            ->get();
-
-        // Each division opens its own Quinzaine row for the same real-world pay period, so without
-        // grouping the matrix would show one duplicate (mostly empty) column per division. Merge
-        // quinzaines that share the same start/end date into a single period column, labeled
-        // "1QZ/2QZ Mois Année" the same way the Pointage export picker and Analytics range picker do.
-        $frenchMonths = [1 => 'Janvier', 2 => 'Février', 3 => 'Mars', 4 => 'Avril', 5 => 'Mai', 6 => 'Juin', 7 => 'Juillet', 8 => 'Août', 9 => 'Septembre', 10 => 'Octobre', 11 => 'Novembre', 12 => 'Décembre'];
-        $periods = $quinzaines
-            ->groupBy(fn($q) => $q->start_date->format('Y-m-d') . '_' . $q->end_date->format('Y-m-d'))
-            ->map(function ($group) use ($frenchMonths) {
-                $first = $group->first();
-                $qzNum = ((int) $first->start_date->format('j')) <= 15 ? '1' : '2';
-                return (object) [
-                    'key' => $first->start_date->format('Y-m-d') . '_' . $first->end_date->format('Y-m-d'),
-                    'label' => $qzNum . 'QZ ' . $frenchMonths[(int) $first->start_date->format('n')] . ' ' . $first->start_date->format('Y'),
-                    'start_date' => $first->start_date,
-                    'end_date' => $first->end_date,
-                    'quinzaine_ids' => $group->pluck('id')->all(),
-                ];
-            })
-            ->sortByDesc('start_date')
-            ->values();
-
-        $quinzaineIdToPeriodKey = [];
-        foreach ($periods as $period) {
-            foreach ($period->quinzaine_ids as $qid) {
-                $quinzaineIdToPeriodKey[$qid] = $period->key;
-            }
-        }
-
-        // Get total net per employee per quinzaine
-        // Use snapshots for closed quinzaines if available
-        $closedQuinzaineIds = Quinzaine::query()
-            ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
-            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
-            ->where('is_closed', true)
-            ->pluck('id');
-            
-        $snapshots = \App\Models\QuinzaineSummary::whereIn('quinzaine_id', $closedQuinzaineIds)->get();
-        
-        $historyData = [];
-        
-        // 1. Fill from snapshots
-        foreach ($snapshots as $snap) {
-            if (isset($snap->summary_data['employee_nets'])) {
-                foreach ($snap->summary_data['employee_nets'] as $empId => $net) {
-                    $historyData[$empId][$snap->quinzaine_id] = [
-                        'employee_id' => $empId,
-                        'quinzaine_id' => $snap->quinzaine_id,
-                        'total_net' => $net
-                    ];
-                }
-            }
-        }
-
-        // 2. Fill for unclosed or unsnapped quinzaines
-        $remainingQuinzaineIds = Quinzaine::query()
-            ->when($enterpriseId, fn($q) => $q->where('enterprise_id', $enterpriseId))
-            ->when(!$enterpriseId && $farmId, fn($q) => $q->whereHas('enterprise', fn($eq) => $eq->where('farm_id', $farmId)))
-            ->whereNotIn('id', $snapshots->pluck('quinzaine_id'))
-            ->pluck('id');
-
-        if ($remainingQuinzaineIds->isNotEmpty()) {
-            $rawHistory = PointageRecord::query()
-                ->whereIn('quinzaine_id', $remainingQuinzaineIds)
-                ->select('employee_id', 'quinzaine_id', DB::raw('SUM(net) as total_net'))
-                ->groupBy('employee_id', 'quinzaine_id')
-                ->get();
-
-            foreach ($rawHistory as $record) {
-                $historyData[$record->employee_id][$record->quinzaine_id] = [
-                    'employee_id' => $record->employee_id,
-                    'quinzaine_id' => $record->quinzaine_id,
-                    'total_net' => $record->total_net
-                ];
-            }
-        }
-
-        // Roll each employee's per-quinzaine totals up to the merged period they belong to
-        // (an employee only ever has data in their own division's quinzaine, so this is a
-        // straight regroup, never a double-count).
-        $periodHistoryData = [];
-        foreach ($historyData as $empId => $perQuinzaine) {
-            foreach ($perQuinzaine as $qid => $data) {
-                $periodKey = $quinzaineIdToPeriodKey[$qid] ?? null;
-                if (!$periodKey) {
-                    continue;
-                }
-                if (!isset($periodHistoryData[$empId][$periodKey])) {
-                    $periodHistoryData[$empId][$periodKey] = [
-                        'employee_id' => $empId,
-                        'period_key' => $periodKey,
-                        'total_net' => 0,
-                    ];
-                }
-                $periodHistoryData[$empId][$periodKey]['total_net'] += $data['total_net'];
-            }
-        }
-
-        // Whoever was paid in these quinzaines — including a worker who has since moved to another
-        // division, whose pay here still belongs to this division — plus the division's own
-        // current workers (shown at 0 if unpaid; the page hides them by default).
-        $employees = Employee::query()
-            ->where(fn ($q) => $q->whereIn('id', array_keys($periodHistoryData))
-                ->orWhere(fn ($q) => $q->when($enterpriseId, fn ($q) => $q->where('enterprise_id', $enterpriseId))
-                    ->when(! $enterpriseId && $farmId, fn ($q) => $q->whereHas('enterprise', fn ($eq) => $eq->where('farm_id', $farmId)))))
-            ->with('enterprise:id,name')
-            ->orderBy('full_name')
-            ->get(['id', 'matricule', 'full_name', 'cin', 'enterprise_id', 'equipe_id', 'is_active']);
-
-        // Convert to indexed arrays for frontend compatibility
-        // Use string keys to force JSON object instead of array
-        $formattedHistory = [];
-        foreach ($periodHistoryData as $empId => $data) {
-            $formattedHistory[(string)$empId] = array_values($data);
-        }
+        $donnees = $historique->calculer($farmId, $enterpriseId);
 
         return Inertia::render('Payroll/History', [
-            'employees' => $employees,
-            'periods' => $periods,
-            'history' => (object)$formattedHistory,
+            'employees' => $donnees['employees'],
+            'periods' => $donnees['periods'],
+            'history' => (object) $donnees['history'],
             'selectedEnterpriseId' => $enterpriseId,
             'allEnterprises' => $this->selectableEnterprises($request),
             'equipes' => \App\Models\Equipe::where('farm_id', $farmId)->orderBy('name')->get(['id', 'name']),
         ]);
+    }
+
+    /** The table as shown: the same division, periods, équipe, search and "with an amount" filter. */
+    public function historyExport(Request $request, HistoriquePaieService $historique)
+    {
+        $farmId = $this->scopedFarmId($request);
+        $enterpriseId = $this->scopedEnterpriseId($request, $farmId);
+
+        $validated = $request->validate([
+            'periode' => 'nullable|string|max:30',
+            'equipe' => 'nullable|string|max:20',
+            'q' => 'nullable|string|max:100',
+            'avec_montant' => 'nullable|boolean',
+        ]);
+
+        return Excel::download(new HistoriquePaieExport(
+            $historique->filtrer($historique->calculer($farmId, $enterpriseId), $validated),
+            $enterpriseId ? Enterprise::find($enterpriseId)?->name : 'Toutes les divisions'
+        ), 'Historique_Paie_'.now()->format('Y-m-d').'.xlsx');
     }
 }

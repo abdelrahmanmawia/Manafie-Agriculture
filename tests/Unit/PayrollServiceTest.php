@@ -157,12 +157,15 @@ class PayrollServiceTest extends TestCase
             (object) ['rate' => 5, 'hours' => 0, 'is_jf' => false, 'operation_id' => 1, 'present' => true, 'quantity' => 40, 'net' => 200], // piece-rate
         ]);
 
-        $p = $this->svc->payslipBreakdown('avec_contrat', $records, 10);
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records);
 
-        $this->assertSame(3, $p['days']);
+        $this->assertSame(2, $p['days']);              // an unworked JF is no day of presence
+        $this->assertSame(1, $p['jf_chomes']);         // it has its own line
         $this->assertSame(1, $p['jf_days']);           // unworked JF is not a bonus day
         $this->assertSame(1, $p['piece_days']);
-        $this->assertEqualsWithDelta(300, $p['base'], 0.001);
+        $this->assertEqualsWithDelta(200, $p['base'], 0.001);
+        $this->assertEqualsWithDelta(100, $p['jf_chome_pay'], 0.001);
+        $this->assertEqualsWithDelta(10, $p['complement'], 0.001);
         $this->assertEqualsWithDelta(200, $p['piece_pay'], 0.001);
         $this->assertEqualsWithDelta(300 * PayrollService::DEDUCTION_RATE, $p['total_retenues'], 0.001);
         $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
@@ -175,11 +178,43 @@ class PayrollServiceTest extends TestCase
             $this->dayRecord('sans_contrat', 90, 10, ['is_jf' => true]),
         ]);
 
-        $p = $this->svc->payslipBreakdown('sans_contrat', $records, 10);
+        $p = $this->svc->payslipBreakdown('sans_contrat', $records);
 
         $this->assertEquals(0, $p['total_retenues']);
         $this->assertEquals(0, $p['jf_pay']);
         $this->assertEquals(0, $p['complement_pay']);
+        $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'], 0.001);
+    }
+
+    public function test_payslip_says_what_the_records_paid_whatever_the_complement_is_today(): void
+    {
+        // Frozen at 10: nothing here asks for the worker's complement of today.
+        $records = collect([
+            $this->dayRecord('avec_contrat', 100, 10),
+            $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true]),
+        ]);
+
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records);
+
+        $this->assertEqualsWithDelta(20, $p['complement_pay'], 0.001);
+        $this->assertEqualsWithDelta(10, $p['complement'], 0.001);
+        $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);
+    }
+
+    public function test_a_non_declared_payslip_has_no_cotisations_and_still_adds_up(): void
+    {
+        $records = collect([
+            $this->dayRecord('avec_contrat', 100, 10, ['hours' => 2]),
+            $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true]),
+            $this->dayRecord('avec_contrat', 100, 10, ['is_jf' => true, 'operation_id' => null]),
+        ]);
+
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records, null, false);
+
+        $this->assertEquals(0, $p['cnss']);
+        $this->assertEquals(0, $p['amo']);
+        $this->assertEquals(0, $p['total_retenues']);
+        $this->assertEqualsWithDelta(100 * (1 - PayrollService::DEDUCTION_RATE), $p['day_rate'], 0.001);
         $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'], 0.001);
     }
 
@@ -192,7 +227,7 @@ class PayrollServiceTest extends TestCase
             $this->dayRecord('avec_contrat', 120, 0),
         ]);
 
-        $p = $this->svc->payslipBreakdown('avec_contrat', $records, 0);
+        $p = $this->svc->payslipBreakdown('avec_contrat', $records);
 
         $this->assertEqualsWithDelta(220, $p['base'], 0.001);
         $this->assertEqualsWithDelta($p['total_net'], $p['total_gains'] - $p['total_retenues'], 0.001);

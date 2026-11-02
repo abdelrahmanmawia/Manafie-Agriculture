@@ -46,10 +46,9 @@
         </thead>
         <tbody>
             @php $grandTotal = 0; @endphp
-            @foreach($employees as $index => $emp)
+            @foreach($employees as $emp)
                 @php
                     $employeeRecords = $records[$emp->id] ?? collect();
-                    if($employeeRecords->isEmpty()) continue;
 
                     // Summed straight from each record's own frozen net — never recomputed via
                     // calculate(), which would use the enterprise's CURRENT rate/employee's
@@ -58,11 +57,10 @@
                     // A closed quinzaine's payslip must show the same numbers today as it did
                     // the day it closed, not drift if the rate changes later.
                     $totalNet = 0;
-                    // Only a day with a real operation counts toward Jours — a worked J.F. day
-                    // still counts (the employee was genuinely present; J.F separately adds the
-                    // holiday bonus on top), it's only an unworked paid holiday (operation_id
-                    // null) that has no presence to count.
-                    $totalJours = $employeeRecords->filter(fn($r) => $r->operation_id !== null)->count();
+                    // Days present, as on the fiche: a worked J.F. day counts (J.F separately adds the
+                    // holiday bonus on top), and so does a day whose operation is still "à préciser";
+                    // only an unworked paid holiday and the fixed-salary row aren't days.
+                    $totalJours = $employeeRecords->where('nature', \App\Models\PointageRecord::NATURE_JOUR)->where('present', true)->count();
                     $totalHs = $employeeRecords->sum('hours');
                     $totalJf = $employeeRecords->where('is_jf', true)->count();
 
@@ -72,14 +70,14 @@
                     $grandTotal += $totalNet;
                 @endphp
                 <tr>
-                    <td class="text-center">{{ $index + 1 }}</td>
+                    <td class="text-center">{{ $loop->iteration }}</td>
                     <td class="text-center font-bold">{{ $emp->matricule }}</td>
                     <td class="font-bold uppercase">{{ $emp->full_name }}</td>
                     <td class="text-center">{{ $emp->cin ?: '-' }}</td>
                     <td class="text-center font-bold">{{ $totalJours }}</td>
                     <td class="text-center">{{ $totalHs > 0 ? $totalHs : '-' }}</td>
                     <td class="text-center">{{ $totalJf > 0 ? $totalJf : '-' }}</td>
-                    <td class="text-right font-bold" style="background-color: #f0fdf4;">{{ number_format($totalNet, 2) }} DH</td>
+                    <td class="text-right font-bold" style="background-color: #f0fdf4;">{{ number_format($totalNet, 2, ',', ' ') }} DH</td>
                     <td class="signature-col"></td>
                 </tr>
             @endforeach
@@ -95,7 +93,7 @@
                 </tr>
                 <tr style="border:none;">
                     <td style="border:none; font-size: 14px;" class="font-bold uppercase">TOTAL NET GLOBAL :</td>
-                    <td style="border:none; font-size: 14px; color: #b91c1c;" class="text-right font-bold">{{ number_format($grandTotal, 2) }} DH</td>
+                    <td style="border:none; font-size: 14px; color: #b91c1c;" class="text-right font-bold">{{ number_format($grandTotal, 2, ',', ' ') }} DH</td>
                 </tr>
             </table>
         </div>

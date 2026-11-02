@@ -114,6 +114,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');
     Route::get('/payroll-history', [PayrollController::class, 'history'])->name('payroll.history');
+    Route::get('/payroll-history/export', [PayrollController::class, 'historyExport'])->name('payroll.history.export');
     Route::get('/payroll/payslip/{employee}/{quinzaine}', [PayrollController::class, 'downloadPayslip'])->name('payroll.payslip');
     Route::get('/payroll/general-payslip/{quinzaine}', [PayrollController::class, 'downloadGeneralPayslip'])->name('payroll.general-payslip');
 
