@@ -196,7 +196,11 @@ class AnalyticsService
             'net_direct' => round(array_sum(array_column($parPeriode, 'net_direct')), 2),
             'marge' => round(array_sum(array_column($parPeriode, 'marge')), 2),
             'transport' => $enterpriseId ? null : round(array_sum(array_column($parPeriode, 'transport')), 2),
-            'total' => round(array_sum(array_column($parPeriode, $enterpriseId ? 'main_oeuvre' : 'total')), 2),
+            // The figures against production and the comparisons keep to this one: external
+            // charges aren't labour, and may not be entered yet for a period.
+            'total' => round(array_sum(array_column($parPeriode, $enterpriseId ? 'main_oeuvre' : 'total_hors_externes')), 2),
+            'externes' => $enterpriseId ? null : round(array_sum(array_column($parPeriode, 'externes')), 2),
+            'total_ferme' => round(array_sum(array_column($parPeriode, $enterpriseId ? 'main_oeuvre' : 'total')), 2),
         ];
     }
 

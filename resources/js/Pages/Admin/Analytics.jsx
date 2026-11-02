@@ -223,7 +223,7 @@ export default function Analytics({
                                 Coût pour la ferme{enterprise ? ` — ${enterprise.name} (hors transport)` : ''}
                                 {periodeEnCours && <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 normal-case tracking-normal">période en cours</span>}
                             </span>
-                            <p className="text-3xl sm:text-4xl font-black leading-none">{cout ? dh(cout.total) : '—'}</p>
+                            <p className="text-3xl sm:text-4xl font-black leading-none">{cout ? dh(cout.total_ferme) : '—'}</p>
                             {ecartCout && <p className="text-xs font-bold text-primary-200 mt-2">{ecartCout.label}</p>}
                             {!cout && <p className="text-xs font-bold text-primary-200 mt-2">Connu par division, pas par bloc.</p>}
                         </div>
@@ -233,6 +233,7 @@ export default function Analytics({
                                 {cout.net_direct > 0 && <div><dt className="text-[11px] font-bold text-primary-200">Net direct</dt><dd className="font-bold">{formatNumber(cout.net_direct)}</dd></div>}
                                 {cout.marge > 0 && <div><dt className="text-[11px] font-bold text-primary-200">Marge 4 %</dt><dd className="font-bold">{formatNumber(cout.marge)}</dd></div>}
                                 {cout.transport !== null && <div><dt className="text-[11px] font-bold text-primary-200">Transport (+ 10 %)</dt><dd className="font-bold">{formatNumber(cout.transport)}</dd></div>}
+                                {cout.externes > 0 && <div><dt className="text-[11px] font-bold text-primary-200">Charges externes</dt><dd className="font-bold">{formatNumber(cout.externes)}</dd></div>}
                             </dl>
                         )}
                     </div>

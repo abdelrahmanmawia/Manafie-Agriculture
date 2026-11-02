@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChargeExterneController;
 use App\Http\Controllers\PointageController;
 use App\Http\Controllers\BadgeController;
 use App\Http\Controllers\PointageScanController;
@@ -110,6 +111,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Offline scan station page (plain Blade + vanilla JS, not Inertia) + one-time token mint
     Route::get('/pointage/scan-station', [PointageScanController::class, 'stationPage'])->name('pointage.scan-station');
     Route::post('/pointage/scan-station/token', [PointageScanController::class, 'issueToken'])->name('pointage.scan-station.token');
+
+    Route::get('/pointage/charges-externes', [ChargeExterneController::class, 'index'])->name('pointage.charges.index');
+    Route::get('/pointage/charges-externes/export', [ChargeExterneController::class, 'export'])->name('pointage.charges.export');
+    Route::post('/pointage/charges-externes', [ChargeExterneController::class, 'store'])->name('pointage.charges.store');
+    Route::put('/pointage/charges-externes/{charge}', [ChargeExterneController::class, 'update'])->name('pointage.charges.update');
+    Route::delete('/pointage/charges-externes/{charge}', [ChargeExterneController::class, 'destroy'])->name('pointage.charges.destroy');
+    Route::get('/pointage/charges-externes/{charge}/document', [ChargeExterneController::class, 'document'])->name('pointage.charges.document');
+    Route::post('/pointage/prestataires', [ChargeExterneController::class, 'storePrestataire'])->name('pointage.prestataires.store');
+    Route::put('/pointage/prestataires/{prestataire}', [ChargeExterneController::class, 'updatePrestataire'])->name('pointage.prestataires.update');
+    Route::delete('/pointage/prestataires/{prestataire}', [ChargeExterneController::class, 'destroyPrestataire'])->name('pointage.prestataires.destroy');
 
     Route::get('/analytics', [AnalyticsController::class, 'index'])->name('analytics.index');
     Route::get('/analytics/export', [AnalyticsController::class, 'export'])->name('analytics.export');

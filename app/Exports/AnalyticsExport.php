@@ -88,8 +88,8 @@ class AnalyticsExport implements WithEvents, WithPreCalculateFormulas, WithTitle
         $cout = $this->d['cout'];
         $this->titre('CHIFFRES CLÉS', 2);
         if ($cout) {
-            $this->ligne(['Coût pour la ferme'.($cout['transport'] === null ? ' (hors transport)' : ''), $cout['total']], true);
-            foreach (['ttc' => 'TTC intérim', 'net_direct' => 'Net direct', 'marge' => 'Marge 4 %', 'transport' => 'Transport (+ 10 %)'] as $key => $label) {
+            $this->ligne(['Coût pour la ferme'.($cout['transport'] === null ? ' (hors transport)' : ''), $cout['total_ferme']], true);
+            foreach (['ttc' => 'TTC intérim', 'net_direct' => 'Net direct', 'marge' => 'Marge 4 %', 'transport' => 'Transport (+ 10 %)', 'externes' => 'Charges externes'] as $key => $label) {
                 if ($cout[$key] !== null) {
                     $this->ligne(['   '.$label, $cout[$key]]);
                 }

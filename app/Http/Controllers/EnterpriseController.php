@@ -255,6 +255,7 @@ class EnterpriseController extends Controller
                 'net_direct' => round($cout->sum('net_direct'), 2),
                 'marge' => round($cout->sum('marge'), 2),
                 'transport' => round($cout->sum('transport'), 2),
+                'externes' => round($cout->sum('externes'), 2),
                 'total' => round($cout->sum('total'), 2),
             ],
             'a_preciser_periode' => (clone $jours($openIds))->whereNull('operation_id')->count(),

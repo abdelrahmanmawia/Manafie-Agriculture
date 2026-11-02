@@ -55,7 +55,7 @@ function Stat({ label, value, tone = 'gray', hint }) {
 
 // What the period costs the farm (CoutFermeService): the interim company's invoice (TTC) for
 // the invoiced divisions, the net (+ 4% when not declared) the direct ones pay, and transport.
-function CoutPeriode({ cout }) {
+function CoutPeriode({ cout, periodeKey, canManage }) {
     const part = (label, value, tone = 'text-gray-800') => (
         <div>
             <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">{label}</div>
@@ -69,10 +69,18 @@ function CoutPeriode({ cout }) {
             {cout.net_direct > 0 && part('Net direct', cout.net_direct, 'text-green-700')}
             {cout.marge > 0 && part('Marge 4 % non déclaré', cout.marge, 'text-amber-700')}
             {part('Transport (+ 10 %)', cout.transport)}
+            {cout.externes > 0 && part('Charges externes', cout.externes)}
             <div className="ml-auto text-right">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-gray-500">Total ferme</div>
                 <div className="text-lg font-black text-gray-900">{formatNumber(cout.total)} DH</div>
             </div>
+            {/* A finished period with nothing entered for a company: the total isn't complete. */}
+            {cout.externes_manquantes?.length > 0 && (
+                <p className="w-full text-sm font-semibold text-amber-800">
+                    {cout.externes_manquantes.map(m => m.service).filter((s, i, all) => all.indexOf(s) === i).join(', ')} : non saisi, pas dans ce total.{' '}
+                    {canManage && <Link href={route('pointage.charges.index', { ajouter: periodeKey, annee: periodeKey.slice(11, 15) })} className="font-bold underline">Saisir</Link>}
+                </p>
+            )}
         </div>
     );
 }
@@ -339,7 +347,7 @@ export default function Quinzaines({ auth, quinzaines, enterprises, coutsPeriode
                                     </div>
                                 </div>
 
-                                {coutsPeriodes?.[period.key] && <CoutPeriode cout={coutsPeriodes[period.key]} />}
+                                {coutsPeriodes?.[period.key] && <CoutPeriode cout={coutsPeriodes[period.key]} periodeKey={period.key} canManage={canManage} />}
 
                                 <div className="divide-y divide-gray-100">
                                     {period.quinzaines.map(q => (

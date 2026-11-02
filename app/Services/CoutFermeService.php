@@ -16,13 +16,15 @@ use Illuminate\Support\Collection;
  * 4% margin; a declared direct one the net it pays its workers — each the LA SOMME of its fiche
  * (PointageExport), a closed one's invoice being the TTC frozen in its snapshot — plus the period's transport (TransportService) with the transporter's 10%,
  * the sheet's TOTAL NET FACTURE, farm-wide for the dates: frozen once every division has closed
- * (transport_snapshots, which hold the net), live before.
+ * (transport_snapshots, which hold the net), live before — plus the charges of the companies under
+ * contract (ChargeExterneService), farm-wide too. They aren't labour: total_hors_externes is the
+ * cost without them, which the Analyses' figures against production keep to.
  */
 class CoutFermeService
 {
     public const MARGE_NON_DECLAREE = 0.04;
 
-    public function __construct(private PayrollService $payroll, private TransportService $transport) {}
+    public function __construct(private PayrollService $payroll, private TransportService $transport, private ChargeExterneService $externes) {}
 
     /**
      * Per quinzaine id: net (what its records pay), ttc (invoiced divisions only, else null),
@@ -60,7 +62,7 @@ class CoutFermeService
 
     /**
      * Per period (key "Y-m-d_Y-m-d", its dates): the divisions' net, TTC and margin added up, the
-     * transport, and the total the farm pays.
+     * transport, the external charges, and the total the farm pays.
      *
      * @param  Collection<int, Quinzaine>  $quinzaines  with their enterprise (a farm's)
      */
@@ -68,6 +70,8 @@ class CoutFermeService
     {
         $parQuinzaine = $this->parQuinzaine($quinzaines);
         $periodes = [];
+        $groupes = $quinzaines->groupBy(fn ($q) => $q->start_date->toDateString().'_'.$q->end_date->toDateString());
+        $externes = $this->externes->parPeriode($farmId, $groupes->keys()->all());
         foreach ($quinzaines->groupBy(fn ($q) => $q->start_date->toDateString().'_'.$q->end_date->toDateString()) as $key => $siblings) {
             $lignes = collect($siblings)->map(fn ($q) => $parQuinzaine[$q->id]);
             $transport = $this->transport($siblings, $farmId);
@@ -79,7 +83,11 @@ class CoutFermeService
                 'marge' => round($lignes->sum('marge'), 2),
                 'main_oeuvre' => $main,
                 'transport' => $transport,
-                'total' => round($main + $transport, 2),
+                'externes' => $externes[$key]['total'],
+                'externes_detail' => $externes[$key]['detail'],
+                'externes_manquantes' => $externes[$key]['manquantes'],
+                'total_hors_externes' => round($main + $transport, 2),
+                'total' => round($main + $transport + $externes[$key]['total'], 2),
             ];
         }
 

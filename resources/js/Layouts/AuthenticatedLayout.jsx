@@ -103,6 +103,8 @@ export default function Authenticated({ user, header, children }) {
                     { label: 'Emplacements', href: 'transport.locations.index', match: 'transport.locations.*', icon: ICONS.fuel },
                 ],
             },
+            // Farm-wide like transport: not for a division-locked user.
+            ...(user.enterprise_id ? [] : [{ label: 'Charges externes', href: 'pointage.charges.index', match: 'pointage.charges.*', icon: ICONS.shield }]),
             { label: t('payroll_history') || 'Historique Salaires', href: 'payroll.history', match: 'payroll.*', icon: ICONS.book },
             { label: t('analyses_stats') || 'Analyses & Statistiques', href: 'analytics.index', match: 'analytics.*', icon: ICONS.chart },
             { label: t('harvests') || 'Récoltes', href: 'harvests.index', match: 'harvests.*', icon: ICONS.sun },
