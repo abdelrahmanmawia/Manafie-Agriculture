@@ -239,6 +239,30 @@ class ChargeExterneTest extends TestCase
         $this->assertEqualsWithDelta(3500, $periode()['externes'], 0.01);
     }
 
+    public function test_a_charge_counts_in_the_period_its_dates_overlap_most(): void
+    {
+        $periode = fn ($cle) => app(CoutFermeService::class)->parPeriode(Quinzaine::with('enterprise')->get(), $this->farm->id)[$cle];
+        Quinzaine::create(['enterprise_id' => $this->division->id, 'label' => 'N', 'start_date' => '2026-11-01', 'end_date' => '2026-11-15', 'is_closed' => false]);
+
+        // A day early, as typed by hand: still the 16–31 period's.
+        $this->charge('2026-10-15', '2026-10-31', 3000);
+        $this->assertEqualsWithDelta(3000, $periode('2026-10-16_2026-10-31')['externes'], 0.01);
+        $this->assertSame([], $periode('2026-10-16_2026-10-31')['externes_manquantes']);
+
+        // Across two periods: the one it covers most, never both.
+        $autre = Prestataire::create(['farm_id' => $this->farm->id, 'name' => 'AUTRE', 'service' => 'Nettoyage', 'mode_facturation' => 'forfait', 'forfait' => 10, 'is_active' => true]);
+        $this->charge('2026-10-28', '2026-11-10', 500, ['prestataire_id' => $autre->id]);
+        $this->assertEqualsWithDelta(500, $periode('2026-11-01_2026-11-15')['externes'], 0.01);
+        $this->assertEqualsWithDelta(3000, $periode('2026-10-16_2026-10-31')['externes'], 0.01);
+
+        // Outside every period: in the year's follow-up, flagged, in no period's cost.
+        $this->charge('2026-03-01', '2026-03-15', 700);
+        $lignes = collect($this->suivi()['lignes'])->keyBy('start_date');
+        $this->assertNull($lignes['2026-03-01']['periode_cout']);
+        $this->assertSame('2026-10-16_2026-10-31', $lignes['2026-10-15']['periode_cout']);
+        $this->assertEqualsWithDelta(4200, $this->suivi()['totaux']['montant'], 0.01);
+    }
+
     public function test_the_analyses_show_it_apart_from_the_figures_against_production(): void
     {
         $this->charge('2026-10-16', '2026-10-31', 3000);

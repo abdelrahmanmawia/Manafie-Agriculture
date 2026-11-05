@@ -388,7 +388,11 @@ export default function ChargesExternes({ auth, suivi, filtres, prestataires, pe
                                 <tbody className="divide-y divide-gray-100">
                                     {suivi.lignes.map(l => (
                                         <tr key={l.id} className="align-top">
-                                            <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">{l.periode}</td>
+                                            <td className="px-4 py-3 font-bold text-gray-900 whitespace-nowrap">
+                                                {l.periode}
+                                                {/* Dates matching no pay period: in the year's total, in no period's cost for the farm. */}
+                                                {!l.periode_cout && <div className="text-[11px] font-bold text-amber-700 whitespace-normal">Hors des périodes : pas dans le coût d'une période</div>}
+                                            </td>
                                             <td className="px-4 py-3"><div className="font-semibold text-gray-800">{l.prestataire}</div><div className="text-xs text-gray-500">{l.service}</div></td>
                                             <td className="px-4 py-3"><Jours jours={l.jours_nuit} attendu={l.attendu_nuit} ecart={l.ecart_nuit} /></td>
                                             <td className="px-4 py-3"><Jours jours={l.jours_jour} attendu={l.attendu_jour} ecart={l.ecart_jour} /></td>

@@ -89,7 +89,9 @@ class ChargeExterneService
 
     /**
      * The charges and the companies missing for these periods, for the farm's cost: [key =>
-     * [total, detail, manquantes]]. A charge counts in a period when it has its exact dates.
+     * [total, detail, manquantes]]. A charge counts, whole, in the farm period its dates overlap
+     * most (periodeDe()): "15/10 – 31/10" is the 16–31 period's, a month goes to the half it
+     * covers most.
      *
      * @param  array<string>  $cles  period keys
      */
@@ -97,11 +99,13 @@ class ChargeExterneService
     {
         $charges = ChargeExterne::with('prestataire:id,name,service')->where('farm_id', $farmId)->get();
         $prestataires = Prestataire::where('farm_id', $farmId)->where('is_active', true)->get();
+        // Against all the farm's periods, so a charge is in one whatever subset is asked for.
+        $periodes = $this->periodes($farmId);
 
         $resultat = [];
         foreach ($cles as $cle) {
             [$debut, $fin] = array_map(fn ($d) => Carbon::parse($d), explode('_', $cle));
-            $lignes = $charges->filter(fn ($c) => $this->cle($c->start_date, $c->end_date) === $cle);
+            $lignes = $charges->filter(fn ($c) => $this->periodeDe($c, $periodes) === $cle);
             $resultat[$cle] = [
                 'total' => round((float) $lignes->sum('montant'), 2),
                 'detail' => $lignes->map(fn ($c) => ['prestataire' => $c->prestataire->name, 'service' => $c->prestataire->service, 'montant' => (float) $c->montant])->values()->all(),
@@ -111,6 +115,23 @@ class ChargeExterneService
         }
 
         return $resultat;
+    }
+
+    /** The key of the farm period a charge's dates overlap most (the later one on a tie), or null when they overlap none. */
+    public function periodeDe(ChargeExterne $charge, Collection $periodes): ?string
+    {
+        $meilleure = null;
+        $jours = 0;
+        foreach ($periodes->sortBy('start_date') as $p) {
+            $debut = max($charge->start_date->toDateString(), $p['start_date']);
+            $fin = min($charge->end_date->toDateString(), $p['end_date']);
+            $commun = $debut <= $fin ? Carbon::parse($debut)->diffInDays(Carbon::parse($fin)) + 1 : 0;
+            if ($commun > 0 && $commun >= $jours) {
+                [$meilleure, $jours] = [$p['key'], $commun];
+            }
+        }
+
+        return $meilleure;
     }
 
     /** The companies under contract with nothing entered for a finished period. */
@@ -147,7 +168,8 @@ class ChargeExterneService
             ->when($service, fn ($q) => $q->whereHas('prestataire', fn ($p) => $p->where('service', $service)));
 
         $charges = $base()->with('prestataire')->whereYear('end_date', $annee)->orderByDesc('end_date')->get();
-        $lignes = $charges->map(fn ($c) => $this->ligne($c))->values();
+        $periodes = $this->periodes($farmId);
+        $lignes = $charges->map(fn ($c) => $this->ligne($c) + ['periode_cout' => $this->periodeDe($c, $periodes)])->values();
 
         $limite = $annee === today()->year ? today()->subYear() : Carbon::create($annee - 1, 12, 31);
         $avant = $base()->whereYear('end_date', $annee - 1)->whereDate('end_date', '<=', $limite->toDateString())->get();
