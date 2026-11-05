@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import { peutSaisir } from '@/utils/acces';
 
 const emptyForm = { transport_company_id: '', code: '', driver_name: '', driver_phone: '', capacity: '', price_per_person: '', fixed_net_per_day: '' };
@@ -23,6 +24,7 @@ const priceLabel = (vehicle) => vehicle.fixed_net_per_day !== null
 // Its daily cost is computed from the pointage: riders who worked that day × price per person
 // (or the optional flat daily rate), see the Grille Transport.
 export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
+    const [confirmer, confirmDialog] = useConfirm();
     // Changed by the pointeur (Pointage saisie); everyone else only consults.
     const canWrite = peutSaisir(auth.user, 'pointage');
     const [editingId, setEditingId] = useState(null);
@@ -70,10 +72,13 @@ export default function Vehicles({ auth, vehicles, companies, equipes = [] }) {
 
     // A deactivated vehicle carries nobody from now on: the équipes riding it keep it, but their
     // members' new days are stamped without transport. Days already pointed keep their cost.
-    const toggleActive = (vehicle) => {
-        if (vehicle.is_active && !window.confirm(`Désactiver le véhicule « ${vehicle.code} » ?
-
-Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouveaux jours des ouvriers de ses équipes (${equipesOf(vehicle).map(e => e.name).join(', ') || 'aucune'}) ne compteront plus dans son transport.`)) return;
+    const toggleActive = async (vehicle) => {
+        if (vehicle.is_active && !(await confirmer({
+            titre: `Désactiver le véhicule « ${vehicle.code} »`,
+            message: `Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouveaux jours des ouvriers de ses équipes (${equipesOf(vehicle).map(e => e.name).join(', ') || 'aucune'}) ne compteront plus dans son transport.`,
+            bouton: 'Désactiver',
+            danger: true,
+        }))) return;
         router.put(route('transport.vehicles.update', vehicle.id), {
             is_active: !vehicle.is_active,
         }, { preserveScroll: true });
@@ -260,6 +265,8 @@ Les jours déjà pointés gardent leur coût. À partir de maintenant, les nouve
                     </div>
                 </div>
             </div>
+
+            {confirmDialog}
         </AuthenticatedLayout>
     );
 }

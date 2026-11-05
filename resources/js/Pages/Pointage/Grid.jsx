@@ -8,6 +8,7 @@ import axios from 'axios';
 import { formatNumber } from '@/Helpers/formatNumber';
 import { peutSaisir } from '@/utils/acces';
 import OperationPicker from '@/Components/OperationPicker';
+import { useConfirm } from '@/Components/ConfirmDialog';
 
 export default function Grid({ auth, quinzaine, employees, operations, blocs, days, existingRecords, ailleurs = {}, mode = 'division', equipeId = null, equipes = [], salairesFixes = {}, divisions = [], autresSites = [] }) {
     const [selectedCell, setSelectedCell] = useState(null);
@@ -69,6 +70,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // { operationId, blocId, label } of a copied cell, or null — while set, clicking any other
     // day cell pastes it directly instead of opening the edit modal (see pasteToCell below).
     const [clipboard, setClipboard] = useState(null);
+    const [confirmer, confirmDialog] = useConfirm();
     const [pasting, setPasting] = useState(false);
     // Excel-style fill-handle: mousedown on a day cell while holding a clipboard starts a drag;
     // dragAnchor is where it started, dragRange is the currently-highlighted set of days (both
@@ -297,13 +299,13 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
     // Pastes the clipboard directly (no modal) onto one cell — active only while a clipboard
     // is held; see the day-cell onClick below. Replaces existing data if present.
-    const pasteToCell = (employeeId, date) => {
+    const pasteToCell = async (employeeId, date) => {
         if (!clipboard || closedFor(employeeId) || pasting || autreDivision(employeeId, date)) return;
         const existingRecord = existingRecords[employeeId]?.[date]?.[0];
 
         // If replacing existing data, confirm first
         if (existingRecord && existingRecord.operation_id && !clipboard.isEmpty) {
-            if (!confirm('Cette journée contient déjà des données. Voulez-vous les remplacer ?')) {
+            if (!(await confirmer({ titre: 'Remplacer la journée', message: 'Cette journée contient déjà des données. Voulez-vous les remplacer ?', bouton: 'Remplacer', danger: true }))) {
                 return;
             }
         }
@@ -328,12 +330,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
 
     // "Coller sur les jours restants" — fills every day this employee has NO record for yet
     // with the clipboard's Operation+Bloc, in one request. If clipboard is empty, clears all days.
-    const pasteRemainingDays = (employeeId) => {
+    const pasteRemainingDays = async (employeeId) => {
         if (!clipboard || closedFor(employeeId) || pasting) return;
 
         if (clipboard.isEmpty) {
             // Clear all days for this employee
-            if (!confirm('Voulez-vous effacer toutes les données de cet ouvrier pour cette période ?')) {
+            if (!(await confirmer({ titre: 'Effacer la période', message: 'Voulez-vous effacer toutes les données de cet ouvrier pour cette période ?', bouton: 'Effacer', danger: true }))) {
                 return;
             }
             const allDays = days.filter(d => existingRecords[employeeId]?.[d]?.[0]);
@@ -360,7 +362,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         if (clipboard.presentOnly) {
             const emptyDays = days.filter(d => !existingRecords[employeeId]?.[d]?.[0] && !autreDivision(employeeId, d));
             if (emptyDays.length === 0) return;
-            if (!confirm(`Marquer cet ouvrier présent (P) sur ses ${emptyDays.length} jour(s) vides ?`)) return;
+            if (!(await confirmer({ titre: 'Marquer présent', message: `Marquer cet ouvrier présent (P) sur ses ${emptyDays.length} jour(s) vides ?`, bouton: 'Marquer présent' }))) return;
             setPasting(true);
             router.post(route('pointage.cell.bulk'), {
                 employee_id: employeeId,
@@ -380,7 +382,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         }
 
         // For full records, fill ALL days (replacing existing ones)
-        if (!confirm('Voulez-vous remplacer toutes les données de cet ouvrier avec cette opération ?')) {
+        if (!(await confirmer({ titre: 'Remplacer toute la période', message: 'Voulez-vous remplacer toutes les données de cet ouvrier avec cette opération ?', bouton: 'Remplacer', danger: true }))) {
             return;
         }
 
@@ -425,7 +427,7 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     // Fires on mouseup anywhere on the grid. A plain click (mousedown+mouseup on the same cell,
     // no drag) leaves dragRange at length 1 — that case is left alone here so the cell's own
     // onClick (pasteToCell) handles it exactly as before, avoiding a double paste.
-    const finishDrag = () => {
+    const finishDrag = async () => {
         if (!dragAnchor) return;
         const range = dragRange;
         setDragAnchor(null);
@@ -438,7 +440,12 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         const message = clipboard.isEmpty
             ? `Voulez-vous effacer les données de ces ${dates.length} jours ?`
             : `Coller "${clipboard.label}" sur ces ${dates.length} jours${hasExisting ? ' (des données existantes seront remplacées)' : ''} ?`;
-        if (!confirm(message)) return;
+        if (!(await confirmer({
+            titre: clipboard.isEmpty ? 'Effacer ces jours' : 'Coller sur ces jours',
+            message,
+            bouton: clipboard.isEmpty ? 'Effacer' : 'Coller',
+            danger: clipboard.isEmpty || hasExisting,
+        }))) return;
 
         setPasting(true);
         router.post(route('pointage.cell.bulk'), {
@@ -501,10 +508,10 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
     };
 
     // "Tous présents": everyone listed (search/filters applied) with nothing that day yet.
-    const markAllPresent = (day) => {
+    const markAllPresent = async (day) => {
         const ids = filteredEmployees.filter(e => !closedFor(e.id) && e.quinzaine_id !== null && !existingRecords[e.id]?.[day]?.[0] && !autreDivision(e.id, day)).map(e => e.id);
         if (!ids.length) return;
-        if (!window.confirm(`Marquer ${ids.length} ouvrier(s) présent(s) le ${day.split('-').reverse().join('/')} ? L'opération restera « à préciser ».`)) return;
+        if (!(await confirmer({ titre: 'Tous présents', message: `Marquer ${ids.length} ouvrier(s) présent(s) le ${day.split('-').reverse().join('/')} ? L'opération restera « à préciser ».`, bouton: 'Marquer présents' }))) return;
         router.post(route('pointage.presence'), { quinzaine_id: quinzaine.id, date: day, employee_ids: ids }, { preserveScroll: true, preserveState: 'errors', onSuccess: fetchSummary });
     };
 
@@ -558,8 +565,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
         }
     };
 
-    const saveAbsent = () => {
-        if (!window.confirm("Marquer cet ouvrier absent ce jour-là ? Le jour sera effacé (il reste dans l'historique).")) return;
+    const saveAbsent = async () => {
+        if (!(await confirmer({ titre: 'Marquer absent', message: "Marquer cet ouvrier absent ce jour-là ? Le jour sera effacé (il reste dans l'historique).", bouton: 'Marquer absent', danger: true }))) return;
         router.post(route('pointage.cell'), { ...data, operation_id: '', bloc_id: '', quantity: '', hours: 0, is_jf: false, present: false }, {
             preserveScroll: true,
             preserveState: 'errors',
@@ -1369,6 +1376,8 @@ export default function Grid({ auth, quinzaine, employees, operations, blocs, da
                     </div>
                 </div>
             </Modal>
+
+            {confirmDialog}
         </AuthenticatedLayout>
     );
 }

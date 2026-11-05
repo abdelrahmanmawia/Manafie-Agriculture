@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
@@ -721,6 +722,7 @@ export default function Index({ auth, manualStockEntries, filters = {}, products
 // A farm_manager/super_admin's own settings for what "Type de Sortie" actually offers on the
 // create/edit forms — everyone else just picks from whatever's listed there.
 function ManageExitTypesModal({ exitTypes, onClose }) {
+    const [confirmer, confirmDialog] = useConfirm();
     const [editingId, setEditingId] = useState(null);
     const [editingLabel, setEditingLabel] = useState('');
     const [deleteError, setDeleteError] = useState('');
@@ -750,8 +752,8 @@ function ManageExitTypesModal({ exitTypes, onClose }) {
         });
     };
 
-    const remove = (exitType) => {
-        if (!window.confirm(`Supprimer le type "${exitType.label}" ?`)) return;
+    const remove = async (exitType) => {
+        if (!(await confirmer({ titre: 'Supprimer le type', message: `Supprimer le type « ${exitType.label} » ?`, bouton: 'Supprimer', danger: true }))) return;
         setDeleteError('');
         router.delete(route('stock.exit-types.destroy', exitType.id), {
             onError: (errs) => setDeleteError(errs.exit_type || 'Suppression impossible.'),
@@ -760,6 +762,7 @@ function ManageExitTypesModal({ exitTypes, onClose }) {
 
     return (
         <div className="p-8">
+            {confirmDialog}
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types de Sortie</h3>
                 <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">

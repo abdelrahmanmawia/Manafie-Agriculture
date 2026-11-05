@@ -1,4 +1,5 @@
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
+import { useConfirm } from '@/Components/ConfirmDialog';
 import { Head, Link, useForm, router } from '@inertiajs/react';
 import { useState } from 'react';
 import Modal from '@/Components/Modal';
@@ -684,6 +685,7 @@ export default function Index({ auth, vehicles, vehicleTypes, equipmentTypes, fu
 // create/edit forms — everyone else just picks from whatever's listed there. Mirrors
 // ManageExitTypesModal in Stock/ManualStockEntries/Index.jsx.
 function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
+    const [confirmer, confirmDialog] = useConfirm();
     const [editingId, setEditingId] = useState(null);
     const [editingLabel, setEditingLabel] = useState('');
     const [deleteError, setDeleteError] = useState('');
@@ -712,8 +714,8 @@ function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
         });
     };
 
-    const remove = (vehicleType) => {
-        if (!window.confirm(`Supprimer le type "${vehicleType.label}" ?`)) return;
+    const remove = async (vehicleType) => {
+        if (!(await confirmer({ titre: 'Supprimer le type', message: `Supprimer le type « ${vehicleType.label} » ?`, bouton: 'Supprimer', danger: true }))) return;
         setDeleteError('');
         router.delete(route('stock.vehicle-types.destroy', vehicleType.id), {
             onError: (errs) => setDeleteError(errs.vehicle_type || 'Suppression impossible.'),
@@ -722,6 +724,7 @@ function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
 
     return (
         <div className="p-8">
+            {confirmDialog}
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types de Véhicule</h3>
                 <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -795,6 +798,7 @@ function ManageVehicleTypesModal({ vehicleTypes, onClose }) {
 
 // Same idea as ManageVehicleTypesModal, for the equipment side's own "Type" list.
 function ManageEquipmentTypesModal({ equipmentTypes, onClose }) {
+    const [confirmer, confirmDialog] = useConfirm();
     const [editingId, setEditingId] = useState(null);
     const [editingLabel, setEditingLabel] = useState('');
     const [deleteError, setDeleteError] = useState('');
@@ -823,8 +827,8 @@ function ManageEquipmentTypesModal({ equipmentTypes, onClose }) {
         });
     };
 
-    const remove = (equipmentType) => {
-        if (!window.confirm(`Supprimer le type "${equipmentType.label}" ?`)) return;
+    const remove = async (equipmentType) => {
+        if (!(await confirmer({ titre: 'Supprimer le type', message: `Supprimer le type « ${equipmentType.label} » ?`, bouton: 'Supprimer', danger: true }))) return;
         setDeleteError('');
         router.delete(route('stock.equipment-types.destroy', equipmentType.id), {
             onError: (errs) => setDeleteError(errs.equipment_type || 'Suppression impossible.'),
@@ -833,6 +837,7 @@ function ManageEquipmentTypesModal({ equipmentTypes, onClose }) {
 
     return (
         <div className="p-8">
+            {confirmDialog}
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Types d'Équipement</h3>
                 <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">

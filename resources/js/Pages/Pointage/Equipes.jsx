@@ -8,6 +8,7 @@ import TextInput from '@/Components/TextInput';
 import InputLabel from '@/Components/InputLabel';
 import InputError from '@/Components/InputError';
 import ToggleSwitch from '@/Components/ToggleSwitch';
+import { useConfirm } from '@/Components/ConfirmDialog';
 
 const emptyForm = { name: '', chef_employee_id: '', transport_vehicle_id: '' };
 
@@ -17,6 +18,7 @@ const emptyForm = { name: '', chef_employee_id: '', transport_vehicle_id: '' };
 // picked per équipe with a checklist (EquipeController::syncMembers()); a worker is in one
 // équipe at a time.
 export default function Equipes({ auth, equipes, employees, vehicles, canManage }) {
+    const [confirmer, confirmDialog] = useConfirm();
     const [editingId, setEditingId] = useState(null);
     const [confirmingDeleteId, setConfirmingDeleteId] = useState(null);
     const [managingMembersId, setManagingMembersId] = useState(null);
@@ -55,8 +57,13 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
 
     // The members follow their équipe (EquipeController::switchMembers()): deactivating it
     // deactivates them, reactivating it brings back exactly those.
-    const toggleActive = (equipe) => {
-        if (equipe.is_active && !window.confirm(`Désactiver l'équipe « ${equipe.name} » ?\n\nSes ouvriers actifs seront désactivés avec elle (ils ne seront plus proposés au pointage). Leurs jours déjà pointés restent. Réactiver l'équipe réactive exactement ces ouvriers-là.`)) return;
+    const toggleActive = async (equipe) => {
+        if (equipe.is_active && !(await confirmer({
+            titre: `Désactiver l'équipe « ${equipe.name} »`,
+            message: "Ses ouvriers actifs seront désactivés avec elle (ils ne seront plus proposés au pointage). Leurs jours déjà pointés restent. Réactiver l'équipe réactive exactement ces ouvriers-là.",
+            bouton: 'Désactiver',
+            danger: true,
+        }))) return;
         router.put(route('equipes.update', equipe.id), { is_active: !equipe.is_active }, { preserveScroll: true });
     };
 
@@ -239,6 +246,8 @@ export default function Equipes({ auth, equipes, employees, vehicles, canManage 
                     </div>
                 </div>
             </div>
+
+            {confirmDialog}
         </AuthenticatedLayout>
     );
 }
